@@ -95,12 +95,11 @@ export function drawBall(ctx, body, ball, track, t) {
 function drawShadow(ctx, ball, track) {
   let x, y, angle, alpha;
   if (ball.onTrack) {
-    const i = Math.min(track.n - 1, Math.round(ball.s / track.step));
-    const nx = track.ty[i], ny = -track.tx[i];
+    const f = ball.frame(), nx = f.nx, ny = f.ny;
     if (ny > 0.2) return; // pas d'ombre au plafond du looping
     x = ball.x - nx * R;
     y = ball.y - ny * R + 2;
-    angle = Math.atan2(track.ty[i], track.tx[i]);
+    angle = Math.atan2(f.ty, f.tx);
     alpha = 0.32;
   } else {
     const gy = groundY(track, ball.x);

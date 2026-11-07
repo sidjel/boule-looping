@@ -71,10 +71,10 @@ export class Effects {
   drawSpeed(ctx, ball) {
     let dx, dy, sp;
     if (ball.onTrack) {
-      const i = Math.min(ball.tr.n - 1, Math.round(ball.s / ball.tr.step));
+      const f = ball.frame();
       sp = Math.abs(ball.v);
-      dx = ball.tr.tx[i] * Math.sign(ball.v);
-      dy = ball.tr.ty[i] * Math.sign(ball.v);
+      dx = f.tx * Math.sign(ball.v);
+      dy = f.ty * Math.sign(ball.v);
     } else {
       sp = Math.hypot(ball.vx, ball.vy);
       dx = ball.vx / (sp || 1);

@@ -8,7 +8,7 @@ import { Input } from './input.js';
 import { Camera } from './camera.js';
 import { Sound } from './audio.js';
 import { setupFullscreen } from './fullscreen.js';
-import { buildInk, makePaper, drawTable, buildSunDisk, drawSun } from './scenery.js';
+import { buildInk, makePaper, drawTable, buildSunDisk, drawSun, drawFork, SIGN } from './scenery.js';
 import { CLOUDS, buildCloud, moveClouds, drawClouds, drawBirds } from './clouds.js';
 import { buildBallBody, drawBall } from './ballArt.js';
 import { Effects } from './effects.js';
@@ -18,6 +18,7 @@ const ctx = canvas.getContext('2d');
 const hint = document.getElementById('consigne');
 const zoomBtn = document.getElementById('zoom');
 const musicBtn = document.getElementById('musique');
+const forkBtn = document.getElementById('aiguillage');
 const track = buildTrack();
 const ball = new Ball(track);
 const input = new Input(canvas);
@@ -37,11 +38,12 @@ function resize() {
   canvas.height = Math.round(innerHeight * dpr);
   cam.resize(canvas.width, canvas.height, dpr);
   // Calques dessinés pour le cadrage le plus zoomé : nets dans les deux vues.
-  const q = Math.min(cam.followScale, 1.25);
+  // Une feuille n'est dessinée que lorsqu'on en approche, et on n'en garde que trois en mémoire.
+  const q = Math.min(cam.followScale, 1);
   if (!art || Math.abs(art.q - q) > 0.05) {
     art = {
       q,
-      ink: Array.from({ length: LEVELS }, (_, k) => buildInk(track, q, k)),
+      ink: new Map(),
       sun: buildSunDisk(SUN.r, q),
       body: buildBallBody(Math.min(cam.followScale * 1.5, 3)),
       clouds: CLOUDS.map((c) => buildCloud(c.seed, c.w, c.h, q)),
@@ -51,7 +53,35 @@ function resize() {
   refreshButtons();
 }
 
+function inkFor(k) {
+  if (!art.ink.has(k)) {
+    art.ink.set(k, buildInk(track, art.q, k));
+    const here = Math.floor(ball.x / SHEET);
+    const keep = (key) => key === k || Math.abs(key - here) <= 1 || (cam.x < (key + 1) * SHEET && cam.x + cam.viewW > key * SHEET);
+    for (const key of [...art.ink.keys()]) if (art.ink.size > 3 && !keep(key)) art.ink.delete(key);
+  }
+  return art.ink.get(k);
+}
+
+/** Prépare la feuille suivante pendant qu'on joue (une à la fois, hors de l'image en cours). */
+let preparing = false;
+function prepareNext() {
+  const k = Math.floor(ball.x / SHEET);
+  for (const n of [k + 1, k - 1, k]) {
+    if (n < 0 || n >= LEVELS || art.ink.has(n) || preparing) continue;
+    preparing = true;
+    setTimeout(() => { inkFor(n); preparing = false; }, 30);
+    return;
+  }
+}
+
+function toggleFork() {
+  track.route = track.route === 'under' ? 'hill' : 'under';
+  refreshButtons();
+}
+
 function refreshButtons() {
+  forkBtn.textContent = track.route === 'under' ? '↘ Chemin : souterrain' : '↗ Chemin : grande bosse';
   zoomBtn.classList.toggle('large', cam.wide);
   zoomBtn.setAttribute('aria-label', cam.wide ? 'Zoomer sur la boule' : 'Voir tout le niveau');
   zoomBtn.title = cam.wide ? 'Zoomer sur la boule (Z)' : 'Voir tout le niveau (Z)';
@@ -89,6 +119,10 @@ function update(dt) {
     input.resetAsked = false;
     ball.respawn();
   }
+  for (const tap of input.takeTaps()) {
+    const wx = cam.x + (tap.x * cam.dpr) / cam.scale, wy = cam.y + (tap.y * cam.dpr) / cam.scale;
+    if (Math.hypot(wx - SIGN.x, wy - (SIGN.y - 40)) < 140) toggleFork();
+  }
   for (const f of input.takeFlicks()) {
     // Même geste, même élan, quel que soit le cadrage.
     const k = f.keyboard ? 1 : cam.dpr / cam.followScale;
@@ -111,7 +145,9 @@ function update(dt) {
   fx.follow(ball, dt);
   fx.update(dt);
   cam.update(dt, ball);
-  sound.update(ball.onTrack ? Math.abs(ball.v) : Math.hypot(ball.vx, ball.vy), ball.onTrack);
+  forkBtn.classList.toggle('visible', cam.x + cam.viewW > 3 * SHEET + 200);
+  prepareNext();
+  sound.update(ball.speed(), ball.onTrack);
 }
 
 function onEvent(e) {
@@ -149,9 +185,10 @@ function render(dt) {
   if (cam.x < SHEET) drawSun(ctx, art.sun, SUN.x, SUN.y, SUN.r, time);
   drawBirds(ctx, time, dt);
   drawClouds(ctx, art.clouds);
-  art.ink.forEach((ink, k) => {
-    if (cam.x < (k + 1) * SHEET && cam.x + cam.viewW > k * SHEET) ctx.drawImage(ink, k * SHEET, 0, SHEET, WORLD.h);
-  });
+  for (let k = 0; k < LEVELS; k++) {
+    if (cam.x < (k + 1) * SHEET && cam.x + cam.viewW > k * SHEET) ctx.drawImage(inkFor(k), k * SHEET, 0, SHEET, WORLD.h);
+  }
+  if (cam.x + cam.viewW > SIGN.x - 100 && cam.x < SIGN.x + 400) drawFork(ctx, track, time);
   ctx.restore();
   drawTable(ctx, cam);
   fx.drawSpeed(ctx, ball);
@@ -164,10 +201,12 @@ function render(dt) {
 document.getElementById('rejouer').addEventListener('click', () => ball.respawn());
 for (const b of document.querySelectorAll('button')) b.addEventListener('pointerdown', (e) => e.stopPropagation());
 zoomBtn.addEventListener('click', toggleZoom);
+forkBtn.addEventListener('click', toggleFork);
 musicBtn.addEventListener('click', toggleMusic);
 addEventListener('keydown', (e) => {
   if (e.key === 'z' || e.key === 'Z') toggleZoom();
   if (e.key === 'm' || e.key === 'M') toggleMusic();
+  if (e.key === 'a' || e.key === 'A') toggleFork();
   sound.unlock();
 });
 // Le son ne peut démarrer qu'après un geste : premier toucher, clic ou touche.

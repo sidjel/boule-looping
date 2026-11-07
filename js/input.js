@@ -13,6 +13,7 @@ export class Input {
     this.el = el;
     this.active = null;
     this.flicks = [];
+    this.taps = [];
     this.trail = [];
     this.keys = new Set();
     this.resetAsked = false;
@@ -57,6 +58,7 @@ export class Input {
     this.active = null;
     // heure de l'événement, pas du traitement : un retard du navigateur ne fausse pas la vitesse
     const now = e.timeStamp || performance.now(), recent = a.samples.filter((p) => now - p.t <= WINDOW_MS);
+    if (a.moved < HOLD_SLOP && now - a.start.t < 300) this.taps.push({ x: a.start.x, y: a.start.y });
     if (recent.length < 2 || a.moved < HOLD_SLOP) return;
     const first = recent[0], last = recent[recent.length - 1];
     const dt = Math.max(16, last.t - first.t) / 1000;
@@ -89,6 +91,10 @@ export class Input {
   holding() {
     const a = this.active;
     return !!a && a.moved < HOLD_SLOP && performance.now() - a.start.t > HOLD_MS;
+  }
+
+  takeTaps() {
+    return this.taps.splice(0);
   }
 
   takeFlicks() {

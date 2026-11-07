@@ -1,75 +1,35 @@
 /**
- * Route du dessin : points relevés sur la photo (repère 2000 × 1433),
- * lissés en spline, puis chemin du centre de la boule (décalé d'un rayon).
- * Le côté « boule » de la route est toujours à gauche du sens de marche,
- * ce qui marche aussi bien sur le sol qu'à l'intérieur du looping.
+ * Géométrie de la route : chaque tronçon (levels.js) est lissé en spline, puis on calcule
+ * le chemin du centre de la boule (décalé d'un rayon). Le côté « boule » de la route est
+ * toujours à gauche du sens de marche, ce qui marche sur le sol comme dans les loopings.
+ * Les tronçons se raccordent bout à bout ; à l'aiguillage, le suivant dépend du chemin choisi.
  */
-export const SHEET = 2000;          // largeur d'une feuille (un niveau)
-export const LEVELS = 2;
-export const WORLD = { w: SHEET * LEVELS, h: 1433 };
+import { WORLD, SHEET, LEVELS, PIECES, LOOP_ZONES, JUMP, PIT, HILL, BRIDGE, FORK } from './levels.js';
+
+export { WORLD, SHEET, LEVELS, PIT, HILL, BRIDGE, FORK };
 export const BALL_R = 30;
 const STEP = 3;
 
-/** Niveau 1 : relevé sur le dessin. */
-const LEVEL1 = [
-  [-14, 500], [25, 498], [60, 497], [88, 498], [108, 520], [130, 590], [158, 680],
-  [190, 772], [228, 858], [268, 937], [306, 1010], [355, 1070], [410, 1115], [470, 1148],
-  [540, 1163], [610, 1161], [665, 1149], [705, 1132], [762, 1104], [832, 1058], [893, 1003],
-  [932, 940], [950, 870], [943, 800], [916, 742], [870, 703], [810, 686], [750, 690],
-  [690, 712], [636, 755], [603, 820], [594, 890], [604, 960], [628, 1030], [665, 1090],
-  [710, 1135], [762, 1157], [822, 1163], [892, 1155], [962, 1134], [1040, 1104], [1112, 1064],
-  [1180, 1010], [1242, 958], [1300, 921], [1350, 908], [1400, 917], [1452, 945], [1512, 995],
-  [1572, 1040], [1642, 1066], [1712, 1071], [1782, 1054], [1852, 1014], [1922, 960], [1976, 905],
-];
-
-/** Le looping du dessin, réduit, pour le niveau 2 (du croisement au croisement). */
-function loopCopy(at, scale) {
-  const a = LEVEL1.findIndex(([x, y]) => x === 705 && y === 1132);
-  const b = LEVEL1.findIndex(([x, y]) => x === 710 && y === 1135);
-  const [ox, oy] = LEVEL1[a];
-  return LEVEL1.slice(a, b + 1).map(([x, y]) => [at[0] + (x - ox) * scale, at[1] + (y - oy) * scale]);
-}
-
-/** Niveau 2, imaginé dans la suite : crête, grande descente, tremplin, fosse, second looping. */
-const LEVEL2 = [
-  [2030, 852], [2085, 808], [2140, 782], [2195, 775], [2250, 790], [2310, 830], [2380, 900],
-  [2450, 985], [2520, 1060], [2590, 1115], [2660, 1140], [2730, 1135], [2790, 1110],
-  [2850, 1065], [2900, 1016], [2940, 978], [2965, 960],                     // tremplin
-  [2988, 968], [3004, 1012], [3018, 1100], [3038, 1198], [3072, 1266], [3120, 1288],
-  [3170, 1274], [3205, 1220], [3226, 1150], [3241, 1082], [3256, 1032],     // fosse
-  [3278, 1006], [3312, 1000], [3362, 1014], [3420, 1048], [3490, 1098], [3560, 1132],
-  [3615, 1146], [3668, 1150],
-  ...loopCopy([3722, 1140], 0.86),
-  [3770, 1160], [3825, 1166], [3890, 1158], [3950, 1126], [4010, 1066], [4070, 996], [4130, 920],
-];
-
-const CTRL = [...LEVEL1, ...LEVEL2];
-export const JUMP = { x0: 2925, x1: 3010 };   // seule la lèvre du tremplin laisse décoller sur une bosse
-export const PIT = { x0: 2965, x1: 3290 };
-
-/** Spline de Catmull-Rom centripète passant par tous les points. */
-function spline(pts, per = 24) {
+/** Spline de Catmull-Rom centripète ; prev/next : voisins fantômes pour raccorder les tronçons. */
+function spline(pts, prev, next, per = 24) {
+  const ext = [prev || pts[0], ...pts, next || pts[pts.length - 1]];
   const out = [];
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+  for (let i = 1; i < ext.length - 2; i++) {
+    const p0 = ext[i - 1], p1 = ext[i], p2 = ext[i + 1], p3 = ext[i + 2];
     const d = (a, b) => Math.max(1e-4, Math.hypot(b[0] - a[0], b[1] - a[1]) ** 0.5);
     const t0 = 0, t1 = t0 + d(p0, p1), t2 = t1 + d(p1, p2), t3 = t2 + d(p2, p3);
     for (let k = 0; k < per; k++) {
       const t = t1 + (t2 - t1) * (k / per);
-      const L = (a, b, ta, tb) => [
-        ((tb - t) * a[0] + (t - ta) * b[0]) / (tb - ta),
-        ((tb - t) * a[1] + (t - ta) * b[1]) / (tb - ta),
-      ];
+      const L = (a, b, ta, tb) => [((tb - t) * a[0] + (t - ta) * b[0]) / (tb - ta), ((tb - t) * a[1] + (t - ta) * b[1]) / (tb - ta)];
       const A1 = L(p0, p1, t0, t1), A2 = L(p1, p2, t1, t2), A3 = L(p2, p3, t2, t3);
-      const B1 = L(A1, A2, t0, t2), B2 = L(A2, A3, t1, t3);
-      out.push(L(B1, B2, t1, t2));
+      out.push(L(L(A1, A2, t0, t2), L(A2, A3, t1, t3), t1, t2));
     }
   }
   out.push(pts[pts.length - 1]);
   return out;
 }
 
-/** Rééchantillonne une ligne brisée à pas constant. */
+/** Rééchantillonne une ligne brisée à pas constant (le dernier point est gardé). */
 function resample(pts, step) {
   const out = [pts[0]];
   let carry = 0;
@@ -83,11 +43,13 @@ function resample(pts, step) {
     }
     carry = len - (pos - step);
   }
+  const last = pts[pts.length - 1], tail = out[out.length - 1];
+  if (Math.hypot(last[0] - tail[0], last[1] - tail[1]) > step * 0.3) out.push(last);
   return out;
 }
 
-/** Tangentes et normales côté boule (normale = gauche du sens de marche). */
-function frames(pts) {
+/** Tangentes ; aux bouts, la direction vient des voisins fantômes pour coller au tronçon voisin. */
+function frames(pts, prevDir, nextDir) {
   const n = pts.length, tx = new Float32Array(n), ty = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
@@ -95,18 +57,25 @@ function frames(pts) {
     tx[i] = (b[0] - a[0]) / l;
     ty[i] = (b[1] - a[1]) / l;
   }
+  if (prevDir) [tx[0], ty[0]] = prevDir;
+  if (nextDir) [tx[n - 1], ty[n - 1]] = nextDir;
   return { tx, ty };
 }
 
-export function buildTrack() {
-  const line = resample(spline(CTRL), STEP);
-  const f0 = frames(line);
-  const offset = line.map((p, i) => [p[0] + BALL_R * f0.ty[i], p[1] - BALL_R * f0.tx[i]]);
-  const c = resample(offset, STEP);
-  const n = c.length, { tx, ty } = frames(c);
-  const x = new Float32Array(n), y = new Float32Array(n), k = new Float32Array(n);
+const dir = (a, b) => {
+  const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  return [(b[0] - a[0]) / l, (b[1] - a[1]) / l];
+};
+
+function buildPiece(name, def) {
+  const { pts, prev, next } = def;
+  const prevDir = prev && dir(prev, pts[0]), nextDir = next && dir(pts[pts.length - 1], next);
+  const line = resample(spline(pts, prev, next), STEP);
+  const f0 = frames(line, prevDir, nextDir);
+  const c = resample(line.map((p, i) => [p[0] + BALL_R * f0.ty[i], p[1] - BALL_R * f0.tx[i]]), STEP);
+  const n = c.length, { tx, ty } = frames(c, prevDir, nextDir);
+  const x = new Float32Array(n), y = new Float32Array(n), k = new Float32Array(n), raw = new Float32Array(n);
   for (let i = 0; i < n; i++) { x[i] = c[i][0]; y[i] = c[i][1]; }
-  const raw = new Float32Array(n);
   for (let i = 1; i < n - 1; i++) {
     const dtx = (tx[i + 1] - tx[i - 1]) / (2 * STEP), dty = (ty[i + 1] - ty[i - 1]) / (2 * STEP);
     raw[i] = dtx * ty[i] - dty * tx[i]; // dT/ds · n, avec n = (ty, -tx)
@@ -116,37 +85,69 @@ export function buildTrack() {
     for (let j = i - 4; j <= i + 4; j++) if (j >= 0 && j < n) { sum += raw[j]; cnt++; }
     k[i] = sum / cnt;
   }
-  const track = { line, x, y, tx, ty, k, n, step: STEP, length: (n - 1) * STEP };
-  track.sMin = indexWhere(track, (i) => x[i] >= BALL_R) * STEP;
-  track.spawnS = indexWhere(track, (i) => x[i] >= 58) * STEP;
-  track.loopTops = [[560, 980], [3540, 3900]].map(([a, b]) => {
+  const jump = new Uint8Array(n);
+  for (let i = 0; i < n; i++) jump[i] = x[i] > JUMP.x0 && x[i] < JUMP.x1 && y[i] < 1010 ? 1 : 0;
+  return { name, line, x, y, tx, ty, k, jump, n, step: STEP, length: (n - 1) * STEP, loopTops: [] };
+}
+
+export function buildTrack() {
+  const p = {};
+  for (const [name, def] of Object.entries(PIECES)) p[name] = buildPiece(name, def);
+  const track = { pieces: Object.values(p), byName: p, route: 'under', lastBranch: p.under };
+  // raccords : à l'aiguillage, le chemin choisi ; en marche arrière depuis la fin, celui d'où l'on vient
+  p.main.next = () => (track.route === 'under' ? p.under : p.hill);
+  p.under.prev = p.hill.prev = () => p.main;
+  p.under.next = p.hill.next = () => p.end;
+  p.end.prev = () => track.lastBranch;
+  for (const [name, a, b] of LOOP_ZONES) {
+    const pc = p[name];
     let top = -1;
-    for (let i = 0; i < n; i++) if (x[i] > a && x[i] < b && (top < 0 || y[i] < y[top])) top = i;
-    return top * STEP;
-  });
-  track.jump = new Uint8Array(n);
-  for (let i = 0; i < n; i++) track.jump[i] = x[i] > JUMP.x0 && x[i] < JUMP.x1 && y[i] < 1010 ? 1 : 0;
-  track.ground = groundProfile(line);
-  track.grid = buildGrid(track);
+    for (let i = 0; i < pc.n; i++) if (pc.x[i] > a && pc.x[i] < b && (top < 0 || pc.y[i] < pc.y[top])) top = i;
+    pc.loopTops.push(top * STEP);
+  }
+  const main = p.main;
+  track.sMin = indexWhere(main, (i) => main.x[i] >= BALL_R) * STEP;
+  track.spawnS = indexWhere(main, (i) => main.x[i] >= 58) * STEP;
+  track.ground = groundProfile(p);
+  track.grid = buildGrid(track.pieces);
   return track;
 }
 
-function indexWhere(tr, fn) {
-  for (let i = 0; i < tr.n; i++) if (fn(i)) return i;
+function indexWhere(pc, fn) {
+  for (let i = 0; i < pc.n; i++) if (fn(i)) return i;
   return 0;
 }
 
-/** Point le plus bas de la route pour chaque x : le sol (le looping est au-dessus). */
-function groundProfile(line) {
-  const g = new Float32Array(WORLD.w + 1).fill(-Infinity);
+/** Trace une ligne dans un profil (max = point le plus bas, min = le plus haut). */
+function rasterize(g, line, pick) {
   for (let i = 1; i < line.length; i++) {
     const [ax, ay] = line[i - 1], [bx, by] = line[i];
     const x0 = Math.ceil(Math.min(ax, bx)), x1 = Math.floor(Math.max(ax, bx));
     for (let x = Math.max(0, x0); x <= Math.min(WORLD.w, x1); x++) {
       const y = bx === ax ? Math.max(ay, by) : ay + ((by - ay) * (x - ax)) / (bx - ax);
-      if (y > g[x]) g[x] = y;
+      g[x] = Number.isNaN(g[x]) ? y : pick(g[x], y);
     }
   }
+}
+
+/**
+ * Le sol (haut de l'herbe) : point le plus bas de la route (les loopings sont au-dessus),
+ * sauf sur la colline de la grande bosse, dont le dessus est le chemin du haut ;
+ * le souterrain passe dessous.
+ */
+function groundProfile(p) {
+  const low = new Float32Array(WORLD.w + 1).fill(NaN), top = new Float32Array(WORLD.w + 1).fill(NaN);
+  for (const name of ['main', 'under', 'end']) rasterize(low, p[name].line, Math.max);
+  rasterize(top, p.hill.line, Math.min);
+  const g = low;
+  for (let x = HILL.x0; x <= HILL.x1; x++) g[x] = top[x];
+  const yA = top[HILL.x1], yB = low[HILL.flank];
+  for (let x = HILL.x1 + 1; x < HILL.flank; x++) {
+    const t = (x - HILL.x1) / (HILL.flank - HILL.x1);
+    g[x] = yA + (yB - yA) * (1 - (1 - t) ** 2);
+  }
+  let last = g.find((v) => !Number.isNaN(v));
+  for (let i = 0; i <= WORLD.w; i++) if (Number.isNaN(g[i])) g[i] = last; else last = g[i];
   return g;
 }
 
@@ -154,37 +155,39 @@ export function groundY(track, px) {
   return track.ground[Math.max(0, Math.min(WORLD.w, Math.round(px)))];
 }
 
-/** Grille de cases de 64 px → segments du chemin, pour les atterrissages. */
+/** Grille de cases de 64 px → segments [tronçon, indice], pour les atterrissages. */
 const CELL = 64;
-function buildGrid(tr) {
+function buildGrid(pieces) {
   const map = new Map();
-  for (let i = 0; i < tr.n - 1; i++) {
-    const x0 = Math.floor(Math.min(tr.x[i], tr.x[i + 1]) / CELL), x1 = Math.floor(Math.max(tr.x[i], tr.x[i + 1]) / CELL);
-    const y0 = Math.floor(Math.min(tr.y[i], tr.y[i + 1]) / CELL), y1 = Math.floor(Math.max(tr.y[i], tr.y[i + 1]) / CELL);
-    for (let cx = x0; cx <= x1; cx++) for (let cy = y0; cy <= y1; cy++) {
-      const key = cx * 1000 + cy;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(i);
+  for (const pc of pieces) {
+    for (let i = 0; i < pc.n - 1; i++) {
+      const x0 = Math.floor(Math.min(pc.x[i], pc.x[i + 1]) / CELL), x1 = Math.floor(Math.max(pc.x[i], pc.x[i + 1]) / CELL);
+      const y0 = Math.floor(Math.min(pc.y[i], pc.y[i + 1]) / CELL), y1 = Math.floor(Math.max(pc.y[i], pc.y[i + 1]) / CELL);
+      for (let cx = x0; cx <= x1; cx++) for (let cy = y0; cy <= y1; cy++) {
+        const key = cx * 1000 + cy;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push([pc, i]);
+      }
     }
   }
   return map;
 }
 
 export function segmentsNear(tr, px, py) {
-  const cx = Math.floor(px / CELL), cy = Math.floor(py / CELL), out = new Set();
+  const cx = Math.floor(px / CELL), cy = Math.floor(py / CELL), out = [];
   for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
     const list = tr.grid.get((cx + dx) * 1000 + cy + dy);
-    if (list) for (const i of list) out.add(i);
+    if (list) out.push(...list);
   }
   return out;
 }
 
-/** Position, tangente et courbure interpolées à l'abscisse s. */
-export function sample(tr, s) {
-  const f = Math.max(0, Math.min(tr.n - 1.0001, s / tr.step)), i = Math.floor(f), u = f - i;
+/** Position, tangente et courbure interpolées à l'abscisse s d'un tronçon. */
+export function sample(pc, s) {
+  const f = Math.max(0, Math.min(pc.n - 1.0001, s / pc.step)), i = Math.floor(f), u = f - i;
   const lerp = (a) => a[i] + (a[i + 1] - a[i]) * u;
-  let tx = lerp(tr.tx), ty = lerp(tr.ty);
+  let tx = lerp(pc.tx), ty = lerp(pc.ty);
   const l = Math.hypot(tx, ty) || 1;
   tx /= l; ty /= l;
-  return { x: lerp(tr.x), y: lerp(tr.y), tx, ty, nx: ty, ny: -tx, k: lerp(tr.k) };
+  return { x: lerp(pc.x), y: lerp(pc.y), tx, ty, nx: ty, ny: -tx, k: lerp(pc.k), i };
 }

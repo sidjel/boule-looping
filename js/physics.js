@@ -2,8 +2,10 @@
  * Physique d'une bille d'acier pleine qui roule sans glisser.
  * - Sur la route : mouvement le long du chemin du centre, accélération 5/7·g·sinθ
  *   (inertie d'une sphère pleine), frottement de roulement proportionnel à la réaction.
- * - La route est une gouttière : la bille reste dedans sur les bosses. Sous un surplomb
- *   (haut du looping), si la réaction devient négative, elle tombe : parabole, rebond, reprise.
+ * - La route est une gouttière : la bille reste dedans sur les bosses (sauf à la lèvre du
+ *   tremplin). Sous un surplomb (haut d'un looping), si la réaction devient négative, elle
+ *   tombe : parabole, rebond, reprise.
+ * - Au bout d'un tronçon, elle passe au suivant (à l'aiguillage : le chemin choisi).
  */
 import { WORLD, SHEET, PIT, BALL_R, sample, segmentsNear } from './track.js';
 
@@ -24,16 +26,25 @@ export class Ball {
   }
 
   respawn() {
-    const p = sample(this.tr, this.tr.spawnS);
-    Object.assign(this, { onTrack: true, jumping: false, s: this.tr.spawnS, v: 0, x: p.x, y: p.y, vx: 0, vy: 0, omega: 0, angle: 0, age: 0 });
+    const pc = this.tr.byName.main, p = sample(pc, this.tr.spawnS);
+    Object.assign(this, { onTrack: true, jumping: false, pc, s: this.tr.spawnS, v: 0, x: p.x, y: p.y, vx: 0, vy: 0, omega: 0, angle: 0, age: 0 });
     this.lastS = this.s;
     this.events.push({ type: 'spawn' });
+  }
+
+  /** Repère de la route sous la boule. */
+  frame() {
+    return sample(this.pc, this.s);
+  }
+
+  speed() {
+    return this.onTrack ? Math.abs(this.v) : Math.hypot(this.vx, this.vy);
   }
 
   /** Coup de doigt : vitesse ajoutée le long de la route (projection du geste). */
   impulse(wx, wy) {
     if (!this.onTrack) return false;
-    const p = sample(this.tr, this.s);
+    const p = this.frame();
     this.v = clamp(this.v + wx * p.tx + wy * p.ty, -V_MAX, V_MAX);
     return true;
   }
@@ -45,7 +56,8 @@ export class Ball {
     if (this.onTrack) this.stepTrack(dt, push);
     else this.stepAir(dt);
     this.angle += this.omega * dt;
-    if (px < SHEET && this.x >= SHEET) this.events.push({ type: 'level', n: 2 });
+    const k0 = Math.floor(px / SHEET), k1 = Math.floor(this.x / SHEET);
+    if (k1 > k0 && k1 > 0 && this.x < WORLD.w) this.events.push({ type: 'level', n: k1 + 1 });
     if (this.x > WORLD.w + BALL_R * 0.5 || this.y > WORLD.h + 400) {
       this.events.push({ type: 'exit' });
       this.respawn();
@@ -53,14 +65,13 @@ export class Ball {
   }
 
   stepTrack(dt, push) {
-    const tr = this.tr, p = sample(tr, this.s);
-    // Réaction de la route (par unité de masse). La route est une gouttière : sur les bosses
-    // la bille y reste ; sous un surplomb (haut du looping), elle tombe si elle est trop lente.
+    const tr = this.tr;
+    let p = this.frame();
+    // Réaction de la route (par unité de masse).
     let N = this.v * this.v * p.k - G * p.ny;
     if (N < 0) {
-      const i = Math.round(this.s / tr.step);
       if (p.ny > 0.15) return this.takeOff(p);
-      if (tr.jump[i] && this.v > 0) {
+      if (this.pc.jump[p.i] && this.v > 0) {
         this.jumping = true;
         return this.takeOff(p);
       }
@@ -78,17 +89,28 @@ export class Ball {
     this.v = clamp(this.v, -V_MAX, V_MAX);
     this.lastS = this.s;
     this.s += this.v * dt;
-    if (this.s < tr.sMin) {
+    if (this.pc === tr.byName.main && this.s < tr.sMin) {
       this.s = tr.sMin;
       if (this.v < -40) this.events.push({ type: 'clink', power: -this.v });
       this.v = -this.v * 0.35;
     }
-    for (const top of tr.loopTops) if (this.lastS < top && this.s >= top) this.events.push({ type: 'loop' });
-    const q = sample(tr, this.s);
-    this.x = q.x;
-    this.y = q.y;
+    for (const top of this.pc.loopTops) if (this.lastS < top && this.s >= top) this.events.push({ type: 'loop' });
+    // passage d'un tronçon à l'autre
+    if (this.s > this.pc.length && this.pc.next) {
+      this.s -= this.pc.length;
+      this.pc = this.pc.next();
+      if (this.pc === tr.byName.under || this.pc === tr.byName.hill) tr.lastBranch = this.pc;
+      this.lastS = 0;
+    } else if (this.s < 0 && this.pc.prev) {
+      this.pc = this.pc.prev();
+      this.s += this.pc.length;
+      this.lastS = this.s;
+    }
+    p = this.frame();
+    this.x = p.x;
+    this.y = p.y;
     this.omega = this.v / BALL_R;
-    if (this.s >= tr.length - 1) this.takeOff(q);
+    if (this.s >= this.pc.length - 0.5 && !this.pc.next && this.v > 0) this.takeOff(p);
   }
 
   takeOff(p) {
@@ -116,19 +138,18 @@ export class Ball {
 
   /** La bille traverse le chemin du centre depuis le côté libre : contact. */
   collide(ox, oy) {
-    const tr = this.tr;
     let best = null;
-    for (const i of segmentsNear(tr, this.x, this.y)) {
-      const ax = tr.x[i], ay = tr.y[i], bx = tr.x[i + 1], by = tr.y[i + 1];
+    for (const [pc, i] of segmentsNear(this.tr, this.x, this.y)) {
+      const ax = pc.x[i], ay = pc.y[i], bx = pc.x[i + 1], by = pc.y[i + 1];
       const hit = segHit(ox, oy, this.x, this.y, ax, ay, bx, by);
       if (!hit) continue;
-      const nx = tr.ty[i], ny = -tr.tx[i];
+      const nx = pc.ty[i], ny = -pc.tx[i];
       if ((ox - ax) * nx + (oy - ay) * ny < 0) continue; // venu de dessous : on ignore
-      if (!best || hit.a < best.a) best = { ...hit, i };
+      if (!best || hit.a < best.a) best = { ...hit, i, pc };
     }
     if (!best) return;
-    const s = (best.i + best.b) * tr.step;
-    const p = sample(tr, s);
+    const s = (best.i + best.b) * best.pc.step;
+    const p = sample(best.pc, s);
     const vn = this.vx * p.nx + this.vy * p.ny, vt = this.vx * p.tx + this.vy * p.ty;
     if (-vn > BOUNCE_MIN) {
       this.vx = vt * p.tx * 0.92 - vn * RESTITUTION * p.nx;
@@ -141,6 +162,7 @@ export class Ball {
       this.onTrack = true;
       if (this.jumping) this.events.push({ type: this.x > PIT.x1 ? 'jump' : 'pit' });
       this.jumping = false;
+      this.pc = best.pc;
       this.s = s;
       this.lastS = s;
       // le patinage au contact égalise rotation et vitesse : un peu d'énergie perdue

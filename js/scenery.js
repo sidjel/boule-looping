@@ -3,7 +3,7 @@
  * et grises, route au graphite soulignée de brun, soleil jaune qui rayonne.
  * Les nuages et les oiseaux sont dans clouds.js.
  */
-import { WORLD, SHEET, LEVELS, PIT, groundY } from './track.js';
+import { WORLD, SHEET, LEVELS, PIT, HILL, BRIDGE, BALL_R, groundY } from './track.js';
 import { rng, range, pencilLine, hatch, grain, noiseTile } from './pencil.js';
 
 const GRAPHITE = '#4b4b4f';
@@ -27,8 +27,14 @@ export function buildInk(track, q, sheet) {
   drawGrass(g, track, x0, x1);
   drawBrown(g, track, x0, x1);
   drawPit(g, track);
-  pencilLine(g, track.line, rng(77), { color: GRAPHITE, width: 5.5, alpha: 0.55, passes: 4, wobble: 1.8 });
-  pencilLine(g, track.line, rng(78), { color: '#2f2f33', width: 2.2, alpha: 0.45, passes: 2, wobble: 1 });
+  if (x1 > HILL.x0) {
+    drawTunnel(g, track);
+    drawBridge(g, track);
+  }
+  track.pieces.forEach((pc, i) => {
+    pencilLine(g, pc.line, rng(77 + i * 10), { color: GRAPHITE, width: 5.5, alpha: 0.55, passes: 4, wobble: 1.8 });
+    pencilLine(g, pc.line, rng(78 + i * 10), { color: '#2f2f33', width: 2.2, alpha: 0.45, passes: 2, wobble: 1 });
+  });
   g.font = `600 44px ${HAND}`;
   g.fillStyle = 'rgba(70,70,76,0.55)';
   g.fillText(`niveau ${sheet + 1}`, sheet * SHEET + (sheet ? 110 : 60), 86);
@@ -58,19 +64,27 @@ function drawGrass(g, track, x0, x1) {
 /** Ombre brune sous la route et quelques zones gribouillées, comme sur la feuille. */
 function drawBrown(g, track, x0, x1) {
   const under = [], rand = rng(99);
-  for (const [px, py] of track.line) {
-    const prev = under[under.length - 1];
-    if (prev && Math.hypot(prev[0] - px, prev[1] - 6 - py) > 8) flush();
-    if (Math.abs(groundY(track, px) - py) < 2) under.push([px, py + 6]);
-    else flush();
+  for (const pc of track.pieces) {
+    for (const [px, py] of pc.line) {
+      if (px < x0 || px > x1) { flush(); continue; }
+      const prev = under[under.length - 1];
+      if (prev && Math.hypot(prev[0] - px, prev[1] - 6 - py) > 8) flush();
+      if (Math.abs(groundY(track, px) - py) < 2) under.push([px, py + 6]);
+      else flush();
+    }
+    flush();
   }
-  flush();
+  // flanc de la colline, sous le début du pont
+  const flank = [];
+  for (let x = HILL.x1; x <= HILL.flank; x += 3) flank.push([x, groundY(track, x)]);
+  pencilLine(g, flank, rand, { color: GRAPHITE, width: 3.5, alpha: 0.45, passes: 3, wobble: 1.4 });
   function flush() {
     if (under.length > 4) pencilLine(g, under, rand, { color: BROWN, width: 7, alpha: 0.32, passes: 3, wobble: 2.4 });
     under.length = 0;
   }
   const patches = [[380, 640, 26], [1110, 1330, 34], [1500, 1700, 70], [1860, 2000, 40],
-    [2300, 2560, 30], [3040, 3220, 50], [3420, 3600, 40], [3880, 4000, 36]];
+    [2300, 2560, 30], [3040, 3220, 50], [3420, 3600, 40], [3880, 4000, 36],
+    [4250, 4420, 30], [5250, 5450, 40], [5700, 5950, 30], [6500, 6800, 60], [7050, 7170, 40], [7500, 7700, 30]];
   patches.forEach(([a, b, depth], k) => {
     for (let i = 0; i < (b - a) / 9; i++) {
       const r = rng(9000 + k * 100 + i);
@@ -93,16 +107,86 @@ function drawPit(g, track) {
   }
 }
 
+/**
+ * Souterrain : le chemin du bas traverse la colline. On creuse un tube dans l'herbe
+ * (plafond à une boule et demie au-dessus de la route), terre hachurée autour.
+ */
+function drawTunnel(g, track) {
+  const pc = track.byName.under, floor = [], ceil = [];
+  const h = BALL_R * 2 + 18;
+  for (let i = 0; i < pc.line.length; i += 2) {
+    const [x, y] = pc.line[i];
+    if (x < HILL.x0 + 40 || x > HILL.flank + 10) continue;
+    const j = Math.min(pc.line.length - 1, i + 2), [bx, by] = pc.line[j];
+    const l = Math.hypot(bx - x, by - y) || 1, nx = (by - y) / l, ny = -(bx - x) / l;
+    floor.push([x, y]);
+    ceil.push([x + nx * h, y + ny * h]);
+  }
+  if (floor.length < 3) return;
+  const tube = [...floor, ...ceil.slice().reverse()];
+  g.save();
+  // seulement sous la surface de la colline : l'entrée devient une ouverture dans la pente
+  g.beginPath();
+  g.moveTo(HILL.x0, WORLD.h + 50);
+  for (let x = HILL.x0; x <= HILL.flank + 40; x += 4) g.lineTo(x, groundY(track, x) + 3);
+  g.lineTo(HILL.flank + 40, WORLD.h + 50);
+  g.closePath();
+  g.clip();
+  g.globalCompositeOperation = 'destination-out';
+  g.beginPath();
+  tube.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+  g.closePath();
+  g.fill();
+  g.globalCompositeOperation = 'source-over';
+  g.fillStyle = 'rgba(120,104,88,0.16)';
+  g.fill();
+  g.restore();
+  const rand = rng(606);
+  // terre hachurée au-dessus du plafond, ombre au fond du tube
+  for (let i = 0; i < ceil.length; i += 3) {
+    const [x, y] = ceil[i];
+    if (y < groundY(track, x) + 8) continue;
+    hatch(g, rand, x - 8, y - range(rand, 4, 26), x + 10, y - 2, { color: BROWN, width: 2, alpha: 0.32, passes: 1, wobble: 0.6 });
+  }
+  const inside = ceil.filter(([x, y]) => y > groundY(track, x) + 4);
+  if (inside.length > 2) pencilLine(g, inside, rand, { color: '#5b4f45', width: 3, alpha: 0.5, passes: 3, wobble: 1.2 });
+}
+
+/** Pont du chemin du haut, au-dessus du grand looping : tablier et piliers. */
+function drawBridge(g, track) {
+  const pc = track.byName.hill, rand = rng(707);
+  const yAt = (x) => {
+    let best = pc.line[0];
+    for (const p of pc.line) if (p[0] >= BRIDGE.x0 - 60 && Math.abs(p[0] - x) < Math.abs(best[0] - x)) best = p;
+    return best[1];
+  };
+  const deck = pc.line.filter(([x]) => x >= BRIDGE.x0 && x <= BRIDGE.x1).map(([x, y]) => [x, y + 16]);
+  pencilLine(g, deck, rand, { color: GRAPHITE, width: 3, alpha: 0.5, passes: 2, wobble: 1 });
+  for (let x = BRIDGE.x0 + 20; x < BRIDGE.x1; x += 34) {
+    hatch(g, rand, x, yAt(x) + 4, x + 14, yAt(x) + 14, { color: GREY, width: 1.6, alpha: 0.4, passes: 1, wobble: 0.4 });
+  }
+  for (const px of BRIDGE.pillars) {
+    const top = yAt(px) + 14, bottom = groundY(track, px) + 6;
+    for (const dx of [-9, 9]) pencilLine(g, [[px + dx, top], [px + dx * 1.3, bottom]], rand, { color: GRAPHITE, width: 3, alpha: 0.5, passes: 2, wobble: 0.8 });
+    for (let y = top + 30; y < bottom - 20; y += 46) {
+      hatch(g, rand, px - 9, y, px + 9, y + 30, { color: GREY, width: 1.6, alpha: 0.45, passes: 1, wobble: 0.4 });
+      hatch(g, rand, px + 9, y, px - 9, y + 30, { color: GREY, width: 1.6, alpha: 0.45, passes: 1, wobble: 0.4 });
+    }
+  }
+}
+
 /** Papier un peu gris de la photo, son grain, un pli sur chaque feuille. */
 export function makePaper() {
   const tile = noiseTile(160, 9, true);
-  const folds = [[1500, 700, 1700, 560, 1300, 0, 900, 1100], [2500, 300, 2700, 160, 2000, -200, 1000, 1700]];
+  const folds = [[1500, 700, 1700, 560, 1300, 0, 900, 1100], [2500, 300, 2700, 160, 2000, -200, 1000, 1700],
+    [5300, 900, 5500, 760, 5000, 300, 1000, 1200], [6400, 200, 6600, 60, 6000, -200, 1000, 1500]];
   return function drawPaper(ctx, w, h, cam) {
     ctx.fillStyle = '#e6e5e1';
     ctx.fillRect(0, 0, w, h);
     ctx.save();
     ctx.setTransform(cam.scale, 0, 0, cam.scale, -cam.x * cam.scale, -cam.y * cam.scale);
     for (let k = 0; k < LEVELS; k++) {
+      if (k * SHEET > cam.x + cam.viewW || (k + 1) * SHEET < cam.x) continue;
       const cx = k * SHEET + 900;
       const light = ctx.createRadialGradient(cx, 600, 100, cx, 600, 1500);
       light.addColorStop(0, 'rgba(255,255,255,0.55)');
@@ -221,6 +305,76 @@ export function drawTable(ctx, cam) {
       ctx.strokeRect(-70, -22, 140, 44);
       ctx.restore();
     }
+  }
+  ctx.restore();
+}
+
+/** Où dessiner le panneau de l'aiguillage (repère du monde). */
+export const SIGN = { x: 6200, y: 1000 };
+
+/**
+ * Aiguillage du niveau 4, dessiné à chaque image : panneau fléché vers le chemin choisi,
+ * petite barrière en travers de l'autre chemin.
+ */
+export function drawFork(ctx, track, t) {
+  const under = track.route === 'under';
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = GRAPHITE;
+  ctx.globalAlpha = 0.85;
+  // poteau et pancarte
+  const { x, y } = SIGN, base = groundY(track, x) + 4;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(x, base);
+  ctx.lineTo(x + 1, y);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(244,240,228,0.95)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.rect(x - 62, y - 66, 124, 62);
+  ctx.fill();
+  ctx.stroke();
+  const wob = Math.sin(t * 4) * 2;
+  ctx.strokeStyle = under ? '#5b4f45' : '#4f7a2b';
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  if (under) {
+    ctx.moveTo(x - 34, y - 52 + wob);
+    ctx.lineTo(x + 26, y - 22 + wob);
+    ctx.moveTo(x + 26, y - 22 + wob);
+    ctx.lineTo(x + 2, y - 20 + wob);
+    ctx.moveTo(x + 26, y - 22 + wob);
+    ctx.lineTo(x + 20, y - 44 + wob);
+  } else {
+    ctx.moveTo(x - 34, y - 18 - wob);
+    ctx.lineTo(x + 26, y - 50 - wob);
+    ctx.moveTo(x + 26, y - 50 - wob);
+    ctx.lineTo(x + 2, y - 52 - wob);
+    ctx.moveTo(x + 26, y - 50 - wob);
+    ctx.lineTo(x + 20, y - 28 - wob);
+  }
+  ctx.stroke();
+  // barrière sur le chemin fermé
+  const pc = under ? track.byName.hill : track.byName.under;
+  const i = Math.min(pc.line.length - 3, under ? 46 : 40), [gx, gy] = pc.line[i], [hx, hy] = pc.line[i + 2];
+  const l = Math.hypot(hx - gx, hy - gy) || 1, nx = (hy - gy) / l, ny = -(hx - gx) / l;
+  ctx.strokeStyle = '#8a3b2e';
+  ctx.globalAlpha = 0.8;
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(gx, gy);
+  ctx.lineTo(gx + nx * 70, gy + ny * 70);
+  ctx.stroke();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#f2ede2';
+  for (let k = 1; k <= 3; k++) {
+    const a = 16 * k;
+    ctx.beginPath();
+    ctx.moveTo(gx + nx * a, gy + ny * a);
+    ctx.lineTo(gx + nx * (a + 7), gy + ny * (a + 7));
+    ctx.stroke();
   }
   ctx.restore();
 }

@@ -101,6 +101,10 @@ export const CLOUDS = [
   { seed: 21, w: 520, h: 200, x: 2350, y: 170, speed: 11 },
   { seed: 34, w: 330, h: 130, x: 3100, y: 380, speed: 7 },
   { seed: 55, w: 450, h: 170, x: 3600, y: 120, speed: 12 },
+  { seed: 89, w: 560, h: 210, x: 4400, y: 200, speed: 10 },
+  { seed: 144, w: 300, h: 120, x: 5300, y: 330, speed: 8 },
+  { seed: 233, w: 480, h: 180, x: 6100, y: 110, speed: 13 },
+  { seed: 377, w: 360, h: 140, x: 7300, y: 150, speed: 9 },
 ];
 
 export function moveClouds(dt) {
@@ -118,7 +122,7 @@ export function drawClouds(ctx, built) {
 }
 
 /** Oiseaux en « v » qui planent et battent des ailes de temps en temps (feuille 2). */
-const BIRDS = [0, 1, 2].map((i) => ({ x: SHEET + 300 + i * 260, y: 260 + i * 45, ph: i * 1.9, speed: 26 + i * 5, size: 34 - i * 4 }));
+const BIRDS = [0, 1, 2, 3, 4, 5].map((i) => ({ x: SHEET + 300 + i * 900, y: 240 + (i % 3) * 45, ph: i * 1.9, speed: 24 + (i % 3) * 5, size: 34 - (i % 3) * 4 }));
 
 export function drawBirds(ctx, t, dt) {
   ctx.save();
