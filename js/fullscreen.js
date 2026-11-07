@@ -23,7 +23,10 @@ export function setupFullscreen(btn, tip, autoAllowed = () => true) {
 
   const enter = () => {
     try {
-      request.call(root, { navigationUI: 'hide' })?.catch?.(() => {});
+      const p = request.call(root, { navigationUI: 'hide' });
+      // en plein écran, Android accepte de bloquer l'écran à l'horizontale
+      const lock = () => screen.orientation?.lock?.('landscape')?.catch?.(() => {});
+      if (p && p.then) p.then(lock, () => {}); else lock();
     } catch { /* refusé par le navigateur */ }
   };
   const refresh = () => btn.classList.toggle('actif', active());

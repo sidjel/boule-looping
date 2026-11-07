@@ -43,37 +43,32 @@
     #zoom:not(.large) .plus { display: none; }
     #plein-ecran .sortir, #plein-ecran.actif .entrer { display: none; }
     #plein-ecran.actif .sortir { display: inline; }
-    #aiguillage {
-      position: absolute; left: max(10px, env(safe-area-inset-left)); bottom: max(10px, env(safe-area-inset-bottom)); transform-origin: left bottom;
-      padding: 10px 14px; border-radius: 22px; border: 2px solid rgba(60,60,66,.55); background: rgba(236,235,231,.85);
-      color: #3d3d42; font-family: inherit; font-weight: 600; font-size: 16px; line-height: 1; cursor: pointer; touch-action: manipulation;
-      opacity: 0; pointer-events: none; transition: opacity .4s;
-    }
-    #aiguillage.visible { opacity: 1; pointer-events: auto; }
-    #aiguillage.pulse { animation: pulse .5s ease-in-out infinite alternate; border-color: #b8862b; background: rgba(255,246,214,.95); }
     @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.08); } }
+    /* boutons d'aiguillage, posés au début de chaque chemin (suivent l'écran) */
+    .chemin {
+      position: absolute; left: 0; top: 0; padding: 7px 13px; border-radius: 18px; border: 2px solid rgba(60,60,66,.5);
+      background: rgba(244,241,230,.85); color: #3d3d42; font-family: inherit; font-weight: 700; font-size: 15px;
+      white-space: nowrap; cursor: pointer; touch-action: manipulation; opacity: .8; transition: opacity .2s, font-size .2s, padding .2s;
+    }
+    .chemin[hidden] { display: none; }
+    .chemin.choisi { border-color: #c8901f; background: #ffe9a8; opacity: 1; box-shadow: 0 0 0 3px rgba(232,180,60,.4); }
+    .chemin.urgent { font-size: 19px; padding: 10px 16px; opacity: 1; }
+    .chemin.urgent.choisi { animation: lueur .45s ease-in-out infinite alternate; }
+    @keyframes lueur { to { box-shadow: 0 0 0 9px rgba(232,180,60,.55); } }
+    /* téléphone tenu en portrait : on demande de le tourner */
+    #tourner {
+      position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 18px; text-align: center;
+      background: #e6e5e1; font-size: 22px; font-weight: 700; color: #3d3d42; z-index: 10; padding: 24px;
+    }
+    #tourner[hidden] { display: none; }
+    #tourner svg { width: 110px; height: 110px; fill: none; stroke: #4b4b4f; stroke-width: 2.4; stroke-linecap: round; animation: tourne 2.2s ease-in-out infinite; }
+    #tourner small { font-size: 16px; font-weight: 600; opacity: .7; }
+    @keyframes tourne { 0%, 25% { transform: rotate(0deg); } 55%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0deg); } }
     #hud {
       position: absolute; left: max(12px, env(safe-area-inset-left)); top: max(14px, env(safe-area-inset-top));
       font-size: 15px; font-weight: 600; color: rgba(61,61,66,.75); pointer-events: none;
     }
     #menu-btn { right: calc(max(10px, env(safe-area-inset-right)) + 112px); top: max(10px, env(safe-area-inset-top)); }
-    /* choix de chemin : deux grands boutons, le temps est presque arrêté */
-    #choix {
-      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; flex-direction: column;
-      align-items: center; gap: 12px; padding: 16px 18px 18px; border-radius: 20px 24px 18px 26px;
-      background: rgba(250,246,232,.93); border: 3px solid #b8862b; box-shadow: 0 0 0 9999px rgba(40,36,30,.18), 0 10px 30px rgba(0,0,0,.2);
-    }
-    #choix.visible { display: flex; animation: arrive .25s ease-out; }
-    @keyframes arrive { from { transform: translate(-50%, -50%) scale(.85); opacity: 0; } }
-    #choix .titre { font-size: clamp(20px, 2.2vw + 10px, 30px); font-weight: 700; color: #6a4b16; }
-    #choix .boutons { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
-    #choix button {
-      min-width: min(38vw, 230px); padding: 16px 18px; border-radius: 18px; border: 3px solid rgba(60,60,66,.55);
-      background: #f4f1e6; font: inherit; font-weight: 700; font-size: clamp(16px, 1.4vw + 10px, 22px); color: #3d3d42; cursor: pointer;
-      touch-action: manipulation;
-    }
-    #choix button.choisi { border-color: #c8901f; background: #ffe9a8; box-shadow: 0 0 0 4px rgba(232,180,60,.45); animation: pulse .5s ease-in-out infinite alternate; }
-    #choix small { font-size: 14px; opacity: .7; }
     /* bonus attrapé : explication en grand */
     #info {
       position: absolute; left: 50%; top: calc(max(10px, env(safe-area-inset-top)) + 64px); transform: translate(-50%, -20px);
@@ -164,15 +159,11 @@
   <button id="rejouer" class="rond" type="button" aria-label="Recommencer le niveau (appui long : niveau 1)" title="Recommencer le niveau (R) · appui long : niveau 1">
     <svg viewBox="0 0 24 24"><path d="M5 12a7 7 0 1 0 2.2-5.1"/><path d="M6.5 3.5v4h4"/></svg>
   </button>
-  <button id="aiguillage" type="button" title="Changer de chemin (A)">↘ Chemin : souterrain</button>
   <div id="hud"></div>
+  <button id="chemin-bas" class="chemin" type="button" hidden>↘ en bas</button>
+  <button id="chemin-haut" class="chemin" type="button" hidden>↗ en haut</button>
   <div id="effets"></div>
   <div id="info"></div>
-  <div id="choix">
-    <div class="titre">Choisis ton chemin !</div>
-    <div class="boutons"><button id="choix-a" type="button">↘ En bas</button><button id="choix-b" type="button">↗ En haut</button></div>
-    <small>Le temps est presque arrêté : touche un chemin.</small>
-  </div>
   <div id="fin" hidden><div class="carte">
     <h2>Arrivée !</h2>
     <p>Parcours terminé en <b id="temps"></b><br><span id="stats"></span></p>
@@ -185,6 +176,10 @@
   </div></div>
   <div id="menu" hidden></div>
   <div id="fps" hidden></div>
+  <div id="tourner" hidden>
+    <svg viewBox="0 0 64 64"><rect x="20" y="6" width="24" height="52" rx="4"/><path d="M28 50h8"/></svg>
+    <div>Tourne ton téléphone à l'horizontale<br><small>La boule et le looping se joue en paysage.</small></div>
+  </div>
   <div id="astuce" hidden></div>
   <script type="module" src="js/main.js"></script>
 </body>

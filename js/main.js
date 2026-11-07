@@ -22,8 +22,9 @@ import { Menu, scoreTable } from './menu.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('jeu'), ctx = canvas.getContext('2d');
-const hint = $('consigne'), zoomBtn = $('zoom'), musicBtn = $('musique'), forkBtn = $('aiguillage');
-const hud = $('hud'), choose = $('choix'), finish = $('fin'), fpsBox = $('fps'), info = $('info'), gauges = $('effets');
+const hint = $('consigne'), zoomBtn = $('zoom'), musicBtn = $('musique');
+const forkLow = $('chemin-bas'), forkHigh = $('chemin-haut'), turn = $('tourner');
+const hud = $('hud'), finish = $('fin'), fpsBox = $('fps'), info = $('info'), gauges = $('effets');
 const track = buildTrack();
 const ball = new Ball(track);
 const input = new Input(canvas);
@@ -35,8 +36,9 @@ const weather = new Weather();
 const drawPaper = makePaper();
 const SUNS = [{ x: 1700, y: 238, r: 108 }, { x: 16 * SHEET + 1550, y: 330, r: 120 }];
 const FLICK_GAIN = 0.3, FLICK_MAX = 9000;
-const SLOW = 0.04;            // devant un aiguillage, le temps passe 25 fois moins vite
-const SLOW_MAX = 7;           // s (réelles) : sans choix, on repart avec le chemin affiché
+const SLOW = 0.12;            // devant un aiguillage, le temps passe 8 fois moins vite : la boule avance encore un peu
+const FORK_ZONE = 750;        // px avant l'embranchement où le temps ralentit
+const FORK_SHOW = 1500;       // px avant l'embranchement où les boutons apparaissent
 const WORDS = { red: 'Boost !', blue: 'Colle !', green: 'Bond !', yellow: 'Plume !' };
 const vibrate = (ms) => save.options.vibrate && navigator.vibrate?.(ms);
 
@@ -111,59 +113,57 @@ function prepare() {
 
 /* ---------- aiguillages : le temps s'arrête presque, deux grands boutons ---------- */
 
-/** L'aiguillage devant la boule (pour le petit bouton en bas à gauche). */
-function forkAhead() {
-  let best = null;
+/**
+ * État des aiguillages, d'après la seule position de la boule (qu'elle roule, vole ou rebondisse) :
+ * - near : l'embranchement est devant, les deux boutons sont posés au début de chaque chemin ;
+ * - le temps ralentit fortement dans les derniers FORK_ZONE px, tant que le joueur n'a pas choisi.
+ */
+let near = null, slow = null;
+function updateForks() {
+  near = null;
+  slow = null;
   for (const f of track.forks) {
-    const d = f.x - ball.x;
-    if (d > -150 && d < 2200 && (!best || d < best.x - ball.x)) best = f;
+    const d = f.x - ball.x, onBranch = ball.pc === f.A || ball.pc === f.B;
+    if (d > FORK_SHOW) { f.decided = false; continue; }
+    if (d < -40 || onBranch) continue;
+    near = f;
+    const forward = ball.onTrack ? ball.v : ball.vx;
+    if (!f.decided && d > 0 && d < FORK_ZONE && forward > 30) slow = f;
   }
-  return best;
+  return slow;
 }
 
-/** Aiguillage à choisir maintenant : la boule arrive dessus, et le joueur n'a pas encore choisi. */
-let slow = null, slowFor = 0;
-function forkToChoose(realDt) {
-  for (const f of track.forks) if (ball.pc !== f.seg) f.decided = false;
-  const f = track.forks.find((g) => {
-    const d = g.x - ball.x;
-    return !g.decided && ball.onTrack && ball.pc === g.seg && d > 0 && d < 1100 && ball.v > 40;
-  });
-  if (f !== slow) {
-    slow = f || null;
-    slowFor = 0;
-    if (slow) {
-      $('choix-a').textContent = slow.labels[0];
-      $('choix-b').textContent = slow.labels[1];
-      sound.clink(500);
-    }
-  }
-  if (slow) {
-    slowFor += realDt;
-    if (slowFor > SLOW_MAX) slow.decided = true;
-    $('choix-a').classList.toggle('choisi', slow.route === 'a');
-    $('choix-b').classList.toggle('choisi', slow.route === 'b');
-  }
-  return slow && !slow.decided ? slow : null;
-}
-
-function pick(route) {
-  const f = slow || forkAhead();
+function pick(route, f = near) {
   if (!f) return;
   f.route = route;
   f.decided = true;
-  refreshButtons();
+  sound.clink(700);
+  vibrate(12);
 }
 
-function toggleFork(f = forkAhead()) {
+/** Les deux boutons suivent l'écran, posés au début du chemin du bas et du chemin du haut. */
+function placeForkButtons() {
+  for (const [btn, side] of [[forkLow, 'a'], [forkHigh, 'b']]) {
+    if (!near || menu.isOpen) { btn.hidden = true; continue; }
+    const pc = side === 'a' ? near.A : near.B, i = Math.min(pc.line.length - 1, side === 'a' ? 70 : 85);
+    const [wx, wy] = pc.line[i];
+    const sx = ((wx - cam.x) * cam.scale) / cam.dpr, sy = ((wy - cam.y) * cam.scale) / cam.dpr + (side === 'a' ? 52 : -58);
+    btn.hidden = false;
+    btn.style.transform = `translate(${Math.round(sx)}px, ${Math.round(sy)}px) translate(-50%, -50%)`;
+    const label = near.labels[side === 'a' ? 0 : 1].split(':').pop().trim();
+    const text = `${side === 'a' ? '↘' : '↗'} ${label}`;
+    if (btn.textContent !== text) btn.textContent = text;
+    btn.classList.toggle('choisi', near.route === side);
+    btn.classList.toggle('urgent', !!slow);
+  }
+}
+
+function toggleFork(f = near) {
   if (!f) return;
-  f.route = f.route === 'a' ? 'b' : 'a';
-  refreshButtons();
+  pick(f.route === 'a' ? 'b' : 'a', f);
 }
 
 function refreshButtons() {
-  const f = forkAhead();
-  if (f) forkBtn.textContent = f.labels[f.route === 'a' ? 0 : 1];
   zoomBtn.classList.toggle('large', cam.wide);
   zoomBtn.setAttribute('aria-label', cam.wide ? 'Zoomer sur la boule' : 'Voir tout le niveau');
   zoomBtn.title = cam.wide ? 'Zoomer sur la boule (Z)' : 'Voir tout le niveau (Z)';
@@ -209,13 +209,20 @@ function restart(fromStart = false) {
   }
 }
 
+// sur téléphone, le jeu se joue à l'horizontale : en portrait, il attend qu'on tourne l'écran
+const phone = matchMedia('(pointer: coarse)').matches;
+const portrait = () => phone && innerHeight > innerWidth;
+
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   time += dt;
-  if (!menu.isOpen) update(dt);
+  const paused = menu.isOpen || portrait();
+  turn.hidden = !portrait();
+  if (!paused) update(dt);
   else cam.update(dt, ball);
-  render(menu.isOpen ? 0 : dt * timeScale);
+  render(paused ? 0 : dt * timeScale);
+  placeForkButtons();
   meter(dt);
   requestAnimationFrame(frame);
 }
@@ -225,10 +232,10 @@ function update(realDt) {
     input.resetAsked = false;
     restart();
   }
-  const choosing = forkToChoose(realDt);
-  timeScale += ((choosing ? SLOW : 1) - timeScale) * Math.min(1, realDt * 8);
-  choose.classList.toggle('visible', !!choosing);
-  forkBtn.classList.toggle('pulse', !!choosing);
+  const wasSlow = !!slow, choosing = updateForks();
+  cam.focus = near && near.x - ball.x < FORK_ZONE + 150 ? near.x : null;
+  if (!!choosing !== wasSlow) sound.slow(!!choosing);
+  timeScale += ((choosing ? SLOW : 1) - timeScale) * Math.min(1, realDt * 6);
   const dt = realDt * timeScale;
   // toucher bref (ou ↑) : saut
   const taps = input.takeTaps();
@@ -278,7 +285,6 @@ function update(realDt) {
   fx.follow(ball, dt);
   fx.update(dt);
   cam.update(realDt, ball);
-  forkBtn.classList.toggle('visible', !!forkAhead() && !choosing);
   if (time % 0.25 < realDt) refreshButtons();
   if (time - lastSave > 5 && run.running) { lastSave = time; saveProgress(); }
   prepare();
@@ -376,7 +382,7 @@ function render(dt) {
   for (let k = Math.max(0, Math.floor(x0 / SHEET)); k <= Math.min(SHEETS - 1, Math.floor(x1 / SHEET)); k++) {
     ctx.drawImage(inkFor(k), k * SHEET, 0, SHEET, WORLD.h);
   }
-  drawForks(ctx, track, time, x0, x1, slow && !slow.decided ? 1 : 0);
+  drawForks(ctx, track, time, x0, x1, slow ? 1 : 0);
   ctx.restore();
   drawTable(ctx, cam);
   bonuses.draw(ctx, time, x0, x1, save.options.labels);
@@ -385,6 +391,18 @@ function render(dt) {
   drawBall(ctx, art.body, ball, track, time);
   fx.draw(ctx);
   weather.draw(ctx);
+  // ralenti : écran légèrement bleuté, bords assombris
+  const k = Math.max(0, Math.min(1, (1 - timeScale) / (1 - SLOW)));
+  if (k > 0.01) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = `rgba(70,95,150,${0.13 * k})`;
+    ctx.fillRect(0, 0, W, H);
+    const v = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+    v.addColorStop(0, 'rgba(30,35,60,0)');
+    v.addColorStop(1, `rgba(30,35,60,${0.35 * k})`);
+    ctx.fillStyle = v;
+    ctx.fillRect(0, 0, W, H);
+  }
   ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
   fx.drawTrail(ctx, input.liveTrail(), input.holding() ? input.active.last : null);
 }
@@ -449,9 +467,8 @@ replay.addEventListener('click', () => { if (!longPress) restart(); });
 for (const b of document.querySelectorAll('button')) b.addEventListener('pointerdown', (e) => e.stopPropagation());
 zoomBtn.addEventListener('click', toggleZoom);
 musicBtn.addEventListener('click', toggleMusic);
-forkBtn.addEventListener('click', () => toggleFork());
-$('choix-a').addEventListener('click', () => pick('a'));
-$('choix-b').addEventListener('click', () => pick('b'));
+forkLow.addEventListener('click', () => pick('a'));
+forkHigh.addEventListener('click', () => pick('b'));
 $('menu-btn').addEventListener('click', openMenu);
 $('enregistrer').addEventListener('click', recordScore);
 $('nom').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') recordScore(); });
@@ -463,8 +480,9 @@ addEventListener('keydown', (e) => {
   if (menu.isOpen) return;
   if (k === 'z') toggleZoom();
   if (k === 'm') toggleMusic();
-  if (k === 'a') (slow && !slow.decided ? pick(slow.route === 'a' ? 'b' : 'a') : toggleFork());
-  if (k === 'enter' && slow && !slow.decided) pick(slow.route);
+  if (k === 'a') toggleFork();
+  if (k === 'arrowdown' || k === 's') pick('a');
+  if (k === 'enter' && slow) pick(slow.route);
   if (k === 'f') { meterOn = !meterOn; fpsBox.hidden = !meterOn; }
   sound.unlock();
 });

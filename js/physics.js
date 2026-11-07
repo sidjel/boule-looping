@@ -242,6 +242,8 @@ export class Ball {
       if (!hit) continue;
       const nx = pc.ty[i], ny = -pc.tx[i];
       if ((ox - ax) * nx + (oy - ay) * ny < 0) continue; // venu de dessous : on ignore
+      // près d'un embranchement, une boule qui retombe atterrit sur le chemin choisi
+      if (pc.fork && pc !== (pc.fork.route === 'a' ? pc.fork.A : pc.fork.B) && ax < pc.fork.x + 350) continue;
       if (!best || hit.a < best.a) best = { ...hit, i, pc };
     }
     if (!best) return;

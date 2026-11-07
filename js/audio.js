@@ -54,7 +54,11 @@ export class Sound {
     // sortie générale ← bruitages (master) + musique (musicBus) : deux volumes réglables
     this.out = ac.createGain();
     this.out.gain.value = 0.9;
-    this.out.connect(ac.destination);
+    // filtre de sortie : étouffe tout pendant le ralenti des aiguillages
+    this.muffle = ac.createBiquadFilter();
+    this.muffle.type = 'lowpass';
+    this.muffle.frequency.value = 18000;
+    this.out.connect(this.muffle).connect(ac.destination);
     this.master = ac.createGain();
     this.master.gain.value = this.sfxLevel;
     this.master.connect(this.out);
@@ -260,6 +264,38 @@ export class Sound {
     o.start(t);
     o.stop(t + 0.6);
     this.bell([hz(93), hz(93) * 2.76], [0.6, 0.3], 0.035, 0.3, true);
+  }
+
+  /**
+   * Ralenti : « wooo » qui descend et son étouffé en entrant ; petit souffle qui remonte en sortant.
+   * @param {boolean} on
+   */
+  slow(on) {
+    if (!this.master) return;
+    const ac = this.ac, t = ac.currentTime;
+    this.muffle.frequency.cancelScheduledValues(t);
+    this.muffle.frequency.setTargetAtTime(on ? 700 : 18000, t, on ? 0.12 : 0.25);
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(on ? 520 : 140, t);
+    o.frequency.exponentialRampToValueAtTime(on ? 90 : 480, t + (on ? 0.7 : 0.35));
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(on ? 0.11 : 0.06, t + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + (on ? 0.8 : 0.4));
+    o.connect(g).connect(this.out);
+    o.start(t);
+    o.stop(t + 0.85);
+    const src = ac.createBufferSource(), band = ac.createBiquadFilter(), ng = ac.createGain();
+    src.buffer = this.noise;
+    band.type = 'bandpass';
+    band.Q.value = 1.2;
+    band.frequency.setValueAtTime(on ? 2400 : 300, t);
+    band.frequency.exponentialRampToValueAtTime(on ? 200 : 2600, t + (on ? 0.7 : 0.35));
+    ng.gain.setValueAtTime(on ? 0.09 : 0.06, t);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + (on ? 0.75 : 0.4));
+    src.connect(band).connect(ng).connect(this.out);
+    src.start(t, Math.random());
+    src.stop(t + 0.8);
   }
 
   /** Son de chaque bonus. */

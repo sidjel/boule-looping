@@ -60,7 +60,7 @@ export class Menu {
         <li><b>Glisser puis lâcher</b> : lance la boule. Plus le doigt va vite, plus elle part vite.</li>
         <li><b>Toucher brièvement l'écran</b> : la boule saute (si elle touche la route).</li>
         <li><b>Doigt posé sans bouger</b> : la boule roule doucement vers le doigt.</li>
-        <li><b>Aiguillage</b> : le temps s'arrête presque ; choisis ton chemin avec les grands boutons.</li>
+        <li><b>Aiguillage</b> : à l'approche, le temps ralentit fortement ; touche le bouton posé au début du chemin que tu veux (en haut ou en bas).</li>
         <li><b>↺</b> : recommencer le niveau ; appui long : niveau 1. <b>Loupe</b> : vue d'ensemble ou zoom.</li>
         <li><b>Au clavier</b> : ← → pousser, Espace lancer, ↑ sauter, R recommencer, Z zoom, M musique, Échap menu.</li></ul>
         <h3>Les bonus</h3><ul class="bonus">${Object.entries(BONUS_INFO).map(([c, b]) => `<li><img src="images/boule-${c}.png" alt=""><span><b>${b.title}</b><br>${b.text}</span></li>`).join('')}</ul>

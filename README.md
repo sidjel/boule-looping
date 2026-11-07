@@ -17,8 +17,9 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
 rouge = élan · bleue = la boule colle à la route 6 s (elle ne tombe plus des loopings) ·
 verte = bond · jaune = plume (gravité réduite 6 s).
 
-**Aiguillages** (un par saison) : à l'approche, le temps s'arrête presque et deux grands boutons
-proposent les chemins.
+**Aiguillages** (un par saison) : à l'approche, le temps ralentit fortement (la boule avance encore
+un peu), l'écran bleuit, le son s'étouffe ; deux boutons posés au début de chaque chemin permettent
+de choisir. Sur téléphone, le jeu se joue à l'horizontale.
 
 **Menu** : continuer la partie sauvegardée, nouvelle partie, comment jouer, scores, options
 (volumes, vibrations, plein écran, vue de départ, noms des bonus), crédits. À l'arrivée, le temps
@@ -37,7 +38,7 @@ tout est fabriqué dans le navigateur (Web Audio), sans fichier son, donc sans d
 - **Plein écran** (en haut à droite) : automatique au premier toucher sur Android ; sur iPhone,
   ajouter le jeu à l'écran d'accueil (Partager → « Sur l'écran d'accueil »), il s'ouvre alors en plein écran.
 - **Note de musique** (en haut à droite) : couper ou remettre la musique.
-- **Aiguillage** : toucher un des deux grands boutons quand le temps s'arrête presque (ou, plus tôt, le bouton « Chemin » en bas à gauche).
+- **Aiguillage** : toucher le bouton posé au début du chemin voulu (en haut ou en bas).
 - **☰** : menu et pause.
 - **PC** : glisser à la souris, flèches ← → pour pousser, Espace pour lancer, R pour recommencer, ↑ pour sauter, Z pour zoomer, M pour la musique, A pour l'aiguillage, Échap pour le menu, F pour le compteur d'images par seconde.
 

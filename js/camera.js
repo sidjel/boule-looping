@@ -9,7 +9,7 @@ import { WORLD, SHEET, SHEETS } from './track.js';
 
 export class Camera {
   constructor() {
-    Object.assign(this, { x: 0, y: 0, scale: 1, dpr: 1, W: 1, H: 1, followScale: 1, fitScale: 1, rush: 0 });
+    Object.assign(this, { x: 0, y: 0, scale: 1, dpr: 1, W: 1, H: 1, followScale: 1, fitScale: 1, rush: 0, focus: null });
     this.wideBy = { landscape: true, portrait: false };
   }
 
@@ -52,7 +52,11 @@ export class Camera {
     this.scale += (target - this.scale) * ks;
     const vw = this.viewW, vh = this.viewH;
     let tx, ty;
-    if (vw >= SHEET - 1) {
+    // près d'un aiguillage, on cadre entre la boule et l'embranchement (focus = x de l'embranchement)
+    const fx = this.focus != null ? (ball.x + this.focus) / 2 + 150 : null;
+    if (fx != null) {
+      tx = clamp(fx - vw / 2, Math.min(0, (WORLD.w - vw) / 2), Math.max(0, WORLD.w - vw));
+    } else if (vw >= SHEET - 1) {
       const sheet = Math.max(0, Math.min(SHEETS - 1, Math.floor(ball.x / SHEET)));
       // feuille du niveau centrée ; aux bouts, calée au bord pour montrer la feuille voisine plutôt que la table
       const lo = Math.min(0, (WORLD.w - vw) / 2);
@@ -67,7 +71,7 @@ export class Camera {
       const look = clamp(ball.onTrack ? 0 : ball.vy * 0.12, -150, 250);
       ty = clamp(ball.y + look - vh * 0.42, 0, WORLD.h - vh);
     }
-    const kx = snap ? 1 : this.wide ? ks : 1 - Math.exp(-dt * 4);
+    const kx = snap ? 1 : this.wide || this.focus != null ? ks : 1 - Math.exp(-dt * 4);
     const ky = snap ? 1 : 1 - Math.exp(-dt * 6);
     this.x += (tx - this.x) * kx;
     this.y += (ty - this.y) * ky;
