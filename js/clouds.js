@@ -15,8 +15,20 @@ function puffs(rand, w, h) {
     const r = h * range(rand, 0.1, 0.2) * (0.7 + 0.9 * dome) * (rand() < 0.15 ? 1.4 : 1);
     out.push({ x: w * t, y: base - r * 0.45 - h * 0.42 * dome * range(rand, 0.25, 1), r });
   }
-  // une bosse qui ne touche aucune autre ferait une petite boule isolée : on l'enlève
-  const kept = out.filter((p) => out.some((q) => q !== p && Math.hypot(p.x - q.x, p.y - q.y) < (p.r + q.r) * 0.65));
+  // on ne garde que le plus grand groupe de bosses qui se touchent : pas de petites boules isolées
+  const touch = (p, q) => Math.hypot(p.x - q.x, p.y - q.y) < (p.r + q.r) * 0.8;
+  let kept = [];
+  const seen = new Set();
+  for (const start of out) {
+    if (seen.has(start)) continue;
+    const group = [start], stack = [start];
+    seen.add(start);
+    while (stack.length) {
+      const p = stack.pop();
+      for (const q of out) if (!seen.has(q) && touch(p, q)) { seen.add(q); group.push(q); stack.push(q); }
+    }
+    if (group.length > kept.length) kept = group;
+  }
   return kept.sort((p, q) => q.r - p.r);
 }
 
@@ -30,7 +42,8 @@ export function buildCloud(seed, w, h, q) {
   const g = c.getContext('2d');
   g.scale(q, q);
   g.translate(pad, pad);
-  const ps = puffs(rand, w, h);
+  let ps = puffs(rand, w, h);
+  for (let tries = 0; tries < 15 && ps.length < 5; tries++) ps = puffs(rand, w, h);
   // corps blanc
   const base = h * 0.82;
   g.fillStyle = '#fdfdfc';

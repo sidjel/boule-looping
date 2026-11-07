@@ -67,6 +67,37 @@ export class Effects {
     this.items.push({ kind: 'text', label, x, y, life: 1.4, max: 1.4 });
   }
 
+  /** Boost : traînée rouge au crayon, épaisse près de la boule, qui s'effile et s'efface. */
+  drawHeat(ctx, ball) {
+    if (ball.heat <= 0) return;
+    const pts = this.history.filter((p) => p.t > this.time - 0.45);
+    if (pts.length < 3) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const [w, a, color] of [[1.5, 0.22, '#e0553d'], [0.9, 0.35, '#d23f2e'], [0.3, 0.5, '#f08a4b']]) {
+      for (let i = 1; i < pts.length; i++) {
+        const k = i / pts.length;
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = a * ball.heat * k;
+        ctx.lineWidth = R * w * k * (0.6 + 0.4 * ball.heat);
+        ctx.beginPath();
+        ctx.moveTo(pts[i - 1].x, pts[i - 1].y);
+        ctx.lineTo(pts[i].x, pts[i].y);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  /** Boule d'élan touchée : éclats rouge-orangé au crayon. */
+  burst(x, y) {
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2 + Math.random() * 0.3;
+      this.items.push({ kind: 'line', x, y, a, r0: R * 0.9, r1: R * (1.8 + Math.random() * 0.9), life: 0.5, max: 0.5, color: i % 2 ? '#e0553d' : '#f08a4b' });
+    }
+  }
+
   /** Vitesse : reflets fantômes de la boule et traits de vitesse quand elle file. */
   drawSpeed(ctx, ball) {
     let dx, dy, sp;

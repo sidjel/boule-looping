@@ -203,6 +203,36 @@ export class Sound {
     this.bell([hz(88), hz(88) * 2.76], [1.5, 0.6], 0.06, 0.16, true);
   }
 
+  /** Boost : souffle qui monte, note qui glisse vers l'aigu, petit scintillement. */
+  boost() {
+    if (!this.master) return;
+    const ac = this.ac, t = ac.currentTime;
+    const src = ac.createBufferSource(), band = ac.createBiquadFilter(), g = ac.createGain();
+    src.buffer = this.noise;
+    band.type = 'bandpass';
+    band.Q.value = 1.4;
+    band.frequency.setValueAtTime(350, t);
+    band.frequency.exponentialRampToValueAtTime(3200, t + 0.45);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.16, t + 0.12);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+    src.connect(band).connect(g).connect(this.master);
+    src.start(t, Math.random());
+    src.stop(t + 0.65);
+    const o = ac.createOscillator(), og = ac.createGain();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(hz(57), t);
+    o.frequency.exponentialRampToValueAtTime(hz(81), t + 0.35);
+    og.gain.setValueAtTime(0, t);
+    og.gain.linearRampToValueAtTime(0.06, t + 0.04);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+    o.connect(og).connect(this.master);
+    og.connect(this.echo);
+    o.start(t);
+    o.stop(t + 0.6);
+    this.bell([hz(93), hz(93) * 2.76], [0.6, 0.3], 0.035, 0.3, true);
+  }
+
   jump() {
     if (!this.master) return;
     this.bell([hz(76), hz(76) * 2.76], [1.1, 0.45], 0.06, 0, true);

@@ -17,6 +17,8 @@ const STATIC = 70;                // px/s² : en dessous, la bille reste posée
 const BOUNCE_MIN = 380;           // px/s : vitesse d'impact qui fait rebondir
 const RESTITUTION = 0.32;         // rebond acier sur la route
 const V_MAX = 4200;
+const BOOST = 950;                // px/s ajoutés par une boule d'élan
+const HEAT_TIME = 2.6;            // s pendant lesquelles la boule reste rougie
 
 export class Ball {
   constructor(track) {
@@ -27,7 +29,7 @@ export class Ball {
 
   respawn() {
     const pc = this.tr.byName.main, p = sample(pc, this.tr.spawnS);
-    Object.assign(this, { onTrack: true, jumping: false, pc, s: this.tr.spawnS, v: 0, x: p.x, y: p.y, vx: 0, vy: 0, omega: 0, angle: 0, age: 0 });
+    Object.assign(this, { onTrack: true, jumping: false, heat: 0, pc, s: this.tr.spawnS, v: 0, x: p.x, y: p.y, vx: 0, vy: 0, omega: 0, angle: 0, age: 0 });
     this.lastS = this.s;
     this.events.push({ type: 'spawn' });
   }
@@ -41,6 +43,19 @@ export class Ball {
     return this.onTrack ? Math.abs(this.v) : Math.hypot(this.vx, this.vy);
   }
 
+  /** Boule d'élan : coup d'accélérateur dans le sens de la marche, la boule chauffe au rouge. */
+  boost() {
+    this.heat = 1;
+    if (this.onTrack) {
+      const dir = this.v < -1 ? -1 : 1;
+      this.v = clamp(this.v + dir * BOOST, -V_MAX, V_MAX);
+    } else {
+      const sp = Math.hypot(this.vx, this.vy) || 1, k = (sp + BOOST) / sp;
+      this.vx *= k;
+      this.vy *= k;
+    }
+  }
+
   /** Coup de doigt : vitesse ajoutée le long de la route (projection du geste). */
   impulse(wx, wy) {
     if (!this.onTrack) return false;
@@ -52,6 +67,7 @@ export class Ball {
   /** @param {number} dt @param {{x:number,y:number}} push accélération voulue par le joueur */
   step(dt, push) {
     this.age += dt;
+    this.heat = Math.max(0, this.heat - dt / HEAT_TIME);
     const px = this.x;
     if (this.onTrack) this.stepTrack(dt, push);
     else this.stepAir(dt);

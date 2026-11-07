@@ -7,7 +7,9 @@ on tente le looping, et on continue sur la deuxième feuille.
 - **Niveau 1** : le dessin d'origine (butte, looping, bosse, remontée).
 - **Niveau 2** : la suite, imaginée dans le même style : crête, grande descente, tremplin
   au-dessus d'une fosse, second looping plus petit.
-- **Niveau 3** : deux loopings à la suite.
+- **Niveau 3** : deux loopings à la suite, précédés d'une boule d'élan (la petite boule
+  rouge-orangé dessinée au crayon) : en la touchant, la boule d'acier accélère, rougit et laisse
+  une traînée rouge.
 - **Niveau 4** : un aiguillage et deux chemins. En bas, un souterrain sous la colline qui
   ressort sur un grand looping ; en haut, une longue montée vers une grande bosse, puis un pont
   au-dessus du looping. Les deux chemins se rejoignent avant la sortie. Quand la boule sort à
@@ -36,6 +38,7 @@ HTML + Canvas 2D + JavaScript en modules natifs, sans dépendance ni outil de co
 - `js/physics.js` : bille d'acier pleine (5/7·g), chute en haut du looping si elle est trop lente, rebonds.
 - `js/input.js` : glissé, doigt posé, clavier.
 - `js/scenery.js`, `js/clouds.js`, `js/pencil.js`, `js/ballArt.js`, `js/effects.js` : dessin au crayon, soleil, nuages, oiseaux, effets.
+- `js/boost.js` et `images/boule-boost.png` : la boule d'élan (découpée dans le dessin).
 - `js/audio.js` : musique composée hors temps réel par morceaux puis rejouée en boucle, roulement, vent, tintements (Web Audio).
 - `js/camera.js` : vue d'ensemble ou suivi de la boule.
 - `js/fullscreen.js` : plein écran, astuce iPhone ; `manifest.webmanifest` et `icones/` pour l'écran d'accueil.

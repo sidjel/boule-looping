@@ -12,6 +12,7 @@ import { buildInk, makePaper, drawTable, buildSunDisk, drawSun, drawFork, SIGN }
 import { CLOUDS, buildCloud, moveClouds, drawClouds, drawBirds } from './clouds.js';
 import { buildBallBody, drawBall } from './ballArt.js';
 import { Effects } from './effects.js';
+import { Boosters } from './boost.js';
 
 const canvas = document.getElementById('jeu');
 const ctx = canvas.getContext('2d');
@@ -23,6 +24,7 @@ const track = buildTrack();
 const ball = new Ball(track);
 const input = new Input(canvas);
 const fx = new Effects();
+const boosters = new Boosters(track);
 const cam = new Camera();
 const sound = new Sound();
 const drawPaper = makePaper();
@@ -141,6 +143,13 @@ function update(dt) {
     ball.step(dt / steps, push);
     for (const e of ball.events.splice(0)) onEvent(e);
   }
+  if (boosters.update(dt, ball)) {
+    ball.boost();
+    fx.burst(ball.x, ball.y);
+    fx.text('Boost !', ball.x, ball.y - 90);
+    sound.boost();
+    navigator.vibrate?.(20);
+  }
   moveClouds(dt);
   fx.follow(ball, dt);
   fx.update(dt);
@@ -191,6 +200,8 @@ function render(dt) {
   if (cam.x + cam.viewW > SIGN.x - 100 && cam.x < SIGN.x + 400) drawFork(ctx, track, time);
   ctx.restore();
   drawTable(ctx, cam);
+  boosters.draw(ctx, time);
+  fx.drawHeat(ctx, ball);
   fx.drawSpeed(ctx, ball);
   drawBall(ctx, art.body, ball, track, time);
   fx.draw(ctx);
@@ -224,4 +235,4 @@ addEventListener('resize', () => {
 });
 resize();
 requestAnimationFrame(frame);
-window.__boule = { ball, track, cam, sound };
+window.__boule = { ball, track, cam, sound, boosters };
