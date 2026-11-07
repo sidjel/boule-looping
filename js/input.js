@@ -1,11 +1,12 @@
 /**
  * Entrées : doigt, souris, clavier.
  * - Glisser puis lâcher = lancer : la vitesse du doigt au moment du lâcher donne l'élan.
- * - Doigt posé sans bouger = pousser doucement la bille vers le doigt.
- * - Clavier : ← → pour pousser, Espace pour lancer, R pour recommencer.
+ * - Toucher bref = saut. Doigt posé sans bouger = pousser doucement la boule vers le doigt.
+ * - Clavier : ← → pour pousser, Espace pour lancer, ↑ pour sauter, R pour recommencer.
  */
 const WINDOW_MS = 90;
-const HOLD_MS = 140;
+const HOLD_MS = 230;          // doigt posé plus longtemps : on pousse
+const TAP_MS = 220;           // toucher plus bref : saut
 const HOLD_SLOP = 14;
 
 export class Input {
@@ -58,7 +59,7 @@ export class Input {
     this.active = null;
     // heure de l'événement, pas du traitement : un retard du navigateur ne fausse pas la vitesse
     const now = e.timeStamp || performance.now(), recent = a.samples.filter((p) => now - p.t <= WINDOW_MS);
-    if (a.moved < HOLD_SLOP && now - a.start.t < 300) this.taps.push({ x: a.start.x, y: a.start.y });
+    if (a.moved < HOLD_SLOP && now - a.start.t < TAP_MS) this.taps.push({ x: a.start.x, y: a.start.y });
     if (recent.length < 2 || a.moved < HOLD_SLOP) return;
     const first = recent[0], last = recent[recent.length - 1];
     const dt = Math.max(16, last.t - first.t) / 1000;
@@ -68,10 +69,11 @@ export class Input {
 
   key(e, isDown) {
     const k = e.key;
-    if (!['ArrowLeft', 'ArrowRight', ' ', 'r', 'R'].includes(k)) return;
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', ' ', 'r', 'R', 'w', 'W'].includes(k)) return;
     e.preventDefault();
     if (isDown && !e.repeat && k === ' ') this.flicks.push({ vx: 2600, vy: 0, keyboard: true });
     if (isDown && (k === 'r' || k === 'R')) this.resetAsked = true;
+    if (isDown && !e.repeat && (k === 'ArrowUp' || k === 'w' || k === 'W')) this.hopAsked = true;
     if (isDown) this.keys.add(k); else this.keys.delete(k);
   }
 

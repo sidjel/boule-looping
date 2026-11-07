@@ -125,13 +125,13 @@ end(10);
 start(11); b.slope(180, 80).bonus('red').loop(0.76).slope(50, 22).loop(0.7).slope(50, 22).loop(0.62).flat(40).valley(360, 120); end(11);
 
 // Pluie : flaques qui freinent, fosses pleines d'eau.
-start(12); b.slope(260, 140).puddle(220).slope(230, -140).hill(360, 140).bonus('red').slope(120, 30).loop(0.8); end(12);
-start(13); b.slope(120, 30).jump(1).flat(40).puddle(200).bonus('green', -40).hill(420, 220); end(13);
+start(12); b.slope(260, 140).puddle(220).slope(230, -140).hill(360, 140).bonus('red').slope(120, 30).loop(0.8).puddle(200); end(12);
+start(13); b.slope(120, 30).jump(1).flat(40).puddle(200).bonus('green', -40).hill(420, 220).puddle(180); end(13);
 start(14);
 b.fork(1500,
   (l) => l.slope(200, 100).puddle(180).bonus('red').loop(0.78).slope(160, -100),
-  (h) => h.slope(380, -470).bonus('yellow').flat(240).slope(380, 470),
-  ['↘ En bas : flaque et looping', '↗ En haut : le pont']);
+  (h) => h.slope(380, -470).bonus('yellow').puddle(240).slope(380, 470),
+  ['↘ En bas : flaque et looping', '↗ En haut : pont et flaque']);
 end(14);
 start(15); b.bonus('blue', 60).flat(80).loop(1).puddle(160).halfpipe(480, 240).bonus('red').loop(0.8).slope(60, 25).loop(0.7); end(15);
 

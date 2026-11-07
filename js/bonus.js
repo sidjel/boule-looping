@@ -12,6 +12,16 @@ import { BALL_R, BONUSES, sample } from './track.js';
 const SIZE = 36;          // rayon affiché
 const RESPAWN = 4;        // s avant que la boule bonus revienne
 const GLOW = { red: '240,120,70', blue: '90,150,240', green: '90,190,100', yellow: '245,205,70' };
+const INK = { red: '#b8452f', blue: '#2f62a8', green: '#2f7d3a', yellow: '#9a7410' };
+const HAND = '"Segoe Print", "Bradley Hand", "Chalkboard SE", "Comic Sans MS", "Comic Neue", cursive';
+
+/** Ce que fait chaque bonus : mot écrit sous la boule, et explication affichée quand on la prend. */
+export const BONUS_INFO = {
+  red: { word: 'élan', title: 'Bonus rouge : élan', text: 'Coup d’accélérateur dans le sens de la marche.' },
+  blue: { word: 'colle', title: 'Bonus bleu : colle', text: 'Pendant 6 s, la boule colle à la route : elle ne tombe plus du haut des loopings.' },
+  green: { word: 'bond', title: 'Bonus vert : bond', text: 'La boule fait un grand saut.' },
+  yellow: { word: 'plume', title: 'Bonus jaune : plume', text: 'Pendant 6 s, la boule devient légère : sauts plus longs, montées plus faciles.' },
+};
 
 export class Bonuses {
   constructor(track) {
@@ -46,7 +56,7 @@ export class Bonuses {
     return this.img[color];
   }
 
-  draw(ctx, t, x0, x1) {
+  draw(ctx, t, x0, x1, labels = true) {
     for (const b of this.list) {
       if (b.x < x0 - 100 || b.x > x1 + 100 || b.away > 0.6) continue;
       const img = this.image(b.color);
@@ -65,6 +75,20 @@ export class Bonuses {
       ctx.rotate(Math.sin(t * 0.7 + b.seed) * 0.2);
       ctx.drawImage(img, -r * 1.15, -r * 1.15, r * 2.3, r * 2.3);
       ctx.restore();
+      if (labels) {
+        // le mot écrit à la main sous la boule bonus
+        ctx.save();
+        ctx.globalAlpha = back * 0.9;
+        ctx.font = `700 30px ${HAND}`;
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = 'rgba(240,238,232,0.9)';
+        const ly = y - r - 22;
+        ctx.strokeText(BONUS_INFO[b.color].word, x, ly);
+        ctx.fillStyle = INK[b.color];
+        ctx.fillText(BONUS_INFO[b.color].word, x, ly);
+        ctx.restore();
+      }
     }
   }
 }

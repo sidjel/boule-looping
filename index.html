@@ -56,26 +56,82 @@
       position: absolute; left: max(12px, env(safe-area-inset-left)); top: max(14px, env(safe-area-inset-top));
       font-size: 15px; font-weight: 600; color: rgba(61,61,66,.75); pointer-events: none;
     }
+    #menu-btn { right: calc(max(10px, env(safe-area-inset-right)) + 112px); top: max(10px, env(safe-area-inset-top)); }
+    /* choix de chemin : deux grands boutons, le temps est presque arrêté */
     #choix {
-      position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%) rotate(-2deg); pointer-events: none;
-      font-size: clamp(22px, 3vw + 10px, 40px); font-weight: 700; color: #6a4b16; opacity: 0; transition: opacity .3s;
-      text-shadow: 0 0 8px rgba(255,250,235,.9);
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; flex-direction: column;
+      align-items: center; gap: 12px; padding: 16px 18px 18px; border-radius: 20px 24px 18px 26px;
+      background: rgba(250,246,232,.93); border: 3px solid #b8862b; box-shadow: 0 0 0 9999px rgba(40,36,30,.18), 0 10px 30px rgba(0,0,0,.2);
     }
-    #choix.visible { opacity: 1; }
-    #fin {
-      position: absolute; inset: 0; display: grid; place-items: center; background: rgba(230,229,225,.55);
+    #choix.visible { display: flex; animation: arrive .25s ease-out; }
+    @keyframes arrive { from { transform: translate(-50%, -50%) scale(.85); opacity: 0; } }
+    #choix .titre { font-size: clamp(20px, 2.2vw + 10px, 30px); font-weight: 700; color: #6a4b16; }
+    #choix .boutons { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    #choix button {
+      min-width: min(38vw, 230px); padding: 16px 18px; border-radius: 18px; border: 3px solid rgba(60,60,66,.55);
+      background: #f4f1e6; font: inherit; font-weight: 700; font-size: clamp(16px, 1.4vw + 10px, 22px); color: #3d3d42; cursor: pointer;
+      touch-action: manipulation;
     }
-    #fin[hidden] { display: none; }
-    #fin .carte {
-      width: min(86vw, 440px); padding: 22px 24px; text-align: center; border: 2px solid rgba(60,60,66,.55);
-      border-radius: 18px 22px 16px 24px; background: rgba(244,242,236,.97); box-shadow: 0 8px 28px rgba(0,0,0,.15);
+    #choix button.choisi { border-color: #c8901f; background: #ffe9a8; box-shadow: 0 0 0 4px rgba(232,180,60,.45); animation: pulse .5s ease-in-out infinite alternate; }
+    #choix small { font-size: 14px; opacity: .7; }
+    /* bonus attrapé : explication en grand */
+    #info {
+      position: absolute; left: 50%; top: calc(max(10px, env(safe-area-inset-top)) + 64px); transform: translate(-50%, -20px);
+      display: flex; gap: 12px; align-items: center; width: min(90vw, 520px); padding: 10px 14px; border-radius: 16px;
+      background: rgba(250,248,240,.96); border: 3px solid #999; font-size: 16px; line-height: 1.3; opacity: 0;
+      pointer-events: none; transition: opacity .3s, transform .3s;
     }
-    #fin h2 { margin: 0 0 8px; font-size: 30px; }
-    #fin p { margin: 6px 0 16px; font-size: 18px; }
-    #fin button {
-      margin: 4px 6px; padding: 10px 16px; border-radius: 20px; border: 2px solid rgba(60,60,66,.55);
-      background: rgba(236,235,231,.9); font: inherit; font-weight: 600; font-size: 16px; color: #3d3d42; cursor: pointer;
+    #info.visible { opacity: 1; transform: translate(-50%, 0); }
+    #info img { width: 54px; height: 54px; flex: none; }
+    #info.red { border-color: #d0583f; } #info.blue { border-color: #4d82cf; } #info.green { border-color: #4d9b55; } #info.yellow { border-color: #d6a524; }
+    #effets { position: absolute; left: max(12px, env(safe-area-inset-left)); top: calc(max(14px, env(safe-area-inset-top)) + 24px); display: flex; gap: 6px; pointer-events: none; }
+    .jauge { position: relative; overflow: hidden; padding: 3px 10px; border-radius: 12px; font-size: 14px; font-weight: 700; color: #fff; background: rgba(60,60,66,.35); }
+    .jauge i { position: absolute; left: 0; top: 0; bottom: 0; z-index: -1; }
+    .jauge { isolation: isolate; }
+    .jauge.blue i { background: #4d82cf; } .jauge.yellow i { background: #d6a524; }
+    /* menu et cartes */
+    #menu, #fin { position: absolute; inset: 0; display: grid; place-items: center; overflow: auto; padding: 16px 0;
+      background: rgba(226,224,218,.6); backdrop-filter: blur(2px); }
+    #menu[hidden], #fin[hidden] { display: none; }
+    .carte {
+      width: min(90vw, 560px); max-height: calc(100% - 20px); overflow: auto; padding: 20px 22px; text-align: center; box-sizing: border-box;
+      border: 2px solid rgba(60,60,66,.55); border-radius: 18px 24px 16px 26px; background: rgba(246,244,238,.98);
+      box-shadow: 0 10px 30px rgba(0,0,0,.18);
     }
+    .carte h1 { margin: 4px 0 14px; font-size: clamp(30px, 5vw, 46px); line-height: 1; transform: rotate(-2deg); }
+    .carte h1 span { font-size: .6em; }
+    .carte h2 { margin: 0 0 12px; font-size: 28px; }
+    .carte h3 { margin: 14px 0 6px; font-size: 20px; }
+    .carte p { margin: 8px 0; font-size: 16px; line-height: 1.35; }
+    .carte button {
+      display: block; width: min(100%, 320px); margin: 8px auto; padding: 11px 16px; border-radius: 22px; border: 2px solid rgba(60,60,66,.55);
+      background: rgba(236,235,231,.95); font: inherit; font-weight: 600; font-size: 18px; color: #3d3d42; cursor: pointer;
+    }
+    .carte button.grand { background: #ffe9a8; border-color: #c8901f; font-size: 21px; }
+    .carte button small { display: block; font-size: 13px; opacity: .7; }
+    .carte button.petit, .carte button.retour { width: auto; display: inline-block; font-size: 15px; padding: 8px 14px; }
+    .carte ul { text-align: left; padding-left: 18px; margin: 6px 0; font-size: 15px; line-height: 1.35; }
+    .carte ul.bonus { list-style: none; padding: 0; }
+    .carte ul.bonus li { display: flex; gap: 10px; align-items: center; margin: 6px 0; }
+    .carte ul.bonus img { width: 44px; height: 44px; flex: none; }
+    .carte .ligne { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 10px 0; font-size: 16px; text-align: left; }
+    .carte input[type=range] { width: 50%; }
+    .carte input[type=checkbox] { width: 22px; height: 22px; order: 2; }
+    .carte input[type=text] { font: inherit; font-size: 18px; padding: 8px 12px; border-radius: 12px; border: 2px solid rgba(60,60,66,.5); width: min(100%, 280px); box-sizing: border-box; }
+    @media (max-height: 520px) {
+      .carte { padding: 12px 16px; }
+      .carte h1 { font-size: 26px; margin: 0 0 8px; }
+      .carte h1 br { display: none; }
+      .carte h2 { font-size: 22px; margin-bottom: 6px; }
+      .carte button { margin: 5px auto; padding: 7px 12px; font-size: 16px; }
+      .carte button.grand { font-size: 18px; }
+      .accueil { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+      .accueil h1, .accueil .grand { grid-column: 1 / -1; }
+    }
+    table.scores { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0; }
+    table.scores th, table.scores td { padding: 5px 4px; border-bottom: 1px dashed rgba(60,60,66,.3); }
+    table.scores tr.moi td { background: #ffe9a8; font-weight: 700; }
+    .vide { opacity: .75; }
     #fps {
       position: absolute; left: 8px; bottom: 8px; padding: 4px 8px; border-radius: 6px; background: rgba(0,0,0,.55);
       color: #fff; font: 12px/1.3 monospace; pointer-events: none;
@@ -92,9 +148,12 @@
 <body>
   <canvas id="jeu" aria-label="Boule en métal sur une route avec looping"></canvas>
   <div id="consigne">Glisse ton doigt vers la droite pour lancer la boule&nbsp;!
-    <small>Plus tu glisses vite, plus elle va vite. Doigt posé&nbsp;: elle roule vers ton doigt.</small></div>
+    <small>Plus tu glisses vite, plus elle va vite. Touche brève&nbsp;: elle saute. Doigt posé&nbsp;: elle roule vers ton doigt.</small></div>
   <button id="plein-ecran" class="rond" type="button" aria-label="Plein écran" title="Plein écran">
     <svg viewBox="0 0 24 24"><g class="entrer"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></g><g class="sortir"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></g></svg>
+  </button>
+  <button id="menu-btn" class="rond" type="button" aria-label="Menu (pause)" title="Menu (Échap)">
+    <svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></svg>
   </button>
   <button id="musique" class="rond" type="button" aria-label="Couper la musique">
     <svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/><path class="barre" d="M3 3l18 18"/></svg>
@@ -107,13 +166,24 @@
   </button>
   <button id="aiguillage" type="button" title="Changer de chemin (A)">↘ Chemin : souterrain</button>
   <div id="hud"></div>
-  <div id="choix">Choisis ton chemin !</div>
+  <div id="effets"></div>
+  <div id="info"></div>
+  <div id="choix">
+    <div class="titre">Choisis ton chemin !</div>
+    <div class="boutons"><button id="choix-a" type="button">↘ En bas</button><button id="choix-b" type="button">↗ En haut</button></div>
+    <small>Le temps est presque arrêté : touche un chemin.</small>
+  </div>
   <div id="fin" hidden><div class="carte">
     <h2>Arrivée !</h2>
-    <p>Parcours terminé en <b id="temps"></b>.</p>
-    <button id="rejouer-fin" type="button">Rejouer depuis le niveau 1</button>
-    <button id="continuer" type="button">Continuer à rouler</button>
+    <p>Parcours terminé en <b id="temps"></b><br><span id="stats"></span></p>
+    <div id="fin-saisie"><p>Ton nom pour le tableau des scores :</p>
+      <input id="nom" type="text" maxlength="16" autocomplete="nickname" placeholder="Ton nom">
+      <button id="enregistrer" type="button" class="grand">Enregistrer mon temps</button></div>
+    <div id="fin-scores"></div>
+    <button id="rejouer-fin" type="button">Nouvelle partie</button>
+    <button id="fin-menu" type="button">Menu</button>
   </div></div>
+  <div id="menu" hidden></div>
   <div id="fps" hidden></div>
   <div id="astuce" hidden></div>
   <script type="module" src="js/main.js"></script>

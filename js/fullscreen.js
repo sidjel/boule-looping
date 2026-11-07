@@ -6,7 +6,7 @@
  *   à l'écran d'accueil : il s'ouvre alors en plein écran (manifest + balises Apple).
  * - Déjà lancé depuis l'écran d'accueil : bouton caché.
  */
-export function setupFullscreen(btn, tip) {
+export function setupFullscreen(btn, tip, autoAllowed = () => true) {
   const root = document.documentElement;
   const request = root.requestFullscreen || root.webkitRequestFullscreen;
   const exitFs = document.exitFullscreen || document.webkitExitFullscreen;
@@ -18,7 +18,7 @@ export function setupFullscreen(btn, tip) {
 
   if (installed) {
     btn.hidden = true;
-    return;
+    return { start() {} };
   }
 
   const enter = () => {
@@ -40,14 +40,16 @@ export function setupFullscreen(btn, tip) {
   if (enabled && touch) {
     // Le navigateur n'accepte le plein écran qu'à la fin d'un toucher (pointerup).
     const auto = (e) => {
-      if (btn.contains(e.target) || e.target.closest?.('button')) return;
+      if (btn.contains(e.target) || e.target.closest?.('button, #menu')) return;
       removeEventListener('pointerup', auto, true);
-      if (!active()) enter();
+      if (!active() && autoAllowed()) enter();
     };
     addEventListener('pointerup', auto, true);
   } else if (ios && touch) {
     setTimeout(() => showTip(tip, true, 7000), 1800);
   }
+  // appelé par les boutons « Nouvelle partie » et « Continuer » (un vrai geste du joueur)
+  return { start() { if (enabled && touch && autoAllowed() && !active()) enter(); } };
 }
 
 function showTip(tip, ios, autoHide = 0) {

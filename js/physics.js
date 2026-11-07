@@ -22,6 +22,8 @@ const RESTITUTION = 0.32;         // rebond acier sur la route
 const V_MAX = 4200;
 const BOOST = 950;                // px/s ajoutés par la boule rouge
 const BOND = 1250;                // px/s d'élan vers le haut donnés par la boule verte
+const HOP = 900;                  // px/s : saut commandé par le joueur
+const HOP_REST = 0.5;             // s entre deux sauts
 
 /** Durées des effets de bonus (s) et leur couleur. */
 export const BONUS = {
@@ -47,6 +49,7 @@ export class Ball {
     this.fx = { red: 0, blue: 0, green: 0, yellow: 0 };
     this.lastS = this.s;
     this.inPuddle = false;
+    this.hopWait = 0;
     this.events.push({ type: 'spawn', level });
   }
 
@@ -90,6 +93,17 @@ export class Ball {
     }
   }
 
+  /** Saut demandé par le joueur (touche brève sur l'écran) : seulement si la boule touche la route. */
+  hop() {
+    if (!this.onTrack || this.hopWait > 0) return false;
+    const p = this.frame();
+    this.takeOff(p);
+    this.vx += p.nx * HOP;
+    this.vy += p.ny * HOP;
+    this.hopWait = HOP_REST;
+    return true;
+  }
+
   /** Geste du joueur : la glace répond moins bien, surtout pour revenir en arrière. */
   control(dv) {
     const b = this.biome();
@@ -110,6 +124,7 @@ export class Ball {
     this.age += dt;
     this.clock += dt;
     for (const k in this.fx) this.fx[k] = Math.max(0, this.fx[k] - dt);
+    this.hopWait = Math.max(0, this.hopWait - dt);
     const px = this.x;
     if (this.onTrack) this.stepTrack(dt, push);
     else this.stepAir(dt);
@@ -187,7 +202,7 @@ export class Ball {
     for (const d of this.pc.puddles) {
       if (p.x < d.x0 || p.x > d.x1 || (d.yMin && p.y < d.yMin)) continue;
       wet = true;
-      drag = d.deep ? 900 + 1.4 * Math.abs(this.v) : 380 + 0.9 * Math.abs(this.v);
+      drag = d.deep ? 1100 + 1.8 * Math.abs(this.v) : 650 + 1.7 * Math.abs(this.v);
     }
     if (wet && !this.inPuddle && Math.abs(this.v) > 120) this.events.push({ type: 'splash', power: Math.abs(this.v) });
     this.inPuddle = wet;

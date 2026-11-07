@@ -17,13 +17,19 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
 rouge = élan · bleue = la boule colle à la route 6 s (elle ne tombe plus des loopings) ·
 verte = bond · jaune = plume (gravité réduite 6 s).
 
-**Aiguillages** (un par saison) : le temps ralentit à l'approche pour laisser choisir le chemin.
+**Aiguillages** (un par saison) : à l'approche, le temps s'arrête presque et deux grands boutons
+proposent les chemins.
+
+**Menu** : continuer la partie sauvegardée, nouvelle partie, comment jouer, scores, options
+(volumes, vibrations, plein écran, vue de départ, noms des bonus), crédits. À l'arrivée, le temps
+est inscrit dans un tableau des 10 meilleurs scores, gardé dans le navigateur.
 
 Musique douce et mélancolique, roulement métallique, vent, pluie, éclaboussures, tintements :
 tout est fabriqué dans le navigateur (Web Audio), sans fichier son, donc sans droits.
 
 ## Jouer
 - **Glisser puis lâcher** : lance la boule. Plus le doigt va vite, plus elle part vite.
+- **Toucher bref** (n'importe où) : la boule saute, si elle touche la route.
 - **Doigt posé** : la boule roule doucement vers le doigt.
 - **Loupe** (en bas à droite) : passe de la vue d'ensemble (tout le parcours) au zoom sur la boule.
   En paysage, la vue d'ensemble est le réglage de départ ; en portrait, c'est le zoom.
@@ -31,8 +37,9 @@ tout est fabriqué dans le navigateur (Web Audio), sans fichier son, donc sans d
 - **Plein écran** (en haut à droite) : automatique au premier toucher sur Android ; sur iPhone,
   ajouter le jeu à l'écran d'accueil (Partager → « Sur l'écran d'accueil »), il s'ouvre alors en plein écran.
 - **Note de musique** (en haut à droite) : couper ou remettre la musique.
-- **Aiguillage** : toucher le panneau fléché ou le bouton « Chemin » en bas à gauche (le temps ralentit juste avant).
-- **PC** : glisser à la souris, flèches ← → pour pousser, Espace pour lancer, R pour recommencer, Z pour zoomer, M pour la musique, A pour l'aiguillage, F pour le compteur d'images par seconde.
+- **Aiguillage** : toucher un des deux grands boutons quand le temps s'arrête presque (ou, plus tôt, le bouton « Chemin » en bas à gauche).
+- **☰** : menu et pause.
+- **PC** : glisser à la souris, flèches ← → pour pousser, Espace pour lancer, R pour recommencer, ↑ pour sauter, Z pour zoomer, M pour la musique, A pour l'aiguillage, Échap pour le menu, F pour le compteur d'images par seconde.
 
 ## Technique
 HTML + Canvas 2D + JavaScript en modules natifs, sans dépendance ni outil de construction.
@@ -50,6 +57,7 @@ HTML + Canvas 2D + JavaScript en modules natifs, sans dépendance ni outil de co
 - `js/audio.js` : musique composée hors temps réel par morceaux puis rejouée en boucle, roulement, vent, tintements (Web Audio).
 - `js/camera.js` : vue d'ensemble ou suivi de la boule.
 - `js/fullscreen.js` : plein écran, astuce iPhone ; `manifest.webmanifest` et `icones/` pour l'écran d'accueil.
+- `js/menu.js` et `js/save.js` : menu, options, scores, sauvegarde (localStorage).
 - `js/main.js` : boucle de jeu.
 
 En local : servir le dossier avec n'importe quel serveur statique (les modules ne marchent pas en `file://`),

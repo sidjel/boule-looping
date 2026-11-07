@@ -28,6 +28,8 @@ export class Sound {
     this.ac = null;
     this.musicOn = true;
     this.lastUpdate = 0;
+    this.musicLevel = MUSIC_LEVEL;
+    this.sfxLevel = 1;
     try { this.musicOn = localStorage.getItem('boule-musique') !== 'non'; } catch { /* pas de stockage */ }
   }
 
@@ -49,9 +51,13 @@ export class Sound {
 
   build() {
     const ac = this.ac;
+    // sortie générale ← bruitages (master) + musique (musicBus) : deux volumes réglables
+    this.out = ac.createGain();
+    this.out.gain.value = 0.9;
+    this.out.connect(ac.destination);
     this.master = ac.createGain();
-    this.master.gain.value = 0.9;
-    this.master.connect(ac.destination);
+    this.master.gain.value = this.sfxLevel;
+    this.master.connect(this.out);
     // écho léger pour les clochettes
     this.echo = ac.createDelay(1);
     this.echo.delayTime.value = 0.23;
@@ -63,7 +69,7 @@ export class Sound {
     tone.connect(this.master);
     this.musicBus = ac.createGain();
     this.musicBus.gain.value = 0;
-    this.musicBus.connect(this.master);
+    this.musicBus.connect(this.out);
     this.noise = noiseBuffer(ac);
     this.buildRoll();
     this.renderMusic();
@@ -99,7 +105,7 @@ export class Sound {
       if (c === 0) {
         this.nextTime = this.ac.currentTime + 0.1;
         this.musicReady = true;
-        if (this.musicOn) this.musicBus.gain.setTargetAtTime(MUSIC_LEVEL, this.ac.currentTime, 0.8);
+        if (this.musicOn) this.musicBus.gain.setTargetAtTime(this.musicLevel, this.ac.currentTime, 0.8);
         this.feed();
       }
     }
@@ -125,8 +131,18 @@ export class Sound {
   toggleMusic() {
     this.musicOn = !this.musicOn;
     try { localStorage.setItem('boule-musique', this.musicOn ? 'oui' : 'non'); } catch { /* rien */ }
-    if (this.musicBus && this.musicReady) this.musicBus.gain.setTargetAtTime(this.musicOn ? MUSIC_LEVEL : 0, this.ac.currentTime, 0.4);
+    if (this.musicBus && this.musicReady) this.musicBus.gain.setTargetAtTime(this.musicOn ? this.musicLevel : 0, this.ac.currentTime, 0.4);
     return this.musicOn;
+  }
+
+  /** Volumes (0 à 1) de la musique et des bruitages, depuis les options. */
+  setVolumes(music, sfx) {
+    this.musicLevel = MUSIC_LEVEL * music / 0.8;
+    this.sfxLevel = sfx;
+    if (!this.ac || !this.master) return;
+    const t = this.ac.currentTime;
+    this.master.gain.setTargetAtTime(sfx, t, 0.1);
+    if (this.musicReady) this.musicBus.gain.setTargetAtTime(this.musicOn ? this.musicLevel : 0, t, 0.2);
   }
 
   /** Chaîne du roulement et du vent, réglée par update(). */

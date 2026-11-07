@@ -34,7 +34,6 @@ export function* inkSteps(track, q, sheet) {
   yield;
   drawDecor(g, track, sheet);
   drawPits(g, track, x0, x1, bio);
-  drawPuddles(g, track, x0, x1);
   if (x1 > HILL.x0 && x0 < HILL.flank + 600) {
     drawTunnel(g, track);
     drawBridge4(g, track);
@@ -43,6 +42,7 @@ export function* inkSteps(track, q, sheet) {
   if (sheet === SHEETS - 1) drawFinish(g, track);
   yield;
   drawRoad(g, track, x0, x1, bio);
+  drawPuddles(g, track, x0, x1);
   g.font = `600 44px ${HAND}`;
   g.fillStyle = 'rgba(70,70,76,0.55)';
   const b = biomeOfSheet(sheet);
@@ -184,26 +184,43 @@ function drawPits(g, track, x0, x1, bio) {
   });
 }
 
-/** Flaques : eau bleu-gris posée sur la route, avec des ronds. */
+/** Flaques : nappe d'eau bleue posée sur la route (par-dessus), reflets et contour au crayon. */
 function drawPuddles(g, track, x0, x1) {
   track.pieces.forEach((pc) => {
     for (const d of pc.puddles) {
       if (d.deep || d.x1 < x0 || d.x0 > x1) continue;
       const rand = rng(Math.round(d.x0));
-      const y = groundY(track, (d.x0 + d.x1) / 2), w = d.x1 - d.x0;
+      const top = [], bottom = [];
+      for (let x = d.x0 - 30; x <= d.x1 + 30; x += 6) {
+        const t = Math.min(1, (x - d.x0 + 30) / 40, (d.x1 + 30 - x) / 40), y = roadY(pc, x, d.y);
+        top.push([x, y - 13 * t]);
+        bottom.push([x, y + 7 * t]);
+      }
+      const shape = [...top, ...bottom.reverse()];
       g.save();
-      g.fillStyle = 'rgba(120,155,185,0.42)';
+      g.fillStyle = 'rgba(80,130,180,0.55)';
       g.beginPath();
-      g.ellipse((d.x0 + d.x1) / 2, y + 2, w / 2 + 20, 11, 0, 0, Math.PI * 2);
+      shape.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+      g.closePath();
       g.fill();
       g.restore();
-      for (let i = 0; i < 3; i++) {
-        const cx = range(rand, d.x0 + 20, d.x1 - 20), rx = range(rand, 14, 30), pts = [];
-        for (let t = 0; t <= Math.PI * 2.1; t += 0.3) pts.push([cx + Math.cos(t) * rx, y + 2 + Math.sin(t) * rx * 0.25]);
-        pencilLine(g, pts, rand, { color: '#5f86a8', width: 1.6, alpha: 0.5, passes: 1, wobble: 0.6 });
+      pencilLine(g, top, rand, { color: '#3f6b92', width: 2.6, alpha: 0.7, passes: 2, wobble: 0.8 });
+      for (let i = 0; i < 4; i++) {
+        const cx = range(rand, d.x0, d.x1), w = range(rand, 20, 50), y = roadY(pc, cx, d.y) - range(rand, 4, 9);
+        pencilLine(g, [[cx, y], [cx + w, y]], rand, { color: '#ffffff', width: 2.2, alpha: 0.75, passes: 1, wobble: 0.4 });
       }
     }
   });
+}
+
+/** Hauteur de la ligne de route d'un tronçon en x, près de la hauteur de la flaque (pas dans un looping voisin). */
+function roadY(pc, x, yRef) {
+  let best = null;
+  for (const p of pc.line) {
+    if (Math.abs(p[1] - yRef) > 60) continue;
+    if (!best || Math.abs(p[0] - x) < Math.abs(best[0] - x)) best = p;
+  }
+  return best ? best[1] : yRef;
 }
 
 /** Ponts des aiguillages : tablier sous le chemin du haut, piliers jusqu'au sol. */

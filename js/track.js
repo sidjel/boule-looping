@@ -111,7 +111,7 @@ export function buildTrack() {
     return fork;
   });
   // flaques, et fosses pleines d'eau quand il pleut
-  for (const d of PUDDLES) p[d.piece].puddles.push({ x0: d.x0, x1: d.x1, deep: false });
+  for (const d of PUDDLES) p[d.piece].puddles.push({ x0: d.x0, x1: d.x1, y: d.y, deep: false });
   for (const J of JUMPS) {
     if (J.piece && biomeAt(J.pit[0]).rain) p[J.piece].puddles.push({ x0: J.pit[0] + 30, x1: J.pit[1] - 30, deep: true, yMin: J.bottom - 70 });
   }

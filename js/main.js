@@ -1,7 +1,7 @@
 /**
- * Boucle du jeu : caméra (vue d'ensemble ou suivi), physique en petits pas (1/600 s),
- * ralenti devant les aiguillages, dessin des feuilles (préparées petit à petit), boule,
- * bonus, météo, sons, reprise au début du niveau, arrivée et temps total.
+ * Boucle du jeu : menu et pause, caméra (vue d'ensemble ou suivi), physique en petits pas
+ * (1/600 s), quasi-arrêt du temps devant les aiguillages, saut, bonus expliqués, météo, sons,
+ * reprise au début du niveau, sauvegarde de la partie, arrivée et tableau des scores.
  */
 import { WORLD, SHEET, SHEETS, FINISH, buildTrack } from './track.js';
 import { Ball, BONUS } from './physics.js';
@@ -10,18 +10,20 @@ import { Camera } from './camera.js';
 import { Sound } from './audio.js';
 import { setupFullscreen } from './fullscreen.js';
 import { inkSteps, buildInk } from './ink.js';
-import { makePaper, drawTable, buildSunDisk, drawSun, drawForks, signOf } from './scenery.js';
+import { makePaper, drawTable, buildSunDisk, drawSun, drawForks } from './scenery.js';
 import { buildClouds, moveClouds, drawClouds, drawBirds } from './clouds.js';
 import { buildBallBody, drawBall } from './ballArt.js';
 import { Effects } from './effects.js';
-import { Bonuses } from './bonus.js';
+import { Bonuses, BONUS_INFO } from './bonus.js';
 import { Weather } from './weather.js';
 import { biomeAt, biomeOfSheet } from './biomes.js';
+import { save } from './save.js';
+import { Menu, scoreTable } from './menu.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('jeu'), ctx = canvas.getContext('2d');
 const hint = $('consigne'), zoomBtn = $('zoom'), musicBtn = $('musique'), forkBtn = $('aiguillage');
-const hud = $('hud'), choose = $('choix'), finish = $('fin'), fpsBox = $('fps');
+const hud = $('hud'), choose = $('choix'), finish = $('fin'), fpsBox = $('fps'), info = $('info'), gauges = $('effets');
 const track = buildTrack();
 const ball = new Ball(track);
 const input = new Input(canvas);
@@ -33,7 +35,10 @@ const weather = new Weather();
 const drawPaper = makePaper();
 const SUNS = [{ x: 1700, y: 238, r: 108 }, { x: 16 * SHEET + 1550, y: 330, r: 120 }];
 const FLICK_GAIN = 0.3, FLICK_MAX = 9000;
+const SLOW = 0.04;            // devant un aiguillage, le temps passe 25 fois moins vite
+const SLOW_MAX = 7;           // s (réelles) : sans choix, on repart avec le chemin affiché
 const WORDS = { red: 'Boost !', blue: 'Colle !', green: 'Bond !', yellow: 'Plume !' };
+const vibrate = (ms) => save.options.vibrate && navigator.vibrate?.(ms);
 
 let art = null;
 
@@ -56,7 +61,7 @@ function resize() {
   refreshButtons();
 }
 
-/* ---------- feuilles : dessinées à l'avance, petit à petit, trois ou quatre en mémoire ---------- */
+/* ---------- feuilles : dessinées à l'avance, petit à petit, quatre au plus en mémoire ---------- */
 
 const visible = (k) => cam.x < (k + 1) * SHEET && cam.x + cam.viewW > k * SHEET;
 
@@ -104,9 +109,9 @@ function prepare() {
   }
 }
 
-/* ---------- aiguillages ---------- */
+/* ---------- aiguillages : le temps s'arrête presque, deux grands boutons ---------- */
 
-/** L'aiguillage qui intéresse le joueur : celui devant la boule (ou tout près). */
+/** L'aiguillage devant la boule (pour le petit bouton en bas à gauche). */
 function forkAhead() {
   let best = null;
   for (const f of track.forks) {
@@ -116,13 +121,38 @@ function forkAhead() {
   return best;
 }
 
-/** Ralenti : la boule approche d'un aiguillage, sur le tronçon d'avant, en avançant. */
-function forkSlowdown() {
-  for (const f of track.forks) {
-    const d = f.x - ball.x;
-    if (ball.onTrack && ball.pc === f.seg && d > 0 && d < 950 && ball.v > 40) return f;
+/** Aiguillage à choisir maintenant : la boule arrive dessus, et le joueur n'a pas encore choisi. */
+let slow = null, slowFor = 0;
+function forkToChoose(realDt) {
+  for (const f of track.forks) if (ball.pc !== f.seg) f.decided = false;
+  const f = track.forks.find((g) => {
+    const d = g.x - ball.x;
+    return !g.decided && ball.onTrack && ball.pc === g.seg && d > 0 && d < 1100 && ball.v > 40;
+  });
+  if (f !== slow) {
+    slow = f || null;
+    slowFor = 0;
+    if (slow) {
+      $('choix-a').textContent = slow.labels[0];
+      $('choix-b').textContent = slow.labels[1];
+      sound.clink(500);
+    }
   }
-  return null;
+  if (slow) {
+    slowFor += realDt;
+    if (slowFor > SLOW_MAX) slow.decided = true;
+    $('choix-a').classList.toggle('choisi', slow.route === 'a');
+    $('choix-b').classList.toggle('choisi', slow.route === 'b');
+  }
+  return slow && !slow.decided ? slow : null;
+}
+
+function pick(route) {
+  const f = slow || forkAhead();
+  if (!f) return;
+  f.route = route;
+  f.decided = true;
+  refreshButtons();
 }
 
 function toggleFork(f = forkAhead()) {
@@ -155,22 +185,27 @@ function toggleMusic() {
   refreshButtons();
 }
 
-/* ---------- temps de jeu, reprise, arrivée ---------- */
+/* ---------- partie : temps, statistiques, sauvegarde, reprise ---------- */
 
-let last = performance.now(), time = 0, launched = false, timeScale = 1, slow = null;
-let runTime = 0, running = false, finished = false;
+let last = performance.now(), time = 0, launched = false, timeScale = 1;
+const run = { time: 0, running: false, finished: false, loops: 0, bonuses: 0 };
+let lastSave = 0;
 
 const level = () => Math.max(0, Math.min(SHEETS - 2, Math.floor(ball.x / SHEET)));
 const clock = (t) => `${Math.floor(t / 60)} min ${String(Math.floor(t % 60)).padStart(2, '0')} s`;
 
+function saveProgress() {
+  if (run.finished) return;
+  save.setProgress({ level: level(), time: run.time, loops: run.loops, bonuses: run.bonuses });
+}
+
 function restart(fromStart = false) {
   ball.respawn(fromStart ? 0 : level());
   if (fromStart) {
-    runTime = 0;
-    running = false;
-    finished = false;
+    Object.assign(run, { time: 0, running: false, finished: false, loops: 0, bonuses: 0 });
     launched = false;
     hint.classList.remove('cache');
+    save.setProgress(null);
   }
 }
 
@@ -178,8 +213,9 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   time += dt;
-  update(dt);
-  render(dt * timeScale);
+  if (!menu.isOpen) update(dt);
+  else cam.update(dt, ball);
+  render(menu.isOpen ? 0 : dt * timeScale);
   meter(dt);
   requestAnimationFrame(frame);
 }
@@ -189,17 +225,20 @@ function update(realDt) {
     input.resetAsked = false;
     restart();
   }
-  // ralenti devant un aiguillage, pour laisser le temps de choisir
-  slow = forkSlowdown();
-  timeScale += ((slow ? 0.28 : 1) - timeScale) * Math.min(1, realDt * 5);
-  choose.classList.toggle('visible', !!slow);
-  forkBtn.classList.toggle('pulse', !!slow);
+  const choosing = forkToChoose(realDt);
+  timeScale += ((choosing ? SLOW : 1) - timeScale) * Math.min(1, realDt * 8);
+  choose.classList.toggle('visible', !!choosing);
+  forkBtn.classList.toggle('pulse', !!choosing);
   const dt = realDt * timeScale;
-  for (const tap of input.takeTaps()) {
-    const wx = cam.x + (tap.x * cam.dpr) / cam.scale, wy = cam.y + (tap.y * cam.dpr) / cam.scale;
-    for (const f of track.forks) {
-      const s = signOf(track, f);
-      if (Math.hypot(wx - s.x, wy - (s.y - 35)) < 140) toggleFork(f);
+  // toucher bref (ou ↑) : saut
+  const taps = input.takeTaps();
+  if (input.hopAsked || taps.length) {
+    input.hopAsked = false;
+    if (ball.hop()) {
+      fx.whoosh(ball.x, ball.y, 0);
+      sound.clink(260);
+      if (!launched) { launched = true; hint.classList.add('cache'); }
+      run.running = run.running || !run.finished;
     }
   }
   for (const f of input.takeFlicks()) {
@@ -211,10 +250,10 @@ function update(realDt) {
     if (ball.impulse(wx * FLICK_GAIN, wy * FLICK_GAIN)) {
       fx.whoosh(ball.x, ball.y, Math.sign(wx));
       if (!launched) { launched = true; hint.classList.add('cache'); }
-      running = running || !finished;
+      run.running = run.running || !run.finished;
     }
   }
-  if (running) runTime += realDt;
+  if (run.running) run.time += realDt;
   const ballScreenX = ((ball.x - cam.x) * cam.scale) / cam.dpr;
   const push = input.push(ballScreenX);
   const steps = Math.ceil(dt * 600);
@@ -225,32 +264,49 @@ function update(realDt) {
   const hit = bonuses.update(dt, ball);
   if (hit) {
     ball.bonus(hit.color);
+    run.bonuses++;
     const c = BONUS[hit.color].color;
     fx.burst(ball.x, ball.y, [`rgb(${c})`, `rgb(${c.map((v) => Math.min(255, v + 50))})`]);
     fx.text(WORDS[hit.color], ball.x, ball.y - 90);
     sound.bonus(hit.color);
-    navigator.vibrate?.(20);
+    vibrate(20);
+    showInfo(hit.color);
   }
-  if (!finished && ball.x > FINISH.x) {
-    finished = true;
-    running = false;
-    $('temps').textContent = clock(runTime);
-    finish.hidden = false;
-    sound.loop();
-  }
+  if (!run.finished && ball.x > FINISH.x) arrive();
   moveClouds(dt);
   weather.update(dt, cam, ball.clock);
   fx.follow(ball, dt);
   fx.update(dt);
   cam.update(realDt, ball);
-  forkBtn.classList.toggle('visible', !!forkAhead());
+  forkBtn.classList.toggle('visible', !!forkAhead() && !choosing);
   if (time % 0.25 < realDt) refreshButtons();
+  if (time - lastSave > 5 && run.running) { lastSave = time; saveProgress(); }
   prepare();
   const b = ball.biome();
   sound.update(ball.speed(), ball.onTrack, { ice: !!b.snow, rain: !!biomeAt(cam.x + cam.viewW / 2).rain, gust: b.wind ? weather.wind() : 0 });
   const sheet = Math.max(0, Math.min(SHEETS - 1, Math.floor(ball.x / SHEET))), bio = biomeOfSheet(sheet);
   const where = sheet === SHEETS - 1 ? 'Arrivée' : `Niveau ${sheet + 1} · ${bio.name}`;
-  hud.textContent = `${where}${running || finished ? ` · ${clock(runTime)}` : ''}`;
+  hud.textContent = `${where}${run.running || run.finished ? ` · ${clock(run.time)}` : ''}`;
+  drawGauges();
+}
+
+/** Explication du bonus attrapé, en grand, pendant quelques secondes. */
+let infoTimer = 0;
+function showInfo(color) {
+  const b = BONUS_INFO[color];
+  info.innerHTML = `<img src="images/boule-${color}.png" alt=""><span><b>${b.title}</b><br>${b.text}</span>`;
+  info.className = `visible ${color}`;
+  clearTimeout(infoTimer);
+  infoTimer = setTimeout(() => { info.className = ''; }, 4200);
+}
+
+/** Jauges des bonus en cours (bleu, jaune…), sous le bandeau du haut. */
+function drawGauges() {
+  const html = Object.entries(ball.fx)
+    .filter(([k, t]) => t > 0 && k !== 'green' && k !== 'red')
+    .map(([k, t]) => `<span class="jauge ${k}"><i style="width:${Math.round((t / BONUS[k].time) * 100)}%"></i>${BONUS_INFO[k].word} ${Math.ceil(t)} s</span>`)
+    .join('');
+  if (gauges.innerHTML !== html) gauges.innerHTML = html;
 }
 
 function onEvent(e) {
@@ -258,20 +314,22 @@ function onEvent(e) {
     cam.update(0, ball, !cam.wide);
     fx.sparkle(ball.x, ball.y);
   } else if (e.type === 'loop') {
+    run.loops++;
     fx.loop(ball.x, ball.y);
     fx.text('Looping !', ball.x, ball.y + 110);
     sound.loop();
-    navigator.vibrate?.(14);
+    vibrate(14);
   } else if (e.type === 'jump') {
     fx.text('Joli saut !', ball.x, ball.y - 90);
     sound.jump();
-    navigator.vibrate?.(10);
+    vibrate(10);
   } else if (e.type === 'pit') {
     fx.text('Oups…', ball.x, ball.y - 80);
   } else if (e.type === 'level') {
     const k = e.n - 1, bio = biomeOfSheet(k), before = biomeOfSheet(k - 1);
     const label = k === SHEETS - 1 ? 'Arrivée !' : bio !== before ? `Niveau ${e.n} · ${bio.name}` : `Niveau ${e.n}`;
     fx.text(label, ball.x + 180, Math.max(260, ball.y - 220));
+    saveProgress();
   } else if (e.type === 'clink') {
     fx.clink(ball.x, ball.y, e.power);
     sound.clink(e.power);
@@ -279,6 +337,28 @@ function onEvent(e) {
     fx.splash(ball.x, ball.y);
     sound.splash(e.power);
   }
+}
+
+/* ---------- arrivée et scores ---------- */
+
+function arrive() {
+  run.finished = true;
+  run.running = false;
+  save.setProgress(null);
+  $('temps').textContent = clock(run.time);
+  $('stats').textContent = `${run.loops} loopings · ${run.bonuses} bonus`;
+  $('nom').value = save.lastName || '';
+  $('fin-saisie').hidden = false;
+  $('fin-scores').innerHTML = '';
+  finish.hidden = false;
+  sound.loop();
+}
+
+function recordScore() {
+  const name = ($('nom').value || '').trim().slice(0, 16) || 'Anonyme';
+  const rank = save.addScore({ name, time: run.time, loops: run.loops, bonuses: run.bonuses, date: Date.now() });
+  $('fin-saisie').hidden = true;
+  $('fin-scores').innerHTML = `${rank >= 0 ? `<p>Tu es ${rank === 0 ? '<b>premier</b>' : `<b>${rank + 1}e</b>`} du tableau !</p>` : '<p>Pas dans les 10 meilleurs temps, cette fois.</p>'}${scoreTable(rank)}`;
 }
 
 function render(dt) {
@@ -296,10 +376,10 @@ function render(dt) {
   for (let k = Math.max(0, Math.floor(x0 / SHEET)); k <= Math.min(SHEETS - 1, Math.floor(x1 / SHEET)); k++) {
     ctx.drawImage(inkFor(k), k * SHEET, 0, SHEET, WORLD.h);
   }
-  drawForks(ctx, track, time, x0, x1, slow ? 1 : 0);
+  drawForks(ctx, track, time, x0, x1, slow && !slow.decided ? 1 : 0);
   ctx.restore();
   drawTable(ctx, cam);
-  bonuses.draw(ctx, time, x0, x1);
+  bonuses.draw(ctx, time, x0, x1, save.options.labels);
   fx.drawHeat(ctx, ball);
   fx.drawSpeed(ctx, ball);
   drawBall(ctx, art.body, ball, track, time);
@@ -326,7 +406,36 @@ function meter(dt) {
   worst = 0;
 }
 
-/* ---------- boutons et clavier ---------- */
+/* ---------- menu, options, boutons, clavier ---------- */
+
+function applyOptions() {
+  const o = save.options;
+  sound.setVolumes(o.music, o.sfx);
+  cam.wideBy.landscape = o.wideLandscape;
+}
+
+const menu = new Menu($('menu'), {
+  newGame: () => { finish.hidden = true; restart(true); fullscreen.start(); },
+  resume: () => {},
+  continueSaved: () => {
+    fullscreen.start();
+    const p = save.progress;
+    if (!p) return restart(true);
+    ball.respawn(p.level);
+    Object.assign(run, { time: p.time, running: false, finished: false, loops: p.loops, bonuses: p.bonuses });
+    launched = false;
+    hint.classList.remove('cache');
+  },
+  options: (k) => {
+    applyOptions();
+    if (k === 'wideLandscape') refreshButtons();
+  },
+});
+
+function openMenu() {
+  saveProgress();
+  menu.open(launched && !run.finished);
+}
 
 const replay = $('rejouer');
 let pressTimer = 0, longPress = false;
@@ -340,14 +449,22 @@ replay.addEventListener('click', () => { if (!longPress) restart(); });
 for (const b of document.querySelectorAll('button')) b.addEventListener('pointerdown', (e) => e.stopPropagation());
 zoomBtn.addEventListener('click', toggleZoom);
 musicBtn.addEventListener('click', toggleMusic);
-forkBtn.addEventListener('click', () => toggleFork(slow || forkAhead()));
+forkBtn.addEventListener('click', () => toggleFork());
+$('choix-a').addEventListener('click', () => pick('a'));
+$('choix-b').addEventListener('click', () => pick('b'));
+$('menu-btn').addEventListener('click', openMenu);
+$('enregistrer').addEventListener('click', recordScore);
+$('nom').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') recordScore(); });
 $('rejouer-fin').addEventListener('click', () => { finish.hidden = true; restart(true); });
-$('continuer').addEventListener('click', () => { finish.hidden = true; });
+$('fin-menu').addEventListener('click', () => { finish.hidden = true; restart(true); menu.open(false); });
 addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
+  if (k === 'escape') { if (menu.isOpen) { if (menu.paused) menu.close(); } else openMenu(); return; }
+  if (menu.isOpen) return;
   if (k === 'z') toggleZoom();
   if (k === 'm') toggleMusic();
-  if (k === 'a') toggleFork(slow || forkAhead());
+  if (k === 'a') (slow && !slow.decided ? pick(slow.route === 'a' ? 'b' : 'a') : toggleFork());
+  if (k === 'enter' && slow && !slow.decided) pick(slow.route);
   if (k === 'f') { meterOn = !meterOn; fpsBox.hidden = !meterOn; }
   sound.unlock();
 });
@@ -357,13 +474,16 @@ const firstSound = (e) => {
 };
 addEventListener('pointerup', firstSound, true);
 addEventListener('touchend', firstSound, true);
-setupFullscreen($('plein-ecran'), $('astuce'));
+const fullscreen = setupFullscreen($('plein-ecran'), $('astuce'), () => save.options.autoFullscreen);
+addEventListener('pagehide', saveProgress);
 
 let resizeTimer = 0;
 addEventListener('resize', () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(resize, 120);
 });
+applyOptions();
 resize();
+menu.open(false);
 requestAnimationFrame(frame);
-window.__boule = { ball, track, cam, sound, bonuses, weather, restart };
+window.__boule = { ball, track, cam, sound, bonuses, weather, restart, menu, run, pick };
