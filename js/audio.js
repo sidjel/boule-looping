@@ -166,24 +166,37 @@ export class Sound {
     this.windGain.gain.value = 0;
     src.connect(wind).connect(this.windGain).connect(this.master);
     this.wind = wind;
+    // pluie : souffle aigu continu
+    const rainHP = ac.createBiquadFilter();
+    rainHP.type = 'highpass';
+    rainHP.frequency.value = 1800;
+    this.rainGain = ac.createGain();
+    this.rainGain.gain.value = 0;
+    src.connect(rainHP).connect(this.rainGain).connect(this.master);
     src.start();
     this.wobbleOsc.start();
   }
 
-  /** @param {number} speed px/s @param {boolean} rolling boule sur la route */
-  update(speed, rolling) {
+  /**
+   * @param {number} speed px/s @param {boolean} rolling boule sur la route
+   * @param {{ice?:boolean, rain?:boolean, gust?:number}} env saison sous la boule
+   */
+  update(speed, rolling, env = {}) {
     if (!this.rollGain) return;
     const now = performance.now();
     if (now - this.lastUpdate < 50) return;
     this.lastUpdate = now;
     const t = this.ac.currentTime, k = Math.min(1, speed / 1600);
     const roll = rolling && speed > 15 ? 0.09 * k ** 0.8 : 0;
-    this.rollGain.gain.setTargetAtTime(roll, t, 0.06);
-    this.rumbleGain.gain.setTargetAtTime(roll * 1.6, t, 0.06);
-    this.band.frequency.setTargetAtTime(1400 + 2600 * k, t, 0.1);
+    // sur la glace : glissement plus clair, presque pas de grondement
+    this.rollGain.gain.setTargetAtTime(roll * (env.ice ? 0.8 : 1), t, 0.06);
+    this.rumbleGain.gain.setTargetAtTime(roll * (env.ice ? 0.3 : 1.6), t, 0.06);
+    this.band.frequency.setTargetAtTime((env.ice ? 2600 : 1400) + 2600 * k, t, 0.1);
+    this.rainGain.gain.setTargetAtTime(env.rain ? 0.045 : 0, t, 0.8);
     this.wobbleOsc.frequency.setTargetAtTime(Math.max(0.5, speed / 188), t, 0.1);
     const w = Math.max(0, Math.min(1, (speed - 1100) / 1800));
-    this.windGain.gain.setTargetAtTime(0.11 * w * w, t, 0.15);
+    const gust = Math.min(1, Math.abs(env.gust || 0) / 800);
+    this.windGain.gain.setTargetAtTime(0.11 * w * w + 0.07 * gust * gust, t, 0.15);
     this.wind.frequency.setTargetAtTime(500 + 1500 * w, t, 0.15);
   }
 
@@ -231,6 +244,49 @@ export class Sound {
     o.start(t);
     o.stop(t + 0.6);
     this.bell([hz(93), hz(93) * 2.76], [0.6, 0.3], 0.035, 0.3, true);
+  }
+
+  /** Son de chaque bonus. */
+  bonus(kind) {
+    if (!this.master) return;
+    if (kind === 'red') return this.boost();
+    const ac = this.ac, t = ac.currentTime;
+    if (kind === 'blue') {
+      // gel : trois clochettes cristallines qui descendent
+      [93, 88, 84].forEach((m, i) => this.bell([hz(m), hz(m) * 2.76], [0.7, 0.3], 0.05, i * 0.07, true));
+    } else if (kind === 'green') {
+      // bond : « boïng » qui monte puis retombe
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(170, t);
+      o.frequency.exponentialRampToValueAtTime(640, t + 0.13);
+      o.frequency.exponentialRampToValueAtTime(330, t + 0.38);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.12, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+      o.connect(g).connect(this.master);
+      o.start(t);
+      o.stop(t + 0.5);
+    } else if (kind === 'yellow') {
+      // plume : petit arpège aérien
+      [76, 81, 88, 93].forEach((m, i) => this.bell([hz(m)], [0.9], 0.045, i * 0.09, true));
+    }
+  }
+
+  /** Éclaboussure dans une flaque ou dans l'eau. */
+  splash(power) {
+    if (!this.master) return;
+    const ac = this.ac, t = ac.currentTime;
+    const src = ac.createBufferSource(), lp = ac.createBiquadFilter(), g = ac.createGain();
+    src.buffer = this.noise;
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(1400, t);
+    lp.frequency.exponentialRampToValueAtTime(260, t + 0.35);
+    g.gain.setValueAtTime(Math.min(0.22, power / 5000), t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+    src.connect(lp).connect(g).connect(this.master);
+    src.start(t, Math.random());
+    src.stop(t + 0.45);
   }
 
   jump() {

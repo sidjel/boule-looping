@@ -4,7 +4,8 @@
  * sur le bord extérieur (avec des manques), quelques plis intérieurs à peine marqués.
  * Oiseaux au crayon dans le ciel de la deuxième feuille.
  */
-import { WORLD, SHEET } from './track.js';
+import { WORLD, SHEET, SHEETS } from './track.js';
+import { biomeOfSheet } from './biomes.js';
 import { rng, range, pencilLine, grain } from './pencil.js';
 
 /** Bosses du nuage : nombreuses, de tailles très variées, en dôme au centre, base plate. */
@@ -34,7 +35,7 @@ function puffs(rand, w, h) {
 
 const inside = (ps, x, y, skip) => ps.some((p, i) => i !== skip && Math.hypot(x - p.x, y - p.y) < p.r * 0.97);
 
-export function buildCloud(seed, w, h, q) {
+export function buildCloud(seed, w, h, q, grey = false) {
   const rand = rng(seed), pad = 24;
   const c = document.createElement('canvas');
   c.width = Math.ceil((w + pad * 2) * q);
@@ -46,7 +47,7 @@ export function buildCloud(seed, w, h, q) {
   for (let tries = 0; tries < 15 && ps.length < 5; tries++) ps = puffs(rand, w, h);
   // corps blanc
   const base = h * 0.82;
-  g.fillStyle = '#fdfdfc';
+  g.fillStyle = grey ? '#c4c8cf' : '#fdfdfc';
   g.filter = 'blur(1.2px)';
   for (const p of ps) {
     g.beginPath();
@@ -65,8 +66,8 @@ export function buildCloud(seed, w, h, q) {
   g.globalCompositeOperation = 'source-atop';
   const shade = g.createLinearGradient(0, 0, 0, h);
   shade.addColorStop(0, 'rgba(255,255,255,0)');
-  shade.addColorStop(0.5, 'rgba(236,239,244,0.3)');
-  shade.addColorStop(0.82, 'rgba(200,206,218,0.6)');
+  shade.addColorStop(0.5, grey ? 'rgba(170,176,188,0.35)' : 'rgba(236,239,244,0.3)');
+  shade.addColorStop(0.82, grey ? 'rgba(120,128,142,0.6)' : 'rgba(200,206,218,0.6)');
   g.fillStyle = shade;
   g.fillRect(-pad, -pad, w + pad * 2, h + pad * 2);
   for (const p of ps) {
@@ -106,38 +107,58 @@ export function buildCloud(seed, w, h, q) {
   return { canvas: c, w: w + pad * 2, h: h + pad * 2, pad };
 }
 
-/** Les nuages du ciel : position, taille, vitesse de dérive (px/s). */
-export const CLOUDS = [
-  { seed: 3, w: 640, h: 250, x: 1330, y: 262, speed: 9 },
-  { seed: 8, w: 380, h: 150, x: 260, y: 110, speed: 14 },
-  { seed: 15, w: 280, h: 115, x: 900, y: 330, speed: 6 },
-  { seed: 21, w: 520, h: 200, x: 2350, y: 170, speed: 11 },
-  { seed: 34, w: 330, h: 130, x: 3100, y: 380, speed: 7 },
-  { seed: 55, w: 450, h: 170, x: 3600, y: 120, speed: 12 },
-  { seed: 89, w: 560, h: 210, x: 4400, y: 200, speed: 10 },
-  { seed: 144, w: 300, h: 120, x: 5300, y: 330, speed: 8 },
-  { seed: 233, w: 480, h: 180, x: 6100, y: 110, speed: 13 },
-  { seed: 377, w: 360, h: 140, x: 7300, y: 150, speed: 9 },
+/**
+ * Les nuages : un petit stock de formes (blanches, et grises pour la pluie) réutilisées sur
+ * tout le parcours ; chaque nuage dérive au-dessus de sa feuille et revient à son début.
+ */
+export const SHAPES = [
+  [3, 640, 250], [8, 380, 150], [15, 280, 115], [21, 520, 200], [34, 330, 130], [55, 450, 170],
+  [89, 560, 220, true], [144, 420, 170, true], [233, 300, 120, true], [377, 480, 190, true],
 ];
+
+export const CLOUDS = (() => {
+  const out = [{ shape: 0, x: 1330, y: 262, speed: 9, home: 0 }];
+  for (let k = 0; k < SHEETS; k++) {
+    const rain = biomeOfSheet(k).rain, n = rain ? 4 : 3;
+    for (let i = 0; i < n; i++) {
+      if (k === 0 && i === 0) continue;
+      const shape = rain ? 6 + ((k + i) % 4) : 1 + ((k * 3 + i) % 5);
+      out.push({ shape, x: k * SHEET + 150 + i * 560 + ((k * 137) % 200), y: 90 + ((k * 7 + i * 3) % 5) * 55, speed: 6 + ((k + i) % 4) * 3, home: k });
+    }
+  }
+  return out;
+})();
 
 export function moveClouds(dt) {
   for (const c of CLOUDS) {
     c.x += c.speed * dt;
-    if (c.x > WORLD.w + 80) c.x = -c.w - 80;
+    const w = SHAPES[c.shape][1];
+    if (c.x > (c.home + 1) * SHEET + 200) c.x = c.home * SHEET - w - 200;
   }
 }
 
-export function drawClouds(ctx, built) {
-  CLOUDS.forEach((c, i) => {
-    const a = built[i];
+/** Ne dessine que les nuages visibles. */
+export function drawClouds(ctx, built, x0, x1) {
+  for (const c of CLOUDS) {
+    const a = built[c.shape];
+    if (c.x + a.w < x0 || c.x - a.pad > x1) continue;
     ctx.drawImage(a.canvas, c.x - a.pad, c.y - a.pad, a.w, a.h);
-  });
+  }
+}
+
+export function buildClouds(q) {
+  return SHAPES.map(([seed, w, h, grey]) => buildCloud(seed, w, h, q, !!grey));
 }
 
 /** Oiseaux en « v » qui planent et battent des ailes de temps en temps (feuille 2). */
-const BIRDS = [0, 1, 2, 3, 4, 5].map((i) => ({ x: SHEET + 300 + i * 900, y: 240 + (i % 3) * 45, ph: i * 1.9, speed: 24 + (i % 3) * 5, size: 34 - (i % 3) * 4 }));
+const BIRDS = [];
+for (let k = 1; k < SHEETS; k++) {
+  const bio = biomeOfSheet(k);
+  if (bio.snow || bio.rain) continue;
+  for (let i = 0; i < 2; i++) BIRDS.push({ x: k * SHEET + 300 + i * 700, y: 240 + ((k + i) % 3) * 45, ph: k * 1.9 + i, speed: 24 + (i % 3) * 5, size: 34 - (i % 3) * 4, home: k });
+}
 
-export function drawBirds(ctx, t, dt) {
+export function drawBirds(ctx, t, dt, x0, x1) {
   ctx.save();
   ctx.strokeStyle = '#55555b';
   ctx.lineCap = 'round';
@@ -146,7 +167,8 @@ export function drawBirds(ctx, t, dt) {
   ctx.globalAlpha = 0.65;
   for (const b of BIRDS) {
     b.x += b.speed * dt;
-    if (b.x > WORLD.w + 60) b.x = SHEET - 60;
+    if (b.x > (b.home + 1) * SHEET + 60) b.x = b.home * SHEET - 60;
+    if (b.x < x0 - 60 || b.x > x1 + 60) continue;
     const flap = Math.sin(t * 7 + b.ph) * (Math.sin(t * 0.6 + b.ph) > 0.2 ? 1 : 0.25);
     const y = b.y + Math.sin(t * 0.8 + b.ph) * 18, s = b.size, lift = s * (0.35 + 0.35 * flap);
     ctx.beginPath();

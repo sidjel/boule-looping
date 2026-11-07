@@ -5,7 +5,7 @@
  * - « Suivre la boule » : zoom sur la boule, la caméra l'accompagne (par défaut en portrait).
  * Le passage de l'un à l'autre est animé. À grande vitesse, le zoom recule un peu.
  */
-import { WORLD, SHEET, LEVELS } from './track.js';
+import { WORLD, SHEET, SHEETS } from './track.js';
 
 export class Camera {
   constructor() {
@@ -53,7 +53,7 @@ export class Camera {
     const vw = this.viewW, vh = this.viewH;
     let tx, ty;
     if (vw >= SHEET - 1) {
-      const sheet = Math.max(0, Math.min(LEVELS - 1, Math.floor(ball.x / SHEET)));
+      const sheet = Math.max(0, Math.min(SHEETS - 1, Math.floor(ball.x / SHEET)));
       // feuille du niveau centrée ; aux bouts, calée au bord pour montrer la feuille voisine plutôt que la table
       const lo = Math.min(0, (WORLD.w - vw) / 2);
       tx = clamp(sheet * SHEET + (SHEET - vw) / 2, lo, Math.max(lo, WORLD.w - vw));

@@ -4,9 +4,10 @@
  * toujours à gauche du sens de marche, ce qui marche sur le sol comme dans les loopings.
  * Les tronçons se raccordent bout à bout ; à l'aiguillage, le suivant dépend du chemin choisi.
  */
-import { WORLD, SHEET, LEVELS, PIECES, LOOP_ZONES, JUMP, PIT, HILL, BRIDGE, FORK } from './levels.js';
+import { WORLD, SHEET, LEVELS, SHEETS, PIECES, LOOP_ZONES, JUMPS, PUDDLES, FORKS, CHECKPOINTS, BONUSES, HILL, BRIDGE, BRIDGES, FINISH } from './levels.js';
+import { biomeAt } from './biomes.js';
 
-export { WORLD, SHEET, LEVELS, PIT, HILL, BRIDGE, FORK };
+export { WORLD, SHEET, LEVELS, SHEETS, JUMPS, HILL, BRIDGE, BRIDGES, FINISH, BONUSES };
 export const BALL_R = 30;
 const STEP = 3;
 
@@ -85,20 +86,35 @@ function buildPiece(name, def) {
     for (let j = i - 4; j <= i + 4; j++) if (j >= 0 && j < n) { sum += raw[j]; cnt++; }
     k[i] = sum / cnt;
   }
+  // lèvre de tremplin : numéro du tremplin + 1 (0 ailleurs)
   const jump = new Uint8Array(n);
-  for (let i = 0; i < n; i++) jump[i] = x[i] > JUMP.x0 && x[i] < JUMP.x1 && y[i] < 1010 ? 1 : 0;
-  return { name, line, x, y, tx, ty, k, jump, n, step: STEP, length: (n - 1) * STEP, loopTops: [] };
+  JUMPS.forEach((J, z) => {
+    if (J.piece && J.piece !== name) return;
+    for (let i = 0; i < n; i++) if (x[i] > J.x0 && x[i] < J.x1 && y[i] < J.yMax) jump[i] = z + 1;
+  });
+  return { name, line, x, y, tx, ty, k, jump, n, step: STEP, length: (n - 1) * STEP, loopTops: [], puddles: [] };
 }
 
 export function buildTrack() {
   const p = {};
   for (const [name, def] of Object.entries(PIECES)) p[name] = buildPiece(name, def);
-  const track = { pieces: Object.values(p), byName: p, route: 'under', lastBranch: p.under };
-  // raccords : à l'aiguillage, le chemin choisi ; en marche arrière depuis la fin, celui d'où l'on vient
-  p.main.next = () => (track.route === 'under' ? p.under : p.hill);
-  p.under.prev = p.hill.prev = () => p.main;
-  p.under.next = p.hill.next = () => p.end;
-  p.end.prev = () => track.lastBranch;
+  const track = { pieces: Object.values(p), byName: p };
+  // raccords : à l'aiguillage, le chemin choisi ; en marche arrière, celui d'où l'on vient
+  track.forks = FORKS.map((f, idx) => {
+    const fork = { ...f, idx, route: 'a', seg: p[f.seg], A: p[f.a], B: p[f.b], after: p[f.after] };
+    fork.last = fork.A;
+    fork.seg.next = () => (fork.route === 'a' ? fork.A : fork.B);
+    fork.A.prev = fork.B.prev = () => fork.seg;
+    fork.A.next = fork.B.next = () => fork.after;
+    fork.after.prev = () => fork.last;
+    fork.A.fork = fork.B.fork = fork;
+    return fork;
+  });
+  // flaques, et fosses pleines d'eau quand il pleut
+  for (const d of PUDDLES) p[d.piece].puddles.push({ x0: d.x0, x1: d.x1, deep: false });
+  for (const J of JUMPS) {
+    if (J.piece && biomeAt(J.pit[0]).rain) p[J.piece].puddles.push({ x0: J.pit[0] + 30, x1: J.pit[1] - 30, deep: true, yMin: J.bottom - 70 });
+  }
   for (const [name, a, b] of LOOP_ZONES) {
     const pc = p[name];
     let top = -1;
@@ -107,7 +123,11 @@ export function buildTrack() {
   }
   const main = p.main;
   track.sMin = indexWhere(main, (i) => main.x[i] >= BALL_R) * STEP;
-  track.spawnS = indexWhere(main, (i) => main.x[i] >= 58) * STEP;
+  track.checkpoints = CHECKPOINTS.map(({ piece, x }) => {
+    const pc = p[piece];
+    return { pc, s: indexWhere(pc, (i) => pc.x[i] >= x) * STEP };
+  });
+  track.spawnS = track.checkpoints[0].s;
   track.ground = groundProfile(p);
   track.grid = buildGrid(track.pieces);
   return track;
@@ -137,7 +157,8 @@ function rasterize(g, line, pick) {
  */
 function groundProfile(p) {
   const low = new Float32Array(WORLD.w + 1).fill(NaN), top = new Float32Array(WORLD.w + 1).fill(NaN);
-  for (const name of ['main', 'under', 'end']) rasterize(low, p[name].line, Math.max);
+  // le sol : tout sauf les chemins du haut (grande bosse du niveau 4, ponts des aiguillages)
+  for (const pc of Object.values(p)) if (pc.name !== 'hill' && !BRIDGES.includes(pc.name)) rasterize(low, pc.line, Math.max);
   rasterize(top, p.hill.line, Math.min);
   const g = low;
   for (let x = HILL.x0; x <= HILL.x1; x++) g[x] = top[x];

@@ -67,20 +67,23 @@ export class Effects {
     this.items.push({ kind: 'text', label, x, y, life: 1.4, max: 1.4 });
   }
 
-  /** Boost : traînée rouge au crayon, épaisse près de la boule, qui s'effile et s'efface. */
+  /** Bonus : traînée de la couleur du bonus, épaisse près de la boule, qui s'effile et s'efface. */
   drawHeat(ctx, ball) {
-    if (ball.heat <= 0) return;
+    const tint = ball.tint();
+    if (!tint) return;
+    const [r, g, b, h] = tint;
     const pts = this.history.filter((p) => p.t > this.time - 0.45);
     if (pts.length < 3) return;
+    const light = `rgb(${Math.min(255, r + 40)},${Math.min(255, g + 40)},${Math.min(255, b + 30)})`;
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    for (const [w, a, color] of [[1.5, 0.22, '#e0553d'], [0.9, 0.35, '#d23f2e'], [0.3, 0.5, '#f08a4b']]) {
+    for (const [w, a, color] of [[1.5, 0.22, `rgb(${r},${g},${b})`], [0.9, 0.35, `rgb(${r * 0.85 | 0},${g * 0.85 | 0},${b * 0.85 | 0})`], [0.3, 0.5, light]]) {
       for (let i = 1; i < pts.length; i++) {
         const k = i / pts.length;
         ctx.strokeStyle = color;
-        ctx.globalAlpha = a * ball.heat * k;
-        ctx.lineWidth = R * w * k * (0.6 + 0.4 * ball.heat);
+        ctx.globalAlpha = a * h * k;
+        ctx.lineWidth = R * w * k * (0.6 + 0.4 * h);
         ctx.beginPath();
         ctx.moveTo(pts[i - 1].x, pts[i - 1].y);
         ctx.lineTo(pts[i].x, pts[i].y);
@@ -90,11 +93,19 @@ export class Effects {
     ctx.restore();
   }
 
-  /** Boule d'élan touchée : éclats rouge-orangé au crayon. */
-  burst(x, y) {
+  /** Boule bonus touchée : éclats au crayon de sa couleur. */
+  burst(x, y, colors = ['#e0553d', '#f08a4b']) {
     for (let i = 0; i < 12; i++) {
       const a = (i / 12) * Math.PI * 2 + Math.random() * 0.3;
-      this.items.push({ kind: 'line', x, y, a, r0: R * 0.9, r1: R * (1.8 + Math.random() * 0.9), life: 0.5, max: 0.5, color: i % 2 ? '#e0553d' : '#f08a4b' });
+      this.items.push({ kind: 'line', x, y, a, r0: R * 0.9, r1: R * (1.8 + Math.random() * 0.9), life: 0.5, max: 0.5, color: colors[i % colors.length] });
+    }
+  }
+
+  /** Éclaboussure : gouttes bleu-gris qui jaillissent. */
+  splash(x, y) {
+    for (let i = 0; i < 9; i++) {
+      const a = -Math.PI / 2 + (i - 4) * 0.28;
+      this.items.push({ kind: 'line', x, y: y + R * 0.8, a, r0: R * 0.3, r1: R * (1.2 + Math.random()), life: 0.4, max: 0.4, color: '#7d97ad' });
     }
   }
 

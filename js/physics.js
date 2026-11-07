@@ -2,39 +2,54 @@
  * Physique d'une bille d'acier pleine qui roule sans glisser.
  * - Sur la route : mouvement le long du chemin du centre, accélération 5/7·g·sinθ
  *   (inertie d'une sphère pleine), frottement de roulement proportionnel à la réaction.
- * - La route est une gouttière : la bille reste dedans sur les bosses (sauf à la lèvre du
+ * - La route est une gouttière : la bille reste dedans sur les bosses (sauf à la lèvre d'un
  *   tremplin). Sous un surplomb (haut d'un looping), si la réaction devient négative, elle
  *   tombe : parabole, rebond, reprise.
- * - Au bout d'un tronçon, elle passe au suivant (à l'aiguillage : le chemin choisi).
+ * - Saisons : sur la glace elle glisse (accélère davantage, presque sans frottement, répond
+ *   moins aux gestes, surtout pour revenir en arrière) ; le vent d'automne la pousse ;
+ *   les flaques et l'eau la freinent.
+ * - Bonus : rouge = élan, bleu = colle à la route, vert = bond, jaune = plume (gravité réduite).
+ * - Au bout d'un tronçon, elle passe au suivant (à un aiguillage : le chemin choisi).
  */
-import { WORLD, SHEET, PIT, BALL_R, sample, segmentsNear } from './track.js';
+import { WORLD, SHEET, JUMPS, BALL_R, sample, segmentsNear } from './track.js';
+import { biomeAt, windAt } from './biomes.js';
 
 export const G = 2400;            // px/s² (≈ 1 m pour 245 px)
-const ROLL = 5 / 7;               // sphère pleine : I = 2/5·m·r²
-const ROLL_RES = 0.018;           // frottement de roulement (route crayonnée)
 const AIR = 0.00009;              // traînée de l'air (par px)
 const STATIC = 70;                // px/s² : en dessous, la bille reste posée
 const BOUNCE_MIN = 380;           // px/s : vitesse d'impact qui fait rebondir
 const RESTITUTION = 0.32;         // rebond acier sur la route
 const V_MAX = 4200;
-const BOOST = 950;                // px/s ajoutés par une boule d'élan
-const HEAT_TIME = 2.6;            // s pendant lesquelles la boule reste rougie
+const BOOST = 950;                // px/s ajoutés par la boule rouge
+const BOND = 1250;                // px/s d'élan vers le haut donnés par la boule verte
+
+/** Durées des effets de bonus (s) et leur couleur. */
+export const BONUS = {
+  red: { time: 2.6, color: [230, 75, 52] },
+  blue: { time: 6, color: [70, 130, 225] },
+  green: { time: 1.6, color: [70, 175, 80] },
+  yellow: { time: 6, color: [235, 190, 40] },
+};
 
 export class Ball {
   constructor(track) {
     this.tr = track;
     this.events = [];
+    this.clock = 0;
     this.respawn();
   }
 
-  respawn() {
-    const pc = this.tr.byName.main, p = sample(pc, this.tr.spawnS);
-    Object.assign(this, { onTrack: true, jumping: false, heat: 0, pc, s: this.tr.spawnS, v: 0, x: p.x, y: p.y, vx: 0, vy: 0, omega: 0, angle: 0, age: 0 });
+  /** Repart d'un point de reprise (début d'un niveau). */
+  respawn(level = 0) {
+    const cp = this.tr.checkpoints[Math.max(0, Math.min(this.tr.checkpoints.length - 1, level))];
+    const p = sample(cp.pc, cp.s);
+    Object.assign(this, { onTrack: true, jumpZone: null, pc: cp.pc, s: cp.s, v: 0, x: p.x, y: p.y, vx: 0, vy: 0, omega: 0, angle: 0, age: 0 });
+    this.fx = { red: 0, blue: 0, green: 0, yellow: 0 };
     this.lastS = this.s;
-    this.events.push({ type: 'spawn' });
+    this.inPuddle = false;
+    this.events.push({ type: 'spawn', level });
   }
 
-  /** Repère de la route sous la boule. */
   frame() {
     return sample(this.pc, this.s);
   }
@@ -43,58 +58,87 @@ export class Ball {
     return this.onTrack ? Math.abs(this.v) : Math.hypot(this.vx, this.vy);
   }
 
-  /** Boule d'élan : coup d'accélérateur dans le sens de la marche, la boule chauffe au rouge. */
-  boost() {
-    this.heat = 1;
-    if (this.onTrack) {
-      const dir = this.v < -1 ? -1 : 1;
-      this.v = clamp(this.v + dir * BOOST, -V_MAX, V_MAX);
-    } else {
-      const sp = Math.hypot(this.vx, this.vy) || 1, k = (sp + BOOST) / sp;
-      this.vx *= k;
-      this.vy *= k;
+  biome() {
+    return biomeAt(this.x);
+  }
+
+  /** Teinte actuelle de la boule (effet de bonus le plus fort) : [r, g, b, force] ou null. */
+  tint() {
+    let best = null;
+    for (const [k, t] of Object.entries(this.fx)) {
+      const a = t / BONUS[k].time;
+      if (a > 0 && (!best || a > best[3])) best = [...BONUS[k].color, a];
     }
+    return best;
+  }
+
+  /** Une boule bonus est touchée. */
+  bonus(kind) {
+    this.fx[kind] = BONUS[kind].time;
+    if (kind === 'red') {
+      if (this.onTrack) this.v = clamp(this.v + (this.v < -1 ? -1 : 1) * BOOST, -V_MAX, V_MAX);
+      else {
+        const sp = Math.hypot(this.vx, this.vy) || 1, k = (sp + BOOST) / sp;
+        this.vx *= k;
+        this.vy *= k;
+      }
+    } else if (kind === 'green' && this.onTrack) {
+      const p = this.frame();
+      this.takeOff(p);
+      this.vx += p.nx * BOND;
+      this.vy += p.ny * BOND;
+    }
+  }
+
+  /** Geste du joueur : la glace répond moins bien, surtout pour revenir en arrière. */
+  control(dv) {
+    const b = this.biome();
+    const back = Math.abs(this.v) > 30 && Math.sign(dv) !== Math.sign(this.v);
+    return dv * (back ? b.backControl : b.control);
   }
 
   /** Coup de doigt : vitesse ajoutée le long de la route (projection du geste). */
   impulse(wx, wy) {
     if (!this.onTrack) return false;
     const p = this.frame();
-    this.v = clamp(this.v + wx * p.tx + wy * p.ty, -V_MAX, V_MAX);
+    this.v = clamp(this.v + this.control(wx * p.tx + wy * p.ty), -V_MAX, V_MAX);
     return true;
   }
 
   /** @param {number} dt @param {{x:number,y:number}} push accélération voulue par le joueur */
   step(dt, push) {
     this.age += dt;
-    this.heat = Math.max(0, this.heat - dt / HEAT_TIME);
+    this.clock += dt;
+    for (const k in this.fx) this.fx[k] = Math.max(0, this.fx[k] - dt);
     const px = this.x;
     if (this.onTrack) this.stepTrack(dt, push);
     else this.stepAir(dt);
     this.angle += this.omega * dt;
     const k0 = Math.floor(px / SHEET), k1 = Math.floor(this.x / SHEET);
     if (k1 > k0 && k1 > 0 && this.x < WORLD.w) this.events.push({ type: 'level', n: k1 + 1 });
-    if (this.x > WORLD.w + BALL_R * 0.5 || this.y > WORLD.h + 400) {
-      this.events.push({ type: 'exit' });
-      this.respawn();
-    }
+    if (this.y > WORLD.h + 400) this.respawn(Math.max(0, Math.floor(this.x / SHEET)));
   }
 
   stepTrack(dt, push) {
-    const tr = this.tr;
+    const tr = this.tr, b = this.biome(), grav = this.fx.yellow > 0 ? 0.45 : 1;
     let p = this.frame();
     // Réaction de la route (par unité de masse).
-    let N = this.v * this.v * p.k - G * p.ny;
+    let N = this.v * this.v * p.k - G * grav * p.ny;
     if (N < 0) {
-      if (p.ny > 0.15) return this.takeOff(p);
-      if (this.pc.jump[p.i] && this.v > 0) {
-        this.jumping = true;
+      const glued = this.fx.blue > 0;
+      if (p.ny > 0.15 && !glued) return this.takeOff(p);
+      const z = this.pc.jump[p.i];
+      if (z && this.v > 0 && !glued) {
+        this.jumpZone = JUMPS[z - 1];
         return this.takeOff(p);
       }
-      N = 0;
+      N = Math.max(0, N);
     }
-    const along = ROLL * G * p.ty + ROLL * (push.x * p.tx + push.y * p.ty);
-    const resist = ROLL * ROLL_RES * N + AIR * this.v * this.v;
+    const pushT = push.x * p.tx + push.y * p.ty;
+    let along = b.roll * G * grav * p.ty + b.roll * (pushT ? this.control(pushT) : 0);
+    if (b.wind) along += b.roll * windAt(this.clock) * p.tx;
+    let resist = b.roll * b.rollRes * N + AIR * this.v * this.v;
+    resist += this.puddleDrag(p);
     if (Math.abs(this.v) < 6 && Math.abs(along) < STATIC + resist) {
       this.v = 0;
     } else {
@@ -112,11 +156,18 @@ export class Ball {
     }
     for (const top of this.pc.loopTops) if (this.lastS < top && this.s >= top) this.events.push({ type: 'loop' });
     // passage d'un tronçon à l'autre
-    if (this.s > this.pc.length && this.pc.next) {
-      this.s -= this.pc.length;
-      this.pc = this.pc.next();
-      if (this.pc === tr.byName.under || this.pc === tr.byName.hill) tr.lastBranch = this.pc;
-      this.lastS = 0;
+    if (this.s > this.pc.length) {
+      if (this.pc.next) {
+        this.s -= this.pc.length;
+        this.pc = this.pc.next();
+        if (this.pc.fork) this.pc.fork.last = this.pc;
+        this.lastS = 0;
+      } else {
+        // butoir au bout de l'arrivée
+        this.s = this.pc.length;
+        if (this.v > 40) this.events.push({ type: 'clink', power: this.v });
+        this.v = -this.v * 0.3;
+      }
     } else if (this.s < 0 && this.pc.prev) {
       this.pc = this.pc.prev();
       this.s += this.pc.length;
@@ -125,8 +176,22 @@ export class Ball {
     p = this.frame();
     this.x = p.x;
     this.y = p.y;
-    this.omega = this.v / BALL_R;
-    if (this.s >= this.pc.length - 0.5 && !this.pc.next && this.v > 0) this.takeOff(p);
+    // sur la glace, la boule glisse : elle tourne bien moins vite qu'elle n'avance
+    const target = (this.v / BALL_R) * b.spin;
+    this.omega += (target - this.omega) * Math.min(1, dt * (b.spin < 1 ? 3 : 60));
+  }
+
+  /** Flaques et eau : freinage (et petit événement d'éclaboussure en entrant). */
+  puddleDrag(p) {
+    let drag = 0, wet = false;
+    for (const d of this.pc.puddles) {
+      if (p.x < d.x0 || p.x > d.x1 || (d.yMin && p.y < d.yMin)) continue;
+      wet = true;
+      drag = d.deep ? 900 + 1.4 * Math.abs(this.v) : 380 + 0.9 * Math.abs(this.v);
+    }
+    if (wet && !this.inPuddle && Math.abs(this.v) > 120) this.events.push({ type: 'splash', power: Math.abs(this.v) });
+    this.inPuddle = wet;
+    return drag;
   }
 
   takeOff(p) {
@@ -138,10 +203,11 @@ export class Ball {
   }
 
   stepAir(dt) {
+    const b = this.biome(), grav = this.fx.yellow > 0 ? 0.45 : 1;
     const sp = Math.hypot(this.vx, this.vy);
     const drag = 1 - AIR * sp * dt;
-    this.vx *= drag;
-    this.vy = this.vy * drag + G * dt;
+    this.vx = this.vx * drag + (b.wind ? windAt(this.clock) * 0.6 * dt : 0);
+    this.vy = this.vy * drag + G * grav * dt;
     const ox = this.x, oy = this.y;
     this.x += this.vx * dt;
     this.y += this.vy * dt;
@@ -176,9 +242,10 @@ export class Ball {
       this.events.push({ type: 'clink', power: -vn });
     } else {
       this.onTrack = true;
-      if (this.jumping) this.events.push({ type: this.x > PIT.x1 ? 'jump' : 'pit' });
-      this.jumping = false;
+      if (this.jumpZone) this.events.push({ type: this.x > this.jumpZone.pitEnd ? 'jump' : 'pit' });
+      this.jumpZone = null;
       this.pc = best.pc;
+      if (this.pc.fork) this.pc.fork.last = this.pc;
       this.s = s;
       this.lastS = s;
       // le patinage au contact égalise rotation et vitesse : un peu d'énergie perdue

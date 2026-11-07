@@ -80,19 +80,20 @@ export function drawBall(ctx, body, ball, track, t) {
     ctx.stroke();
   }
   ctx.restore();
-  if (ball.heat > 0) {
-    // boost : l'acier chauffe au rouge (teinte multipliée, garde les reflets), halo rouge
-    const h = ball.heat;
+  const tint = ball.tint();
+  if (tint) {
+    // bonus : l'acier prend la couleur du bonus (teinte multipliée, garde les reflets), halo
+    const [r, g, b, h] = tint;
     ctx.save();
     ctx.globalCompositeOperation = 'multiply';
-    ctx.fillStyle = `rgba(235,80,55,${0.75 * h})`;
+    ctx.fillStyle = `rgba(${r},${g},${b},${0.75 * h})`;
     ctx.beginPath();
     ctx.arc(0, 0, R - 0.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
     const halo = ctx.createRadialGradient(0, 0, R * 0.8, 0, 0, R * 1.9);
-    halo.addColorStop(0, `rgba(240,90,60,${0.35 * h})`);
-    halo.addColorStop(1, 'rgba(240,90,60,0)');
+    halo.addColorStop(0, `rgba(${r},${g},${b},${0.35 * h})`);
+    halo.addColorStop(1, `rgba(${r},${g},${b},0)`);
     ctx.fillStyle = halo;
     ctx.beginPath();
     ctx.arc(0, 0, R * 1.9, 0, Math.PI * 2);

@@ -1,15 +1,18 @@
 /**
- * Les quatre niveaux, une feuille de 2000 × 1433 chacun, en points de passage de la route.
- * La route est faite de tronçons :
- * - « main » : niveaux 1 à 3, puis le début du niveau 4 jusqu'à l'aiguillage ;
- * - « under » : chemin du souterrain, qui ressort sur un grand looping ;
- * - « hill » : chemin qui monte vers la grande bosse, puis passe sur un pont ;
- * - « end » : les deux chemins se rejoignent et sortent à droite.
+ * Les seize niveaux et l'arrivée, une feuille de 2000 × 1433 chacun.
+ * - Niveaux 1 à 4 (été) : faits à la main, d'après le dessin.
+ * - Niveaux 5 à 16 (automne, hiver, pluie) : assemblés par pièces (builder.js) selon une
+ *   petite recette par niveau, puis vérifiés par simulation (tools/verifier-niveaux.mjs).
+ * La route est faite de tronçons raccordés : « main » (niveaux 1 à 4 jusqu'au premier
+ * aiguillage), les chemins de chaque aiguillage, puis les tronçons s1, s2… entre aiguillages.
  * Aux raccords, les points voisins sont alignés : pas de cassure dans la route.
  */
+import { Builder } from './builder.js';
+
 export const SHEET = 2000;
-export const LEVELS = 4;
-export const WORLD = { w: SHEET * LEVELS, h: 1433 };
+export const LEVELS = 16;
+export const SHEETS = LEVELS + 1;          // + la feuille d'arrivée
+export const WORLD = { w: SHEET * SHEETS, h: 1433 };
 
 /** Niveau 1 : relevé sur le dessin. */
 const LEVEL1 = [
@@ -59,12 +62,12 @@ const LEVEL3 = [
   [5680, 1100], [5820, 1125], [5950, 1128], [6060, 1124], [6150, 1122],
 ];
 
-/** Niveau 4 : aiguillage en F, deux chemins, réunion en E. */
+/** Niveau 4 : aiguillage en F, deux chemins faits à la main, réunion en EM. */
 const F0 = [6220, 1122], F = [6270, 1122];
 const EM = [8000, 1150], E1 = [8040, 1150];
 const BIG = [7400, 1170], BIG_S = 1.05;
 
-export const PIECES = {
+const HAND = {
   main: { pts: [...LEVEL1, ...LEVEL2, ...LEVEL3, F0, F], next: [6310, 1122] },
   under: {
     prev: F0,
@@ -86,15 +89,84 @@ export const PIECES = {
     ],
     next: E1,
   },
-  end: { prev: [7960, 1150], pts: [EM, E1, [8090, 1125], [8150, 1070], [8210, 1000]] },
 };
+
+/* ---------- niveaux 5 à 16 : recettes ---------- */
+
+const b = new Builder('s1', [EM, E1], [7960, 1150]);
+const start = (k) => b.to(k * SHEET + 20, 1100).checkpoint(k).flat(110);
+/** Place restante à la fin de chaque niveau (négative : le niveau déborde sur la feuille suivante). */
+export const LEVEL_ROOM = [];
+const end = (k) => {
+  LEVEL_ROOM[k] = (k + 1) * SHEET - 20 - b.x;
+  b.to((k + 1) * SHEET - 20, 1100);
+};
+
+// Automne : vent qui souffle en rafales, feuilles mortes.
+start(4); b.valley(420, 160).hill(420, 170).bonus('red', 40).slope(180, 60).loop(0.82).flat(60).hill(380, 120); end(4);
+start(5); b.slope(120, 40).jump(1).flat(60).bonus('green', 30).flat(60).hill(400, 230).valley(260, 100); end(5);
+start(6);
+b.fork(1500,
+  (l) => l.slope(200, 90).bonus('red').slope(160, 20).loop(0.78).flat(80).slope(220, -60),
+  (h) => h.slope(380, -470).flat(120).bonus('yellow').flat(140).hill(240, 70).flat(60).slope(330, 470),
+  ['↘ En bas : looping', '↗ En haut : le pont']);
+end(6);
+start(7); b.slope(150, 50).bonus('red').loop(0.8).slope(60, 25).loop(0.7).slope(140, -90).halfpipe(520, 220); end(7);
+
+// Hiver : route glacée (plus rapide, moins de prise), neige.
+start(8); b.slope(260, 170).hill(520, 230).hill(420, 170).slope(120, 30).loop(0.9).flat(60); end(8);
+start(9); b.halfpipe(540, 250).bonus('blue', 20).flat(40).loop(1).flat(40).jump(1); end(9);
+start(10);
+b.fork(1550,
+  (l) => l.slope(160, 60).loop(0.72).flat(30).loop(0.66).slope(160, -60),
+  (h) => h.slope(420, -480).bonus('green', 60).flat(260).slope(420, 480),
+  ['↘ En bas : deux loopings', '↗ En haut : le pont']);
+end(10);
+start(11); b.slope(180, 80).bonus('red').loop(0.76).slope(50, 22).loop(0.7).slope(50, 22).loop(0.62).flat(40).valley(360, 120); end(11);
+
+// Pluie : flaques qui freinent, fosses pleines d'eau.
+start(12); b.slope(260, 140).puddle(220).slope(230, -140).hill(360, 140).bonus('red').slope(120, 30).loop(0.8); end(12);
+start(13); b.slope(120, 30).jump(1).flat(40).puddle(200).bonus('green', -40).hill(420, 220); end(13);
+start(14);
+b.fork(1500,
+  (l) => l.slope(200, 100).puddle(180).bonus('red').loop(0.78).slope(160, -100),
+  (h) => h.slope(380, -470).bonus('yellow').flat(240).slope(380, 470),
+  ['↘ En bas : flaque et looping', '↗ En haut : le pont']);
+end(14);
+start(15); b.bonus('blue', 60).flat(80).loop(1).puddle(160).halfpipe(480, 240).bonus('red').loop(0.8).slope(60, 25).loop(0.7); end(15);
+
+// Arrivée : replat, ligne d'arrivée, arc-en-ciel ; un butoir au bout.
+start(16); b.flat(400);
+export const FINISH = { x: 16 * SHEET + 900 };
+b.to(17 * SHEET - 120, 1100).slope(70, -60).slope(40, -90);
+
+const GEN = b.meta;
+export const PIECES = { ...HAND };
+for (const pc of GEN.pieces) PIECES[pc.name] = { pts: pc.pts, prev: pc.prev, next: pc.next };
 
 /** Sommets des loopings (tronçon, plage de x) : pour le petit effet de réussite. */
 export const LOOP_ZONES = [
   ['main', 560, 980], ['main', 3540, 3900], ['main', 4500, 4860], ['main', 4880, 5200], ['under', 7270, 7680],
+  ...GEN.loops,
 ];
-export const JUMP = { x0: 2925, x1: 3010 };   // seule la lèvre du tremplin laisse décoller sur une bosse
-export const PIT = { x0: 2965, x1: 3290 };
+/** Tremplins : lèvre (seul endroit d'une bosse où l'on décolle) et fosse. */
+export const JUMPS = [
+  { x0: 2925, x1: 3010, yMax: 1010, pitEnd: 3290, pit: [2988, 3256], bottom: 1288 },
+  ...GEN.jumps,
+];
+export const PUDDLES = GEN.puddles;
+export const BONUSES = [{ piece: 'main', x: 4475, color: 'red' }, ...GEN.bonuses];
+/** Aiguillages : le tronçon d'avant, les deux chemins (a = bas, b = haut), le tronçon d'après. */
+export const FORKS = [
+  { x: F[0], y: F[1], seg: 'main', a: 'under', b: 'hill', after: 's1', labels: ['↘ Chemin : souterrain', '↗ Chemin : grande bosse'] },
+  ...GEN.forks,
+];
+/** Chemins du haut à dessiner en pont (le niveau 4 a son propre pont). */
+export const BRIDGES = GEN.bridges;
+/** Points de reprise : début de chaque niveau. */
+export const CHECKPOINTS = [
+  { piece: 'main', x: 58 }, { piece: 'main', x: 2195 }, { piece: 'main', x: 4190 }, { piece: 'main', x: 6150 },
+  ...GEN.checkpoints.slice(4),
+];
 export const HILL = { x0: F[0], x1: 7175, flank: 7235 }; // la colline de la grande bosse, et son flanc
 export const BRIDGE = { x0: 7240, x1: 7660, pillars: [7660, 7815] };
-export const FORK = { x: F[0], y: F[1] };
