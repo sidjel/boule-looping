@@ -4,11 +4,14 @@
  * Le côté « boule » de la route est toujours à gauche du sens de marche,
  * ce qui marche aussi bien sur le sol qu'à l'intérieur du looping.
  */
-export const WORLD = { w: 2000, h: 1433 };
+export const SHEET = 2000;          // largeur d'une feuille (un niveau)
+export const LEVELS = 2;
+export const WORLD = { w: SHEET * LEVELS, h: 1433 };
 export const BALL_R = 30;
 const STEP = 3;
 
-const CTRL = [
+/** Niveau 1 : relevé sur le dessin. */
+const LEVEL1 = [
   [-14, 500], [25, 498], [60, 497], [88, 498], [108, 520], [130, 590], [158, 680],
   [190, 772], [228, 858], [268, 937], [306, 1010], [355, 1070], [410, 1115], [470, 1148],
   [540, 1163], [610, 1161], [665, 1149], [705, 1132], [762, 1104], [832, 1058], [893, 1003],
@@ -16,9 +19,33 @@ const CTRL = [
   [690, 712], [636, 755], [603, 820], [594, 890], [604, 960], [628, 1030], [665, 1090],
   [710, 1135], [762, 1157], [822, 1163], [892, 1155], [962, 1134], [1040, 1104], [1112, 1064],
   [1180, 1010], [1242, 958], [1300, 921], [1350, 908], [1400, 917], [1452, 945], [1512, 995],
-  [1572, 1040], [1642, 1066], [1712, 1071], [1782, 1054], [1852, 1014], [1922, 960],
-  [1976, 905], [2030, 850], [2090, 790],
+  [1572, 1040], [1642, 1066], [1712, 1071], [1782, 1054], [1852, 1014], [1922, 960], [1976, 905],
 ];
+
+/** Le looping du dessin, réduit, pour le niveau 2 (du croisement au croisement). */
+function loopCopy(at, scale) {
+  const a = LEVEL1.findIndex(([x, y]) => x === 705 && y === 1132);
+  const b = LEVEL1.findIndex(([x, y]) => x === 710 && y === 1135);
+  const [ox, oy] = LEVEL1[a];
+  return LEVEL1.slice(a, b + 1).map(([x, y]) => [at[0] + (x - ox) * scale, at[1] + (y - oy) * scale]);
+}
+
+/** Niveau 2, imaginé dans la suite : crête, grande descente, tremplin, fosse, second looping. */
+const LEVEL2 = [
+  [2030, 852], [2085, 808], [2140, 782], [2195, 775], [2250, 790], [2310, 830], [2380, 900],
+  [2450, 985], [2520, 1060], [2590, 1115], [2660, 1140], [2730, 1135], [2790, 1110],
+  [2850, 1065], [2900, 1016], [2940, 978], [2965, 960],                     // tremplin
+  [2988, 968], [3004, 1012], [3018, 1100], [3038, 1198], [3072, 1266], [3120, 1288],
+  [3170, 1274], [3205, 1220], [3226, 1150], [3241, 1082], [3256, 1032],     // fosse
+  [3278, 1006], [3312, 1000], [3362, 1014], [3420, 1048], [3490, 1098], [3560, 1132],
+  [3615, 1146], [3668, 1150],
+  ...loopCopy([3722, 1140], 0.86),
+  [3770, 1160], [3825, 1166], [3890, 1158], [3950, 1126], [4010, 1066], [4070, 996], [4130, 920],
+];
+
+const CTRL = [...LEVEL1, ...LEVEL2];
+export const JUMP = { x0: 2925, x1: 3010 };   // seule la lèvre du tremplin laisse décoller sur une bosse
+export const PIT = { x0: 2965, x1: 3290 };
 
 /** Spline de Catmull-Rom centripète passant par tous les points. */
 function spline(pts, per = 24) {
@@ -92,9 +119,13 @@ export function buildTrack() {
   const track = { line, x, y, tx, ty, k, n, step: STEP, length: (n - 1) * STEP };
   track.sMin = indexWhere(track, (i) => x[i] >= BALL_R) * STEP;
   track.spawnS = indexWhere(track, (i) => x[i] >= 58) * STEP;
-  let top = -1;
-  for (let i = 0; i < n; i++) if (x[i] > 560 && x[i] < 980 && (top < 0 || y[i] < y[top])) top = i;
-  track.loopTopS = top * STEP;
+  track.loopTops = [[560, 980], [3540, 3900]].map(([a, b]) => {
+    let top = -1;
+    for (let i = 0; i < n; i++) if (x[i] > a && x[i] < b && (top < 0 || y[i] < y[top])) top = i;
+    return top * STEP;
+  });
+  track.jump = new Uint8Array(n);
+  for (let i = 0; i < n; i++) track.jump[i] = x[i] > JUMP.x0 && x[i] < JUMP.x1 && y[i] < 1010 ? 1 : 0;
   track.ground = groundProfile(line);
   track.grid = buildGrid(track);
   return track;

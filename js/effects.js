@@ -1,6 +1,6 @@
 /**
- * Petits effets au crayon : étincelles des chocs (avec un « tink » métallique),
- * traits de vitesse, mot « Looping ! », traînée du doigt.
+ * Petits effets au crayon : étincelles des chocs, trait du looping, reflets et traits
+ * de vitesse, petits mots écrits à la main, traînée du doigt. Les sons sont dans audio.js.
  */
 import { BALL_R } from './track.js';
 
@@ -10,21 +10,33 @@ const HAND = '"Segoe Print", "Bradley Hand", "Chalkboard SE", "Comic Sans MS", "
 export class Effects {
   constructor() {
     this.items = [];
-    this.audio = null;
-    this.lastClink = 0;
+    this.history = []; // positions récentes de la boule (traînée, fantômes)
+    this.time = 0;
   }
 
-  unlockSound() {
-    if (this.audio) return;
-    try {
-      this.audio = new (window.AudioContext || window.webkitAudioContext)();
-    } catch {
-      this.audio = false;
+  /** À chaque image : mémorise la position de la boule. */
+  follow(ball, dt) {
+    this.time += dt;
+    this.history.push({ x: ball.x, y: ball.y, t: this.time });
+    while (this.history.length && this.history[0].t < this.time - 1.4) this.history.shift();
+    for (const it of this.items) if (it.kind === 'path' && it.grow > 0) it.pts.push([ball.x, ball.y]);
+  }
+
+  /** Looping réussi : la boule laisse un trait de crayon le long de la boucle, qui s'efface. */
+  loop(x, y) {
+    const pts = this.history.filter((h) => h.t > this.time - 0.55).map((h) => [h.x, h.y]);
+    this.items.push({ kind: 'path', pts, grow: 0.5, life: 1.9, max: 1.9 });
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI / 2 + (i - 2) * 0.55;
+      this.items.push({ kind: 'star', x: x + Math.cos(a) * R * 2.6, y: y + Math.sin(a) * R * 2.6 + R * 1.5, s: 7 + (i % 2) * 4, life: 0.9 + i * 0.08, max: 0.9 + i * 0.08 });
     }
   }
 
   update(dt) {
-    for (const it of this.items) it.life -= dt;
+    for (const it of this.items) {
+      it.life -= dt;
+      if (it.grow > 0) it.grow -= dt;
+    }
     this.items = this.items.filter((it) => it.life > 0);
   }
 
@@ -49,37 +61,16 @@ export class Effects {
         this.items.push({ kind: 'line', x, y: y + R * 0.6, a: a + Math.PI, r0: R * 0.4, r1: R * (0.9 + Math.random()), life: 0.25, max: 0.25, color: '#4b4b4f' });
       }
     }
-    this.ping(power);
-  }
-
-  ping(power) {
-    const ac = this.audio, now = performance.now();
-    if (!ac || now - this.lastClink < 60) return;
-    this.lastClink = now;
-    if (ac.state === 'suspended') ac.resume();
-    const vol = Math.min(0.22, power / 6000);
-    const t = ac.currentTime;
-    for (const [f, d] of [[2950, 0.16], [4410, 0.09], [6230, 0.05]]) {
-      const o = ac.createOscillator(), g = ac.createGain();
-      o.type = 'sine';
-      o.frequency.value = f * (0.97 + Math.random() * 0.06);
-      g.gain.setValueAtTime(vol, t);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + d);
-      o.connect(g).connect(ac.destination);
-      o.start(t);
-      o.stop(t + d + 0.02);
-    }
   }
 
   text(label, x, y) {
     this.items.push({ kind: 'text', label, x, y, life: 1.4, max: 1.4 });
   }
 
-  /** Traits de vitesse derrière la bille quand elle file. */
+  /** Vitesse : reflets fantômes de la boule et traits de vitesse quand elle file. */
   drawSpeed(ctx, ball) {
-    const vx = ball.onTrack ? null : ball.vx;
     let dx, dy, sp;
-    if (vx === null) {
+    if (ball.onTrack) {
       const i = Math.min(ball.tr.n - 1, Math.round(ball.s / ball.tr.step));
       sp = Math.abs(ball.v);
       dx = ball.tr.tx[i] * Math.sign(ball.v);
@@ -89,19 +80,29 @@ export class Effects {
       dx = ball.vx / (sp || 1);
       dy = ball.vy / (sp || 1);
     }
-    if (sp < 1100) return;
-    const a = Math.min(0.5, (sp - 1100) / 2400);
+    const k = Math.max(0, Math.min(1, (sp - 900) / 1800));
+    if (k <= 0 || ball.age < 0.4) return;
     ctx.save();
-    ctx.strokeStyle = '#55555a';
-    ctx.lineCap = 'round';
-    ctx.lineWidth = 2;
-    ctx.globalAlpha = a;
-    for (const o of [-0.6, 0, 0.6]) {
-      const ox = ball.x - dy * o * R, oy = ball.y + dx * o * R;
-      const len = R * (1.2 + Math.abs(o) * -0.6 + sp / 1500);
+    const h = this.history;
+    for (let j = 1; j <= 4; j++) {
+      const p = h[h.length - 1 - j * 2];
+      if (!p) break;
+      ctx.globalAlpha = k * (0.22 - j * 0.045);
+      ctx.fillStyle = '#9a9ca2';
       ctx.beginPath();
-      ctx.moveTo(ox - dx * R * 1.3, oy - dy * R * 1.3);
-      ctx.lineTo(ox - dx * (R * 1.3 + len), oy - dy * (R * 1.3 + len));
+      ctx.arc(p.x, p.y, R * (1 - j * 0.04), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = '#4f4f55';
+    ctx.lineCap = 'round';
+    for (const [o, l] of [[-0.75, 0.7], [-0.3, 1.1], [0.2, 1.3], [0.65, 0.8]]) {
+      ctx.globalAlpha = 0.12 + 0.45 * k;
+      ctx.lineWidth = 1.6 + 1.4 * k;
+      const ox = ball.x - dy * o * R, oy = ball.y + dx * o * R;
+      const start = R * 1.25, len = R * (0.8 + 2.6 * k) * l;
+      ctx.beginPath();
+      ctx.moveTo(ox - dx * start, oy - dy * start);
+      ctx.lineTo(ox - dx * (start + len), oy - dy * (start + len));
       ctx.stroke();
     }
     ctx.restore();
@@ -129,6 +130,25 @@ export class Effects {
         ctx.beginPath();
         ctx.moveTo(it.x - it.dir * off, it.y);
         ctx.lineTo(it.x - it.dir * (off + 40), it.y);
+        ctx.stroke();
+      } else if (it.kind === 'path' && it.pts.length > 2) {
+        ctx.strokeStyle = '#5a5a60';
+        ctx.lineJoin = 'round';
+        ctx.globalAlpha = 0.5 * Math.min(1, k * 1.6);
+        ctx.lineWidth = 3 + 3 * k;
+        ctx.beginPath();
+        it.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.stroke();
+      } else if (it.kind === 'star') {
+        const g = Math.sin(Math.min(1, (1 - k) * 2.2) * Math.PI) * it.s;
+        ctx.strokeStyle = '#d1a51e';
+        ctx.globalAlpha = 0.85 * Math.min(1, k * 2);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(it.x - g, it.y);
+        ctx.lineTo(it.x + g, it.y);
+        ctx.moveTo(it.x, it.y - g);
+        ctx.lineTo(it.x, it.y + g);
         ctx.stroke();
       } else if (it.kind === 'text') {
         const rise = (1 - k) * 60;

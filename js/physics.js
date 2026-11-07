@@ -5,7 +5,7 @@
  * - La route est une gouttière : la bille reste dedans sur les bosses. Sous un surplomb
  *   (haut du looping), si la réaction devient négative, elle tombe : parabole, rebond, reprise.
  */
-import { WORLD, BALL_R, sample, segmentsNear } from './track.js';
+import { WORLD, SHEET, PIT, BALL_R, sample, segmentsNear } from './track.js';
 
 export const G = 2400;            // px/s² (≈ 1 m pour 245 px)
 const ROLL = 5 / 7;               // sphère pleine : I = 2/5·m·r²
@@ -25,7 +25,7 @@ export class Ball {
 
   respawn() {
     const p = sample(this.tr, this.tr.spawnS);
-    Object.assign(this, { onTrack: true, s: this.tr.spawnS, v: 0, x: p.x, y: p.y, vx: 0, vy: 0, omega: 0, angle: 0, age: 0 });
+    Object.assign(this, { onTrack: true, jumping: false, s: this.tr.spawnS, v: 0, x: p.x, y: p.y, vx: 0, vy: 0, omega: 0, angle: 0, age: 0 });
     this.lastS = this.s;
     this.events.push({ type: 'spawn' });
   }
@@ -41,9 +41,11 @@ export class Ball {
   /** @param {number} dt @param {{x:number,y:number}} push accélération voulue par le joueur */
   step(dt, push) {
     this.age += dt;
+    const px = this.x;
     if (this.onTrack) this.stepTrack(dt, push);
     else this.stepAir(dt);
     this.angle += this.omega * dt;
+    if (px < SHEET && this.x >= SHEET) this.events.push({ type: 'level', n: 2 });
     if (this.x > WORLD.w + BALL_R * 0.5 || this.y > WORLD.h + 400) {
       this.events.push({ type: 'exit' });
       this.respawn();
@@ -56,7 +58,12 @@ export class Ball {
     // la bille y reste ; sous un surplomb (haut du looping), elle tombe si elle est trop lente.
     let N = this.v * this.v * p.k - G * p.ny;
     if (N < 0) {
+      const i = Math.round(this.s / tr.step);
       if (p.ny > 0.15) return this.takeOff(p);
+      if (tr.jump[i] && this.v > 0) {
+        this.jumping = true;
+        return this.takeOff(p);
+      }
       N = 0;
     }
     const along = ROLL * G * p.ty + ROLL * (push.x * p.tx + push.y * p.ty);
@@ -76,7 +83,7 @@ export class Ball {
       if (this.v < -40) this.events.push({ type: 'clink', power: -this.v });
       this.v = -this.v * 0.35;
     }
-    if (this.lastS < tr.loopTopS && this.s >= tr.loopTopS) this.events.push({ type: 'loop' });
+    for (const top of tr.loopTops) if (this.lastS < top && this.s >= top) this.events.push({ type: 'loop' });
     const q = sample(tr, this.s);
     this.x = q.x;
     this.y = q.y;
@@ -132,6 +139,8 @@ export class Ball {
       this.events.push({ type: 'clink', power: -vn });
     } else {
       this.onTrack = true;
+      if (this.jumping) this.events.push({ type: this.x > PIT.x1 ? 'jump' : 'pit' });
+      this.jumping = false;
       this.s = s;
       this.lastS = s;
       // le patinage au contact égalise rotation et vitesse : un peu d'énergie perdue

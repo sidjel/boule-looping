@@ -1,15 +1,15 @@
 /**
  * Caméra : deux cadrages.
- * - « Vue d'ensemble » : toute la feuille est visible (par défaut en paysage).
- *   Sur les côtés, la table sur laquelle la feuille est posée.
+ * - « Vue d'ensemble » : toute la feuille du niveau en cours est visible (par défaut en paysage).
+ *   Sur les côtés, la table ; on glisse d'une feuille à l'autre quand la boule change de niveau.
  * - « Suivre la boule » : zoom sur la boule, la caméra l'accompagne (par défaut en portrait).
- * Le passage de l'un à l'autre est animé.
+ * Le passage de l'un à l'autre est animé. À grande vitesse, le zoom recule un peu.
  */
-import { WORLD } from './track.js';
+import { WORLD, SHEET, LEVELS } from './track.js';
 
 export class Camera {
   constructor() {
-    Object.assign(this, { x: 0, y: 0, scale: 1, dpr: 1, W: 1, H: 1, followScale: 1, fitScale: 1 });
+    Object.assign(this, { x: 0, y: 0, scale: 1, dpr: 1, W: 1, H: 1, followScale: 1, fitScale: 1, rush: 0 });
     this.wideBy = { landscape: true, portrait: false };
   }
 
@@ -17,9 +17,9 @@ export class Camera {
   resize(W, H, dpr) {
     Object.assign(this, { W, H, dpr });
     // Suivre : la feuille remplit l'écran, avec au moins 1000 px du dessin en largeur.
-    this.followScale = Math.min(Math.max(W / WORLD.w, H / WORLD.h), W / 1000);
+    this.followScale = Math.min(Math.max(W / SHEET, H / WORLD.h), W / 1000);
     // Vue d'ensemble : toute la feuille tient dans l'écran.
-    this.fitScale = Math.min(W / WORLD.w, H / WORLD.h);
+    this.fitScale = Math.min(W / SHEET, H / WORLD.h);
   }
 
   get landscape() {
@@ -44,12 +44,20 @@ export class Camera {
   }
 
   update(dt, ball, snap = false) {
-    const target = this.wide ? this.fitScale : this.followScale;
+    const speed = ball.onTrack ? Math.abs(ball.v) : Math.hypot(ball.vx, ball.vy);
+    const rush = Math.max(0, Math.min(1, (speed - 1000) / 2000));
+    this.rush += (rush - this.rush) * (snap ? 1 : 1 - Math.exp(-dt * 2));
+    const target = this.wide ? this.fitScale : this.followScale * (1 - 0.12 * this.rush);
     const ks = snap ? 1 : 1 - Math.exp(-dt * 6);
     this.scale += (target - this.scale) * ks;
     const vw = this.viewW, vh = this.viewH;
     let tx, ty;
-    if (vw >= WORLD.w) tx = (WORLD.w - vw) / 2;
+    if (vw >= SHEET - 1) {
+      const sheet = Math.max(0, Math.min(LEVELS - 1, Math.floor(ball.x / SHEET)));
+      // feuille du niveau centrée ; aux bouts, calée au bord pour montrer la feuille voisine plutôt que la table
+      const lo = Math.min(0, (WORLD.w - vw) / 2);
+      tx = clamp(sheet * SHEET + (SHEET - vw) / 2, lo, Math.max(lo, WORLD.w - vw));
+    }
     else {
       const look = clamp((ball.onTrack ? ball.v : ball.vx) * 0.1, -250, 250);
       tx = clamp(ball.x + look - vw / 2, 0, WORLD.w - vw);

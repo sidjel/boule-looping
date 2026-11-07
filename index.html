@@ -18,10 +18,13 @@
       font-family: "Segoe Print", "Bradley Hand", "Chalkboard SE", "Comic Sans MS", "Comic Neue", cursive; color: #3d3d42; }
     #jeu { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
     #consigne {
-      position: absolute; left: 50%; top: max(14px, env(safe-area-inset-top)); transform: translateX(-50%) rotate(-1.5deg);
-      width: min(calc(100vw - 140px), 560px); text-align: center; pointer-events: none;
+      position: absolute; left: 50%; top: calc(max(10px, env(safe-area-inset-top)) + 58px); transform: translateX(-50%) rotate(-1.5deg);
+      width: min(92vw, 560px); text-align: center; pointer-events: none;
       font-weight: 600; font-size: clamp(15px, 1.6vw + 9px, 24px); line-height: 1.25;
       transition: opacity .8s, transform .8s;
+    }
+    @media (orientation: landscape) {
+      #consigne { top: max(8px, env(safe-area-inset-top)); width: min(56vw, 560px); font-size: clamp(14px, 1.2vw + 8px, 22px); }
     }
     #consigne small { display: block; font-size: .72em; opacity: .75; margin-top: .2em; }
     #consigne.cache { opacity: 0; transform: translateX(-50%) translateY(-20px) rotate(-1.5deg); }
@@ -35,6 +38,8 @@
     #rejouer { right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); }
     #zoom { right: max(10px, env(safe-area-inset-right)); bottom: calc(max(10px, env(safe-area-inset-bottom)) + 56px); }
     #plein-ecran { right: max(10px, env(safe-area-inset-right)); top: max(10px, env(safe-area-inset-top)); }
+    #musique { right: calc(max(10px, env(safe-area-inset-right)) + 56px); top: max(10px, env(safe-area-inset-top)); }
+    #musique:not(.muet) .barre { display: none; }
     #zoom:not(.large) .plus { display: none; }
     #plein-ecran .sortir, #plein-ecran.actif .entrer { display: none; }
     #plein-ecran.actif .sortir { display: inline; }
@@ -53,6 +58,9 @@
     <small>Plus tu glisses vite, plus elle va vite. Doigt posé&nbsp;: elle roule vers ton doigt.</small></div>
   <button id="plein-ecran" class="rond" type="button" aria-label="Plein écran" title="Plein écran">
     <svg viewBox="0 0 24 24"><g class="entrer"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></g><g class="sortir"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></g></svg>
+  </button>
+  <button id="musique" class="rond" type="button" aria-label="Couper la musique">
+    <svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/><path class="barre" d="M3 3l18 18"/></svg>
   </button>
   <button id="zoom" class="rond" type="button" aria-label="Voir tout le parcours">
     <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21M7.5 10.5h6"/><path class="plus" d="M10.5 7.5v6"/></svg>

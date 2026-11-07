@@ -29,7 +29,7 @@ export class Input {
     if (this.active) return;
     e.preventDefault();
     try { this.el.setPointerCapture(e.pointerId); } catch { /* pointeur synthétique */ }
-    const p = { x: e.clientX, y: e.clientY, t: performance.now() };
+    const p = { x: e.clientX, y: e.clientY, t: e.timeStamp || performance.now() };
     this.active = { id: e.pointerId, start: p, samples: [p], moved: 0, last: p };
     this.trail.push({ ...p, start: true });
   }
@@ -40,13 +40,13 @@ export class Input {
     const list = e.getCoalescedEvents?.();
     const events = list && list.length ? list : [e];
     for (const ev of events) {
-      const p = { x: ev.clientX, y: ev.clientY, t: performance.now() };
+      const p = { x: ev.clientX, y: ev.clientY, t: ev.timeStamp || e.timeStamp || performance.now() };
       a.moved = Math.max(a.moved, Math.hypot(p.x - a.start.x, p.y - a.start.y));
       a.samples.push(p);
       a.last = p;
       this.trail.push(p);
     }
-    const cut = performance.now() - 250;
+    const cut = (e.timeStamp || performance.now()) - 250;
     while (a.samples.length > 2 && a.samples[0].t < cut) a.samples.shift();
   }
 
@@ -55,7 +55,8 @@ export class Input {
     if (!a || e.pointerId !== a.id) return;
     this.move(e);
     this.active = null;
-    const now = performance.now(), recent = a.samples.filter((p) => now - p.t <= WINDOW_MS);
+    // heure de l'événement, pas du traitement : un retard du navigateur ne fausse pas la vitesse
+    const now = e.timeStamp || performance.now(), recent = a.samples.filter((p) => now - p.t <= WINDOW_MS);
     if (recent.length < 2 || a.moved < HOLD_SLOP) return;
     const first = recent[0], last = recent[recent.length - 1];
     const dt = Math.max(16, last.t - first.t) / 1000;
