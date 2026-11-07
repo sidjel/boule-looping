@@ -102,38 +102,41 @@ const end = (k) => {
   b.to((k + 1) * SHEET - 20, 1100);
 };
 
-// Automne : vent qui souffle en rafales, feuilles mortes.
-start(4); b.valley(420, 160).hill(420, 170).bonus('red', 40).slope(180, 60).loop(0.82).flat(60).hill(380, 120); end(4);
-start(5); b.slope(120, 40).jump(1).flat(60).bonus('green', 30).flat(60).hill(400, 230).valley(260, 100); end(5);
-start(6);
-b.fork(1500,
-  (l) => l.slope(200, 90).bonus('red').slope(160, 20).loop(0.78).flat(80).slope(220, -60),
-  (h) => h.slope(380, -470).flat(120).bonus('yellow').flat(140).hill(240, 70).flat(60).slope(330, 470),
+// Chaque niveau : trois étoiles ; des obstacles qu'on ne passe qu'en sautant ;
+// aux aiguillages, un chemin facile (une étoile) et un chemin risqué (deux étoiles).
+
+// Automne : vent qui souffle en rafales, feuilles mortes, troncs, tas de feuilles.
+start(4); b.valley(380, 150).hill(360, 150, true).bonus('red', 40).slope(160, 50).loop(0.82, true).flat(40).obstacle('leaves'); end(4);
+start(5); b.slope(100, 30).jump(1, true).flat(40).obstacle('trunk').bonus('green', 10).hill(330, 200, true); end(5);
+start(6); b.stairs(3, 110, 70, true);
+b.fork(980,
+  (l) => l.slope(140, 80).bonus('red').slope(100, 10).loop(0.7, true).flat(30).slope(140, -90),
+  (h) => h.slope(260, -400).bonus('yellow').flat(50).star(0, 160).flat(120).star(0, 150).flat(50).slope(260, 400),
   ['↘ En bas : looping', '↗ En haut : le pont']);
 end(6);
-start(7); b.slope(150, 50).bonus('red').loop(0.8).slope(60, 25).loop(0.7).slope(140, -90).halfpipe(520, 220); end(7);
+start(7); b.slope(120, 40).bonus('red').loop(0.8, true).slope(60, 25).loop(0.7, true).slope(120, -65).obstacle('leaves', true); end(7);
 
-// Hiver : route glacée (plus rapide, moins de prise), neige.
-start(8); b.slope(260, 170).hill(520, 230).hill(420, 170).slope(120, 30).loop(0.9).flat(60); end(8);
-start(9); b.halfpipe(540, 250).bonus('blue', 20).flat(40).loop(1).flat(40).jump(1); end(9);
-start(10);
-b.fork(1550,
-  (l) => l.slope(160, 60).loop(0.72).flat(30).loop(0.66).slope(160, -60),
-  (h) => h.slope(420, -480).bonus('green', 60).flat(260).slope(420, 480),
+// Hiver : route glacée (plus rapide, moins de prise), neige, tas de neige.
+start(8); b.slope(180, 150).hill(360, 190).obstacle('snow').hill(340, 140, true).slope(80, 30).loop(0.85, true); end(8);
+start(9); b.halfpipe(390, 200).star(0, 160).bonus('blue', 30).flat(20).loop(0.88, true).flat(10).jump(1, true); end(9);
+start(10); b.obstacle('snow', true);
+b.fork(1080,
+  (l) => l.slope(140, 60).loop(0.7, true).flat(20).loop(0.64, true).slope(140, -60),
+  (h) => h.slope(340, -440).bonus('green', 40).flat(150).star(0, 170).slope(340, 440),
   ['↘ En bas : deux loopings', '↗ En haut : le pont']);
 end(10);
-start(11); b.slope(180, 80).bonus('red').loop(0.76).slope(50, 22).loop(0.7).slope(50, 22).loop(0.62).flat(40).valley(360, 120); end(11);
+start(11); b.slope(160, 80).bonus('red').loop(0.76, true).slope(50, 22).loop(0.7, true).slope(50, 22).loop(0.62, true).flat(30).valley(300, 100); end(11);
 
-// Pluie : flaques qui freinent, fosses pleines d'eau.
-start(12); b.slope(260, 140).puddle(220).slope(230, -140).hill(360, 140).bonus('red').slope(120, 30).loop(0.8).puddle(200); end(12);
-start(13); b.slope(120, 30).jump(1).flat(40).puddle(200).bonus('green', -40).hill(420, 220).puddle(180); end(13);
-start(14);
-b.fork(1500,
-  (l) => l.slope(200, 100).puddle(180).bonus('red').loop(0.78).slope(160, -100),
-  (h) => h.slope(380, -470).bonus('yellow').puddle(240).slope(380, 470),
+// Pluie : flaques qui freinent, grandes flaques à sauter, rochers, plateformes.
+start(12); b.slope(220, 120).puddle(160).slope(200, -120).bigPuddle(340, true).obstacle('rock', true).bonus('red').slope(80, 20).loop(0.78, true); end(12);
+start(13); b.slope(100, 30).platforms(3, 140, 110, true).flat(40).obstacle('rock', true).hill(300, 120, true); end(13);
+start(14); b.obstacle('rock', true);
+b.fork(1250,
+  (l) => l.slope(160, 90).puddle(150).bonus('red').loop(0.74, true).slope(140, -90),
+  (h) => h.slope(320, -440).bonus('yellow').star(40, 170).puddle(200).star(0, 170).slope(320, 440),
   ['↘ En bas : flaque et looping', '↗ En haut : pont et flaque']);
 end(14);
-start(15); b.bonus('blue', 60).flat(80).loop(1).puddle(160).halfpipe(480, 240).bonus('red').loop(0.8).slope(60, 25).loop(0.7); end(15);
+start(15); b.bonus('blue', 60).flat(60).loop(1, true).bigPuddle(300, true).halfpipe(420, 200).bonus('red').loop(0.8, true).slope(60, 25).loop(0.7); end(15);
 
 // Arrivée : replat, ligne d'arrivée, arc-en-ciel ; un butoir au bout.
 start(16); b.flat(400);
@@ -142,7 +145,7 @@ b.to(17 * SHEET - 120, 1100).slope(70, -60).slope(40, -90);
 
 const GEN = b.meta;
 export const PIECES = { ...HAND };
-for (const pc of GEN.pieces) PIECES[pc.name] = { pts: pc.pts, prev: pc.prev, next: pc.next };
+for (const pc of GEN.pieces) PIECES[pc.name] = { pts: pc.pts, prev: pc.prev, next: pc.next, platform: !!pc.platform };
 
 /** Sommets des loopings (tronçon, plage de x) : pour le petit effet de réussite. */
 export const LOOP_ZONES = [
@@ -155,6 +158,15 @@ export const JUMPS = [
   ...GEN.jumps,
 ];
 export const PUDDLES = GEN.puddles;
+export const OBSTACLES = GEN.obstacles;
+/** Étoiles : trois par niveau (niveaux 1 à 4 placées à la main, au-dessus de la route ou dans les loopings). */
+export const STARS = [
+  { x: 60, y: 330 }, { x: 810, y: 731 }, { x: 1350, y: 722 },
+  { x: 2195, y: 590 }, { x: 3120, y: 880 }, { x: 3812, y: 801 },
+  { x: 4704, y: 828 }, { x: 5019, y: 963 }, { x: 5480, y: 852 },
+  { x: 7510, y: 747 }, { x: 7080, y: 300 }, { x: 7450, y: 470 },
+  ...GEN.stars,
+];
 export const BONUSES = [{ piece: 'main', x: 4475, color: 'red' }, ...GEN.bonuses];
 /** Aiguillages : le tronçon d'avant, les deux chemins (a = bas, b = haut), le tronçon d'après. */
 export const FORKS = [

@@ -4,10 +4,10 @@
  * toujours à gauche du sens de marche, ce qui marche sur le sol comme dans les loopings.
  * Les tronçons se raccordent bout à bout ; à l'aiguillage, le suivant dépend du chemin choisi.
  */
-import { WORLD, SHEET, LEVELS, SHEETS, PIECES, LOOP_ZONES, JUMPS, PUDDLES, FORKS, CHECKPOINTS, BONUSES, HILL, BRIDGE, BRIDGES, FINISH } from './levels.js';
+import { WORLD, SHEET, LEVELS, SHEETS, PIECES, LOOP_ZONES, JUMPS, PUDDLES, FORKS, CHECKPOINTS, BONUSES, HILL, BRIDGE, BRIDGES, FINISH, OBSTACLES, STARS } from './levels.js';
 import { biomeAt } from './biomes.js';
 
-export { WORLD, SHEET, LEVELS, SHEETS, JUMPS, HILL, BRIDGE, BRIDGES, FINISH, BONUSES };
+export { WORLD, SHEET, LEVELS, SHEETS, JUMPS, HILL, BRIDGE, BRIDGES, FINISH, BONUSES, OBSTACLES, STARS };
 export const BALL_R = 30;
 const STEP = 3;
 
@@ -92,7 +92,7 @@ function buildPiece(name, def) {
     if (J.piece && J.piece !== name) return;
     for (let i = 0; i < n; i++) if (x[i] > J.x0 && x[i] < J.x1 && y[i] < J.yMax) jump[i] = z + 1;
   });
-  return { name, line, x, y, tx, ty, k, jump, n, step: STEP, length: (n - 1) * STEP, loopTops: [], puddles: [] };
+  return { name, line, x, y, tx, ty, k, jump, n, step: STEP, length: (n - 1) * STEP, loopTops: [], puddles: [], platform: !!def.platform };
 }
 
 export function buildTrack() {
@@ -101,9 +101,9 @@ export function buildTrack() {
   const track = { pieces: Object.values(p), byName: p };
   // raccords : à l'aiguillage, le chemin choisi ; en marche arrière, celui d'où l'on vient
   track.forks = FORKS.map((f, idx) => {
-    const fork = { ...f, idx, route: 'a', seg: p[f.seg], A: p[f.a], B: p[f.b], after: p[f.after] };
+    const fork = { ...f, idx, route: null, seg: p[f.seg], A: p[f.a], B: p[f.b], after: p[f.after] };
     fork.last = fork.A;
-    fork.seg.next = () => (fork.route === 'a' ? fork.A : fork.B);
+    fork.seg.next = () => (fork.route === 'b' ? fork.B : fork.A);
     fork.A.prev = fork.B.prev = () => fork.seg;
     fork.A.next = fork.B.next = () => fork.after;
     fork.after.prev = () => fork.last;
@@ -111,7 +111,7 @@ export function buildTrack() {
     return fork;
   });
   // flaques, et fosses pleines d'eau quand il pleut
-  for (const d of PUDDLES) p[d.piece].puddles.push({ x0: d.x0, x1: d.x1, y: d.y, deep: false });
+  for (const d of PUDDLES) p[d.piece].puddles.push({ x0: d.x0, x1: d.x1, y: d.y, deep: false, big: !!d.big });
   for (const J of JUMPS) {
     if (J.piece && biomeAt(J.pit[0]).rain) p[J.piece].puddles.push({ x0: J.pit[0] + 30, x1: J.pit[1] - 30, deep: true, yMin: J.bottom - 70 });
   }
@@ -158,7 +158,7 @@ function rasterize(g, line, pick) {
 function groundProfile(p) {
   const low = new Float32Array(WORLD.w + 1).fill(NaN), top = new Float32Array(WORLD.w + 1).fill(NaN);
   // le sol : tout sauf les chemins du haut (grande bosse du niveau 4, ponts des aiguillages)
-  for (const pc of Object.values(p)) if (pc.name !== 'hill' && !BRIDGES.includes(pc.name)) rasterize(low, pc.line, Math.max);
+  for (const pc of Object.values(p)) if (pc.name !== 'hill' && !pc.platform && !BRIDGES.includes(pc.name)) rasterize(low, pc.line, Math.max);
   rasterize(top, p.hill.line, Math.min);
   const g = low;
   for (let x = HILL.x0; x <= HILL.x1; x++) g[x] = top[x];

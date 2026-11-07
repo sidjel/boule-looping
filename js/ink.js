@@ -5,7 +5,7 @@
  * le jeu, sans à-coup ; buildInk() fait tout d'un coup.
  */
 import { WORLD, SHEET, SHEETS, JUMPS, HILL, BRIDGE, BRIDGES, FINISH, BALL_R, groundY } from './track.js';
-import { biomeOfSheet } from './biomes.js';
+import { biomeOfSheet, biomeMix, biomeParams } from './biomes.js';
 import { rng, range, pencilLine, hatch, grain } from './pencil.js';
 
 const GRAPHITE = '#4b4b4f';
@@ -55,26 +55,23 @@ export function* inkSteps(track, q, sheet) {
 
 /** Herbe en hachures (couleurs de la saison) ; en hiver, neige blanche et hachures bleutées. */
 function* drawGround(g, track, x0, x1, bio) {
-  // neige : on blanchit d'abord le sol
-  const snowy = [];
-  for (let x = Math.max(0, x0); x <= Math.min(WORLD.w, x1); x += 6) if (bio(x).snow) snowy.push(x);
-  if (snowy.length) {
-    g.save();
-    g.fillStyle = 'rgba(252,253,255,0.9)';
-    g.beginPath();
-    g.moveTo(snowy[0], WORLD.h + 40);
-    for (const x of snowy) g.lineTo(x, groundY(track, x) - 2);
-    g.lineTo(snowy[snowy.length - 1], WORLD.h + 40);
-    g.closePath();
-    g.fill();
-    g.restore();
+  // neige : on blanchit d'abord le sol, en fondu à l'arrivée de l'hiver et au dégel
+  g.save();
+  for (let x = Math.max(0, x0); x <= Math.min(WORLD.w, x1); x += 6) {
+    const snow = biomeParams(x).snow;
+    if (snow <= 0.02) continue;
+    g.fillStyle = `rgba(252,253,255,${0.9 * snow})`;
+    const y = groundY(track, x) - 2;
+    g.fillRect(x, y, 6.5, WORLD.h + 40 - y);
   }
+  g.restore();
   const rand = rng(2024);
   let x = -20, i = 0, n = 0;
   while (x < WORLD.w + 40) {
     const r = rng(5000 + i++);
     if (x > x0 && x < x1) {
-      const b = bio(x), cols = b.grass;
+      // près d'une jonction, les couleurs des deux saisons se mélangent peu à peu
+      const m = biomeMix(x), b = r() < m.t ? m.b : m.a, cols = b.grass;
       const top = groundY(track, x) + range(r, 4, 22);
       const lean = range(r, 18, 55);
       const col = cols[Math.floor(r() * cols.length)];
@@ -100,7 +97,7 @@ function drawUnderline(g, track, x0, x1, bio) {
   for (const pc of track.pieces) {
     for (const [px, py] of pc.line) {
       if (px < x0 || px > x1) { flush(); continue; }
-      const prev = under[under.length - 1], c = bio(px).road ? '#9fb7c9' : BROWN;
+      const prev = under[under.length - 1], c = biomeParams(px).snow > 0.5 ? '#9fb7c9' : BROWN;
       if ((prev && Math.hypot(prev[0] - px, prev[1] - 6 - py) > 8) || c !== color) flush();
       color = c;
       if (Math.abs(groundY(track, px) - py) < 2) under.push([px, py + 6]);
@@ -134,7 +131,7 @@ function drawRoad(g, track, x0, x1, bio) {
   track.pieces.forEach((pc, i) => {
     const pts = pc.line.filter(([x]) => x > x0 - 30 && x < x1 + 30);
     if (pts.length < 2) return;
-    const icy = pts.filter(([x]) => bio(x).road);
+    const icy = pts.filter(([x]) => biomeParams(x).snow > 0.5);
     if (icy.length > 2) {
       pencilLine(g, icy, rng(300 + i), { color: '#9cc3e0', width: 10, alpha: 0.5, passes: 2, wobble: 1.2 });
       const r = rng(400 + i);
@@ -155,7 +152,7 @@ function drawPits(g, track, x0, x1, bio) {
     const [a, b] = J.pit;
     if (b < x0 || a > x1) return;
     const rand = rng(404 + z);
-    if (bio(a).rain) {
+    if (biomeParams(a).rain > 0.5) {
       const level = J.bottom - 60, pts = [];
       for (let x = a; x <= b; x += 4) if (groundY(track, x) > level) pts.push([x, groundY(track, x)]);
       if (pts.length < 3) return;
@@ -267,10 +264,10 @@ function drawDecor(g, track, sheet) {
   for (let i = 0; i < count; i++) {
     const x = sheet * SHEET + range(r, 140, 1860);
     if (!freeSpot(track, x)) continue;
-    const y = groundY(track, x) + 6, kind = r();
-    if (b.snow) pine(g, r, x, y, range(r, 120, 230));
-    else if (b.rain) reeds(g, r, x, y);
-    else if (b.wind) tree(g, r, x, y, range(r, 150, 260), ['#c9772d', '#b5502a', '#d9a23a']);
+    const y = groundY(track, x) + 6, kind = r(), m = biomeMix(x), here = r() < m.t ? m.b : m.a;
+    if (here.snow) pine(g, r, x, y, range(r, 120, 230));
+    else if (here.rain) reeds(g, r, x, y);
+    else if (here.wind) tree(g, r, x, y, range(r, 150, 260), ['#c9772d', '#b5502a', '#d9a23a']);
     else if (kind < 0.4) tree(g, r, x, y, range(r, 160, 270), ['#6fa83a', '#8cbd4f', '#5d9431']);
     else if (kind < 0.8) bush(g, r, x, y, range(r, 40, 70), ['#6fa83a', '#8cbd4f']);
     else flowers(g, r, x, y);

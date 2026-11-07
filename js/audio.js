@@ -298,6 +298,38 @@ export class Sound {
     src.stop(t + 0.8);
   }
 
+  /** Étoile ramassée : petit arpège brillant. */
+  star() {
+    if (!this.master) return;
+    [84, 88, 91, 96].forEach((m, i) => this.bell([hz(m), hz(m) * 2.76], [0.5, 0.2], 0.05, i * 0.05, true));
+  }
+
+  /** Enchaînement : une note qui monte d'un cran à chaque palier (×2, ×3…). */
+  combo(n) {
+    if (!this.master || n < 2) return;
+    const steps = [0, 2, 4, 7, 9, 12, 14, 16], m = 76 + steps[Math.min(steps.length - 1, n - 2)];
+    this.bell([hz(m), hz(m) * 2], [0.35, 0.18], 0.05, 0, true);
+  }
+
+  /** Boule qui s'enfonce dans un tas de feuilles ou de neige : « pouf » étouffé. */
+  puff(kind) {
+    if (!this.master) return;
+    const now = performance.now();
+    if (now - (this.lastPuff || 0) < 120) return;
+    this.lastPuff = now;
+    const ac = this.ac, t = ac.currentTime;
+    const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    src.buffer = this.noise;
+    f.type = kind === 'snow' ? 'lowpass' : 'bandpass';
+    f.frequency.setValueAtTime(kind === 'snow' ? 900 : 2200, t);
+    f.frequency.exponentialRampToValueAtTime(kind === 'snow' ? 200 : 700, t + 0.3);
+    g.gain.setValueAtTime(0.16, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+    src.connect(f).connect(g).connect(this.master);
+    src.start(t, Math.random());
+    src.stop(t + 0.4);
+  }
+
   /** Son de chaque bonus. */
   bonus(kind) {
     if (!this.master) return;

@@ -36,6 +36,12 @@ export class Effects {
     for (const it of this.items) {
       it.life -= dt;
       if (it.grow > 0) it.grow -= dt;
+      if (it.kind === 'bit') {
+        it.vy += (it.g ?? 900) * dt;
+        it.x += it.vx * dt;
+        it.y += it.vy * dt;
+        it.a += it.spin * dt;
+      }
     }
     this.items = this.items.filter((it) => it.life > 0);
   }
@@ -99,6 +105,30 @@ export class Effects {
       const a = (i / 12) * Math.PI * 2 + Math.random() * 0.3;
       this.items.push({ kind: 'line', x, y, a, r0: R * 0.9, r1: R * (1.8 + Math.random() * 0.9), life: 0.5, max: 0.5, color: colors[i % colors.length] });
     }
+  }
+
+  /** Gros tas touché : feuilles qui volent, ou neige qui se soulève. */
+  puff(x, y, kind) {
+    const cols = kind === 'snow' ? ['#ffffff', '#eef3f8', '#dfe8f1'] : ['#c9772d', '#b5502a', '#d9a23a', '#8f5a2a'];
+    for (let i = 0; i < 16; i++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4, v = 250 + Math.random() * 450;
+      this.items.push({ kind: 'bit', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, a: Math.random() * 6, spin: (Math.random() - 0.5) * 12,
+        size: kind === 'snow' ? 5 + Math.random() * 6 : 9 + Math.random() * 5, leaf: kind !== 'snow', g: kind === 'snow' ? 500 : 350,
+        color: cols[i % cols.length], life: 0.9 + Math.random() * 0.5, max: 1.4 });
+    }
+  }
+
+  /** Étincelles au contact de la route quand la boule file très vite. */
+  sparks(x, y) {
+    for (let i = 0; i < 2; i++) {
+      this.items.push({ kind: 'bit', x, y, vx: (Math.random() - 0.7) * 500, vy: -Math.random() * 350, a: 0, spin: 0, size: 2.5, spark: true,
+        color: Math.random() < 0.5 ? '#ffb347' : '#ffe08a', life: 0.25 + Math.random() * 0.2, max: 0.45 });
+    }
+  }
+
+  /** Grand texte bref (enchaînement ×3, parfait…). */
+  big(label, x, y, color = '#c8901f') {
+    this.items.push({ kind: 'text', label, x, y, life: 1.1, max: 1.1, size: 54, color });
   }
 
   /** Éclaboussure : gouttes bleu-gris qui jaillissent. */
@@ -192,15 +222,27 @@ export class Effects {
         ctx.moveTo(it.x, it.y - g);
         ctx.lineTo(it.x, it.y + g);
         ctx.stroke();
+      } else if (it.kind === 'bit') {
+        ctx.globalAlpha = Math.min(1, (it.life / it.max) * 1.6);
+        ctx.fillStyle = it.color;
+        ctx.save();
+        ctx.translate(it.x, it.y);
+        ctx.rotate(it.a);
+        ctx.beginPath();
+        if (it.leaf) ctx.ellipse(0, 0, it.size, it.size * 0.45, 0, 0, Math.PI * 2);
+        else ctx.arc(0, 0, it.size, 0, Math.PI * 2);
+        ctx.fill();
+        if (!it.spark && !it.leaf) { ctx.strokeStyle = 'rgba(150,170,190,0.5)'; ctx.lineWidth = 1; ctx.stroke(); }
+        ctx.restore();
       } else if (it.kind === 'text') {
         const rise = (1 - k) * 60;
         ctx.globalAlpha = Math.min(1, k * 2.5);
-        ctx.font = `bold 64px ${HAND}`;
+        ctx.font = `bold ${it.size || 64}px ${HAND}`;
         ctx.textAlign = 'center';
         ctx.lineWidth = 6;
         ctx.strokeStyle = 'rgba(236,235,231,0.9)';
         ctx.strokeText(it.label, it.x, it.y - rise);
-        ctx.fillStyle = '#3d3d42';
+        ctx.fillStyle = it.color || '#3d3d42';
         ctx.fillText(it.label, it.x, it.y - rise);
       }
     }

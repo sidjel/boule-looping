@@ -31,11 +31,28 @@ export function makePaper() {
       ctx.fillRect(x0, -12000, wSheet, WORLD.h + 14000);
       const sky = biomeOfSheet(k).sky;
       if (sky) {
+        // ciel de la saison, qui s'efface en douceur vers une feuille d'une autre saison
+        const fadeL = k > 0 && biomeOfSheet(k - 1) !== biomeOfSheet(k), fadeR = k < SHEETS - 1 && biomeOfSheet(k + 1) !== biomeOfSheet(k);
         const tint = ctx.createLinearGradient(0, 0, 0, WORLD.h);
         tint.addColorStop(0, sky);
         tint.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x0, -12000, wSheet, WORLD.h + 12000);
+        ctx.clip();
         ctx.fillStyle = tint;
         ctx.fillRect(x0, -12000, wSheet, WORLD.h + 12000);
+        ctx.globalCompositeOperation = 'destination-out';
+        for (const [on, a, b] of [[fadeL, k * SHEET - 450, k * SHEET + 450], [fadeR, (k + 1) * SHEET + 450, (k + 1) * SHEET - 450]]) {
+          if (!on) continue;
+          const fade = ctx.createLinearGradient(a, 0, b, 0);
+          fade.addColorStop(0, 'rgba(0,0,0,0.5)');
+          fade.addColorStop(0.5, 'rgba(0,0,0,0.5)');
+          fade.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = fade;
+          ctx.fillRect(Math.min(a, b), -12000, Math.abs(b - a), WORLD.h + 12000);
+        }
+        ctx.restore();
       }
       const [ax, ay, bx, by, rx, ry, rw, rh] = folds[k];
       const fold = ctx.createLinearGradient(ax, ay, bx, by);
@@ -188,6 +205,16 @@ export function drawForks(ctx, track, t, x0, x1, pulse) {
     ctx.fill();
     ctx.stroke();
     const wob = Math.sin(t * 4) * 2;
+    if (!fork.route) {
+      // pas encore choisi : un point d'interrogation, et aucune barrière
+      ctx.fillStyle = '#6a4b16';
+      ctx.font = 'bold 44px "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('?', 0, 2 + wob);
+      ctx.restore();
+      continue;
+    }
     ctx.strokeStyle = low ? '#5b4f45' : '#4f7a2b';
     ctx.lineWidth = 6;
     ctx.beginPath();

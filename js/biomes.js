@@ -51,3 +51,34 @@ export function biomeAt(x) {
 export function windAt(t) {
   return -330 + 420 * Math.sin(t * 0.37) + 230 * Math.sin(t * 1.13 + 2) + 90 * Math.sin(t * 3.1);
 }
+
+/* ---------- passages de saison en fondu ---------- */
+
+const BLEND = 450; // px de part et d'autre de la jonction entre deux saisons
+
+/** Deux saisons et la part t de la seconde, en x (t = 0 loin des jonctions). */
+export function biomeMix(x) {
+  const k = Math.floor(x / SHEET), a = biomeOfSheet(k), local = x - k * SHEET;
+  if (local < BLEND && k > 0) {
+    const prev = biomeOfSheet(k - 1);
+    if (prev !== a) return { a: prev, b: a, t: 0.5 + (0.5 * local) / BLEND };
+  }
+  if (local > SHEET - BLEND && k < SHEETS - 1) {
+    const next = biomeOfSheet(k + 1);
+    if (next !== a) return { a, b: next, t: (0.5 * (local - (SHEET - BLEND))) / BLEND };
+  }
+  return { a, b: a, t: 0 };
+}
+
+const lerp = (u, v, t) => u + (v - u) * t;
+
+/** Réglages physiques de la saison en x, mélangés près des jonctions (glace, vent, pluie progressifs). */
+export function biomeParams(x) {
+  const { a, b, t } = biomeMix(x);
+  const out = {};
+  for (const key of ['roll', 'rollRes', 'control', 'backControl', 'spin']) out[key] = lerp(a[key], b[key], t);
+  out.wind = lerp(a.wind ? 1 : 0, b.wind ? 1 : 0, t);
+  out.snow = lerp(a.snow ? 1 : 0, b.snow ? 1 : 0, t);
+  out.rain = lerp(a.rain ? 1 : 0, b.rain ? 1 : 0, t);
+  return out;
+}

@@ -8,8 +8,18 @@ import { rng, range, pencilLine } from './pencil.js';
 
 const R = BALL_R;
 
-export function buildBallBody(q) {
+/** Couleurs de chaque boule (reflet du ciel en haut, sol en bas). */
+const PALETTES = {
+  acier: ['#f3f3f1', '#c9cacd', '#5d5f64', '#8f9a86', '#5f6a58'],
+  verre: ['rgba(240,250,255,0.75)', 'rgba(190,220,238,0.55)', 'rgba(120,160,190,0.6)', 'rgba(160,200,170,0.5)', 'rgba(110,150,130,0.6)'],
+  petanque: ['#d6d8dc', '#8e9196', '#3c3e43', '#55585e', '#2e3034'],
+  rebond: ['#ff9a85', '#ef5d45', '#c7402c', '#b8382a', '#8f2a20'],
+  couleurs: ['#fdf6e3', '#f3e3c3', '#c9b38f', '#b7a27f', '#8f7c5c'],
+};
+
+export function buildBallBody(q, skin = 'acier') {
   const size = R * 2 + 12, c = document.createElement('canvas');
+  const pal = PALETTES[skin] || PALETTES.acier;
   c.width = c.height = Math.ceil(size * q);
   const g = c.getContext('2d'), rand = rng(5);
   g.scale(q, q);
@@ -19,11 +29,7 @@ export function buildBallBody(q) {
   g.arc(0, 0, R, 0, Math.PI * 2);
   g.clip();
   const env = g.createLinearGradient(0, -R, 0, R);
-  env.addColorStop(0, '#f3f3f1');
-  env.addColorStop(0.42, '#c9cacd');
-  env.addColorStop(0.52, '#5d5f64');
-  env.addColorStop(0.62, '#8f9a86');
-  env.addColorStop(1, '#5f6a58');
+  [0, 0.42, 0.52, 0.62, 1].forEach((at, i) => env.addColorStop(at, pal[i]));
   g.fillStyle = env;
   g.fillRect(-R, -R, R * 2, R * 2);
   const shade = g.createRadialGradient(R * 0.35, -R * 0.45, R * 0.1, 0, 0, R * 1.05);
@@ -53,7 +59,44 @@ const MARKS = (() => {
   return out;
 })();
 
-export function drawBall(ctx, body, ball, track, t) {
+/** Décor qui tourne avec la boule, selon la boule choisie. */
+function spinDecor(ctx, skin, t) {
+  if (skin === 'rebond') {
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.moveTo(-R, -4);
+    ctx.quadraticCurveTo(0, 10, R, -4);
+    ctx.stroke();
+    return true;
+  }
+  if (skin === 'couleurs') {
+    const cols = ['#e5534b', '#f0a03c', '#f2d24a', '#7fbf4d', '#5b9bd5', '#7b6cc4'];
+    cols.forEach((col, i) => {
+      ctx.fillStyle = col;
+      ctx.globalAlpha = 0.55;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, R, (i / 6) * Math.PI * 2, ((i + 1) / 6) * Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    return true;
+  }
+  if (skin === 'petanque') {
+    ctx.strokeStyle = 'rgba(20,20,24,0.55)';
+    ctx.lineWidth = 1.8;
+    for (const off of [-12, -6, 6, 12]) {
+      ctx.beginPath();
+      ctx.ellipse(0, 0, R, Math.abs(off) * 1.6, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    return true;
+  }
+  return false;
+}
+
+export function drawBall(ctx, body, ball, track, t, skin = 'acier') {
   const appear = Math.min(1, ball.age / 0.35);
   const sc = 0.55 + 0.45 * easeOutBack(appear);
   drawShadow(ctx, ball, track);
@@ -67,6 +110,7 @@ export function drawBall(ctx, body, ball, track, t) {
   ctx.arc(0, 0, R - 1.5, 0, Math.PI * 2);
   ctx.clip();
   ctx.rotate(ball.angle);
+  if (spinDecor(ctx, skin, t)) { ctx.restore(); ctx.save(); ctx.beginPath(); ctx.arc(0, 0, R - 1.5, 0, Math.PI * 2); ctx.clip(); ctx.rotate(ball.angle); ctx.globalAlpha = 0; }
   ctx.strokeStyle = '#2f3035';
   ctx.lineCap = 'round';
   ctx.lineWidth = 1.4;

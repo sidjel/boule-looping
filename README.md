@@ -13,6 +13,17 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
 - **Pluie (13 à 16)** : pluie, flaques qui freinent, fosses pleines d'eau.
 - **Arrivée** : arc-en-ciel, banderole, temps total du parcours.
 
+**Le but** : trois étoiles par niveau (dans les loopings, au-dessus des obstacles, sur les chemins
+risqués), une médaille de temps (or, argent, bronze), et des points multipliés quand on enchaîne
+looping, saut, obstacle franchi, bonus, étoile ou atterrissage parfait (×2, ×3…). Un petit bilan
+s'affiche à chaque niveau ; la boule grise est ton meilleur passage. Les étoiles débloquent des
+boules : verre (légère), pétanque (lourde, traverse les tas), balle rebondissante, crayons de couleur.
+
+**Sauts obligés** : rochers, troncs couchés, gros tas de feuilles (automne) ou de neige (hiver),
+escaliers, plateformes au-dessus d'une fosse, grandes flaques.
+
+**Passages de saison en fondu** : herbe, neige, ciel, météo, vent et glace changent peu à peu.
+
 **Bonus** (petites boules de couleur dessinées au crayon) :
 rouge = élan · bleue = la boule colle à la route 6 s (elle ne tombe plus des loopings) ·
 verte = bond · jaune = plume (gravité réduite 6 s).
@@ -52,6 +63,8 @@ HTML + Canvas 2D + JavaScript en modules natifs, sans dépendance ni outil de co
 - `js/physics.js` : bille d'acier pleine (5/7·g), chute en haut du looping si elle est trop lente, rebonds.
 - `js/input.js` : glissé, doigt posé, clavier.
 - `js/scenery.js` (papier, soleil, panneaux), `js/clouds.js`, `js/pencil.js`, `js/ballArt.js`, `js/effects.js` : dessin au crayon, soleil, nuages, oiseaux, effets.
+- `js/game.js` : étoiles, enchaînements, médailles, bilan, fantôme, boules à débloquer.
+- `js/obstacles.js` : obstacles à sauter (contacts et dessin).
 - `js/bonus.js` et `images/boule-*.png` : les boules bonus (la rouge vient du dessin, les autres sont recolorées).
 - `js/ink.js` : le dessin fixe de chaque feuille, préparé petit à petit pendant le jeu.
 - `js/weather.js` : feuilles mortes, neige, pluie.

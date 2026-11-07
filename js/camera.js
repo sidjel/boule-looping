@@ -1,7 +1,6 @@
 /**
  * Caméra : deux cadrages.
- * - « Vue d'ensemble » : toute la feuille du niveau en cours est visible (par défaut en paysage).
- *   Sur les côtés, la table ; on glisse d'une feuille à l'autre quand la boule change de niveau.
+ * - « Vue d'ensemble » : zoom large (une feuille de haut), qui suit la boule en continu.
  * - « Suivre la boule » : zoom sur la boule, la caméra l'accompagne (par défaut en portrait).
  * Le passage de l'un à l'autre est animé. À grande vitesse, le zoom recule un peu.
  */
@@ -52,26 +51,18 @@ export class Camera {
     this.scale += (target - this.scale) * ks;
     const vw = this.viewW, vh = this.viewH;
     let tx, ty;
-    // près d'un aiguillage, on cadre entre la boule et l'embranchement (focus = x de l'embranchement)
-    const fx = this.focus != null ? (ball.x + this.focus) / 2 + 150 : null;
-    if (fx != null) {
-      tx = clamp(fx - vw / 2, Math.min(0, (WORLD.w - vw) / 2), Math.max(0, WORLD.w - vw));
-    } else if (vw >= SHEET - 1) {
-      const sheet = Math.max(0, Math.min(SHEETS - 1, Math.floor(ball.x / SHEET)));
-      // feuille du niveau centrée ; aux bouts, calée au bord pour montrer la feuille voisine plutôt que la table
-      const lo = Math.min(0, (WORLD.w - vw) / 2);
-      tx = clamp(sheet * SHEET + (SHEET - vw) / 2, lo, Math.max(lo, WORLD.w - vw));
-    }
-    else {
-      const look = clamp((ball.onTrack ? ball.v : ball.vx) * 0.1, -250, 250);
-      tx = clamp(ball.x + look - vw / 2, 0, WORLD.w - vw);
-    }
+    // la caméra suit la boule en continu (pas de saut d'une feuille à l'autre), un peu en avance
+    // sur sa vitesse ; près d'un aiguillage, elle cadre entre la boule et l'embranchement
+    const look = clamp((ball.onTrack ? ball.v : ball.vx) * (this.wide ? 0.18 : 0.1), -350, 350);
+    const fx = this.focus != null ? (ball.x + this.focus) / 2 + 150 : ball.x + look + vw * (this.wide ? 0.12 : 0);
+    const lo = Math.min(0, (WORLD.w - vw) / 2);
+    tx = clamp(fx - vw / 2, lo, Math.max(lo, WORLD.w - vw));
     if (vh >= WORLD.h) ty = WORLD.h - vh; // feuille calée en bas, le ciel continue au-dessus
     else {
       const look = clamp(ball.onTrack ? 0 : ball.vy * 0.12, -150, 250);
       ty = clamp(ball.y + look - vh * 0.42, 0, WORLD.h - vh);
     }
-    const kx = snap ? 1 : this.wide || this.focus != null ? ks : 1 - Math.exp(-dt * 4);
+    const kx = snap ? 1 : 1 - Math.exp(-dt * (this.focus != null ? 3 : 4));
     const ky = snap ? 1 : 1 - Math.exp(-dt * 6);
     this.x += (tx - this.x) * kx;
     this.y += (ty - this.y) * ky;

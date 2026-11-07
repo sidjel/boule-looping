@@ -3,7 +3,7 @@
  * (1/600 s), quasi-arrêt du temps devant les aiguillages, saut, bonus expliqués, météo, sons,
  * reprise au début du niveau, sauvegarde de la partie, arrivée et tableau des scores.
  */
-import { WORLD, SHEET, SHEETS, FINISH, buildTrack } from './track.js';
+import { WORLD, SHEET, SHEETS, FINISH, buildTrack, groundY } from './track.js';
 import { Ball, BONUS } from './physics.js';
 import { Input } from './input.js';
 import { Camera } from './camera.js';
@@ -19,6 +19,8 @@ import { Weather } from './weather.js';
 import { biomeAt, biomeOfSheet } from './biomes.js';
 import { save } from './save.js';
 import { Menu, scoreTable } from './menu.js';
+import { Game, skinPhys, medalTimes } from './game.js';
+import { drawObstacles, drawPlanks } from './obstacles.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('jeu'), ctx = canvas.getContext('2d');
@@ -33,12 +35,15 @@ const cam = new Camera();
 const sound = new Sound();
 const bonuses = new Bonuses(track);
 const weather = new Weather();
+const game = new Game();
+ball.setSkin(skinPhys(save.skin));
 const drawPaper = makePaper();
 const SUNS = [{ x: 1700, y: 238, r: 108 }, { x: 16 * SHEET + 1550, y: 330, r: 120 }];
 const FLICK_GAIN = 0.3, FLICK_MAX = 9000;
 const SLOW = 0.12;            // devant un aiguillage, le temps passe 8 fois moins vite : la boule avance encore un peu
 const FORK_ZONE = 750;        // px avant l'embranchement où le temps ralentit
 const FORK_SHOW = 1500;       // px avant l'embranchement où les boutons apparaissent
+const FORK_STOP = 90;         // px : sans choix, le temps s'arrête tout au bord de l'embranchement
 const WORDS = { red: 'Boost !', blue: 'Colle !', green: 'Bond !', yellow: 'Plume !' };
 const vibrate = (ms) => save.options.vibrate && navigator.vibrate?.(ms);
 
@@ -55,7 +60,7 @@ function resize() {
     art = {
       q, ink: new Map(), pending: new Map(),
       sun: buildSunDisk(108, q),
-      body: buildBallBody(Math.min(cam.followScale * 1.5, 3)),
+      body: buildBallBody(Math.min(cam.followScale * 1.5, 3), save.skin),
       clouds: buildClouds(q),
     };
   }
@@ -118,17 +123,21 @@ function prepare() {
  * - near : l'embranchement est devant, les deux boutons sont posés au début de chaque chemin ;
  * - le temps ralentit fortement dans les derniers FORK_ZONE px, tant que le joueur n'a pas choisi.
  */
-let near = null, slow = null;
+let near = null, slow = null, freeze = false;
 function updateForks() {
   near = null;
   slow = null;
+  freeze = false;
   for (const f of track.forks) {
     const d = f.x - ball.x, onBranch = ball.pc === f.A || ball.pc === f.B;
-    if (d > FORK_SHOW) { f.decided = false; continue; }
+    // loin en amont : le choix est à refaire au prochain passage (aucun chemin par défaut)
+    if (d > FORK_SHOW) { f.decided = false; f.route = null; continue; }
     if (d < -40 || onBranch) continue;
     near = f;
     const forward = ball.onTrack ? ball.v : ball.vx;
     if (!f.decided && d > 0 && d < FORK_ZONE && forward > 30) slow = f;
+    // tout au bord de l'embranchement sans choix : le temps s'arrête, c'est au joueur de choisir
+    if (!f.decided && d > -10 && d < FORK_STOP && forward > 0) { slow = f; freeze = true; }
   }
   return slow;
 }
@@ -141,13 +150,19 @@ function pick(route, f = near) {
   vibrate(12);
 }
 
-/** Les deux boutons suivent l'écran, posés au début du chemin du bas et du chemin du haut. */
+/**
+ * Les deux boutons suivent l'écran, posés au début du chemin du bas et du chemin du haut,
+ * toujours dans l'écran (rapprochés du bord si besoin), petits et lisibles.
+ */
 function placeForkButtons() {
+  const W = innerWidth, H = innerHeight;
   for (const [btn, side] of [[forkLow, 'a'], [forkHigh, 'b']]) {
-    if (!near || menu.isOpen) { btn.hidden = true; continue; }
+    if (!near || menu.isOpen || infoOpen) { btn.hidden = true; continue; }
     const pc = side === 'a' ? near.A : near.B, i = Math.min(pc.line.length - 1, side === 'a' ? 70 : 85);
     const [wx, wy] = pc.line[i];
-    const sx = ((wx - cam.x) * cam.scale) / cam.dpr, sy = ((wy - cam.y) * cam.scale) / cam.dpr + (side === 'a' ? 52 : -58);
+    let sx = ((wx - cam.x) * cam.scale) / cam.dpr, sy = ((wy - cam.y) * cam.scale) / cam.dpr + (side === 'a' ? 40 : -44);
+    sx = Math.max(70, Math.min(W - 130, sx));
+    sy = Math.max(70, Math.min(H - 40, sy));
     btn.hidden = false;
     btn.style.transform = `translate(${Math.round(sx)}px, ${Math.round(sy)}px) translate(-50%, -50%)`;
     const label = near.labels[side === 'a' ? 0 : 1].split(':').pop().trim();
@@ -187,7 +202,7 @@ function toggleMusic() {
 
 /* ---------- partie : temps, statistiques, sauvegarde, reprise ---------- */
 
-let last = performance.now(), time = 0, launched = false, timeScale = 1;
+let last = performance.now(), time = 0, launched = false, timeScale = 1, airSlow = 0, infoOpen = false, airTime = 0;
 const run = { time: 0, running: false, finished: false, loops: 0, bonuses: 0 };
 let lastSave = 0;
 
@@ -196,11 +211,14 @@ const clock = (t) => `${Math.floor(t / 60)} min ${String(Math.floor(t % 60)).pad
 
 function saveProgress() {
   if (run.finished) return;
-  save.setProgress({ level: level(), time: run.time, loops: run.loops, bonuses: run.bonuses });
+  save.setProgress({ level: level(), time: run.time, loops: run.loops, bonuses: run.bonuses, score: game.score });
 }
 
 function restart(fromStart = false) {
-  ball.respawn(fromStart ? 0 : level());
+  const lv = fromStart ? 0 : level();
+  ball.respawn(lv);
+  if (fromStart) game.reset();
+  else game.enterLevel(lv);
   if (fromStart) {
     Object.assign(run, { time: 0, running: false, finished: false, loops: 0, bonuses: 0 });
     launched = false;
@@ -217,7 +235,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   time += dt;
-  const paused = menu.isOpen || portrait();
+  const paused = menu.isOpen || portrait() || infoOpen;
   turn.hidden = !portrait();
   if (!paused) update(dt);
   else cam.update(dt, ball);
@@ -235,7 +253,9 @@ function update(realDt) {
   const wasSlow = !!slow, choosing = updateForks();
   cam.focus = near && near.x - ball.x < FORK_ZONE + 150 ? near.x : null;
   if (!!choosing !== wasSlow) sound.slow(!!choosing);
-  timeScale += ((choosing ? SLOW : 1) - timeScale) * Math.min(1, realDt * 6);
+  const target = freeze ? 0 : choosing ? SLOW : airSlow > 0 ? 0.45 : 1;
+  airSlow = Math.max(0, airSlow - realDt);
+  timeScale = freeze ? 0 : timeScale + (target - timeScale) * Math.min(1, realDt * 6);
   const dt = realDt * timeScale;
   // toucher bref (ou ↑) : saut
   const taps = input.takeTaps();
@@ -265,13 +285,32 @@ function update(realDt) {
   const push = input.push(ballScreenX);
   const steps = Math.ceil(dt * 600);
   for (let i = 0; i < steps; i++) {
+    const vy0 = ball.vy, wasAir = !ball.onTrack;
     ball.step(dt / steps, push);
+    if (!ball.onTrack) {
+      airTime += dt / steps;
+      // au sommet d'un grand saut : un court ralenti pour savourer
+      if (wasAir && vy0 < 0 && ball.vy >= 0 && groundY(track, ball.x) - ball.y > 330 && !slow) airSlow = 0.5;
+    }
     for (const e of ball.events.splice(0)) onEvent(e);
+  }
+  const got = game.update(dt, ball);
+  if (got) {
+    feat('star');
+    sound.star();
+    fx.big('★', got.x, got.y - 30);
+    vibrate(15);
+  }
+  // étincelles quand la boule file très vite sur la route
+  if (ball.onTrack && ball.speed() > 1800 && Math.random() < 0.7) {
+    const f = ball.frame();
+    fx.sparks(ball.x - f.nx * 28, ball.y - f.ny * 28);
   }
   const hit = bonuses.update(dt, ball);
   if (hit) {
     ball.bonus(hit.color);
     run.bonuses++;
+    feat('bonus');
     const c = BONUS[hit.color].color;
     fx.burst(ball.x, ball.y, [`rgb(${c})`, `rgb(${c.map((v) => Math.min(255, v + 50))})`]);
     fx.text(WORDS[hit.color], ball.x, ball.y - 90);
@@ -289,21 +328,52 @@ function update(realDt) {
   if (time - lastSave > 5 && run.running) { lastSave = time; saveProgress(); }
   prepare();
   const b = ball.biome();
-  sound.update(ball.speed(), ball.onTrack, { ice: !!b.snow, rain: !!biomeAt(cam.x + cam.viewW / 2).rain, gust: b.wind ? weather.wind() : 0 });
+  sound.update(ball.speed(), ball.onTrack, { ice: b.snow > 0.5, rain: biomeAt(cam.x + cam.viewW / 2).rain, gust: b.wind * weather.wind() });
   const sheet = Math.max(0, Math.min(SHEETS - 1, Math.floor(ball.x / SHEET))), bio = biomeOfSheet(sheet);
-  const where = sheet === SHEETS - 1 ? 'Arrivée' : `Niveau ${sheet + 1} · ${bio.name}`;
-  hud.textContent = `${where}${run.running || run.finished ? ` · ${clock(run.time)}` : ''}`;
+  const where = sheet === SHEETS - 1 ? 'Arrivée' : `Niv. ${sheet + 1} · ${bio.name} · ${'★'.repeat(game.starsIn(sheet))}${'☆'.repeat(3 - game.starsIn(sheet))}`;
+  const combo = game.combo >= 2 ? ` · ×${game.combo}` : '';
+  hud.textContent = `${where} · ${game.score} pts${combo}${run.running || run.finished ? ` · ${clock(run.time)}` : ''}`;
   drawGauges();
 }
 
-/** Explication du bonus attrapé, en grand, pendant quelques secondes. */
-let infoTimer = 0;
+/**
+ * Explication d'un bonus, la première fois seulement qu'on le prend : le jeu se met en pause
+ * (elle ne cache plus rien pendant qu'on joue) ; « Compris ! » ou une touche pour repartir.
+ */
 function showInfo(color) {
+  if (save.hasSeen(color)) return;
+  save.markSeen(color);
   const b = BONUS_INFO[color];
-  info.innerHTML = `<img src="images/boule-${color}.png" alt=""><span><b>${b.title}</b><br>${b.text}</span>`;
+  info.innerHTML = `<img src="images/boule-${color}.png" alt=""><span><b>${b.title}</b><br>${b.text}</span><button type="button" id="compris">Compris !</button>`;
   info.className = `visible ${color}`;
-  clearTimeout(infoTimer);
-  infoTimer = setTimeout(() => { info.className = ''; }, 4200);
+  infoOpen = true;
+  $('compris').addEventListener('click', closeInfo);
+}
+
+function closeInfo() {
+  info.className = '';
+  infoOpen = false;
+}
+
+/** Un exploit : points, et « ×2, ×3… » quand on enchaîne. */
+function feat(kind) {
+  const n = game.feat(kind);
+  if (n >= 2) {
+    fx.big(`×${n}`, ball.x + 80, ball.y - 150, n >= 4 ? '#c0392b' : '#c8901f');
+    sound.combo(n);
+  }
+}
+
+/** Petit bilan du niveau terminé, en bas de l'écran, sans arrêter le jeu. */
+let recapTimer = 0;
+function showRecap(r) {
+  if (!r || r.level < 0 || r.level > SHEETS - 2) return;
+  const m = medalTimes(r.level), medal = r.medal ? `<span class="medaille ${r.medal}">${r.medal}</span>` : '<span class="medaille">sans médaille</span>';
+  const next = r.medal === 'or' ? '' : ` · or en ${Math.round(m.or)} s`;
+  $('bilan').innerHTML = `<b>Niveau ${r.level + 1}</b> · ${'★'.repeat(r.stars)}${'☆'.repeat(3 - r.stars)} · ${Math.round(r.time)} s ${medal}${r.combo >= 2 ? ` · enchaînement ×${r.combo}` : ''}${r.newRecord ? ' · <b>record !</b>' : ''}<small>${next}</small>`;
+  $('bilan').classList.add('visible');
+  clearTimeout(recapTimer);
+  recapTimer = setTimeout(() => $('bilan').classList.remove('visible'), 3200);
 }
 
 /** Jauges des bonus en cours (bleu, jaune…), sous le bandeau du haut. */
@@ -321,11 +391,13 @@ function onEvent(e) {
     fx.sparkle(ball.x, ball.y);
   } else if (e.type === 'loop') {
     run.loops++;
+    feat('loop');
     fx.loop(ball.x, ball.y);
     fx.text('Looping !', ball.x, ball.y + 110);
     sound.loop();
     vibrate(14);
   } else if (e.type === 'jump') {
+    feat('jump');
     fx.text('Joli saut !', ball.x, ball.y - 90);
     sound.jump();
     vibrate(10);
@@ -335,10 +407,25 @@ function onEvent(e) {
     const k = e.n - 1, bio = biomeOfSheet(k), before = biomeOfSheet(k - 1);
     const label = k === SHEETS - 1 ? 'Arrivée !' : bio !== before ? `Niveau ${e.n} · ${bio.name}` : `Niveau ${e.n}`;
     fx.text(label, ball.x + 180, Math.max(260, ball.y - 220));
+    showRecap(game.finishLevel(k - 1));
+    game.enterLevel(k, false);
     saveProgress();
   } else if (e.type === 'clink') {
     fx.clink(ball.x, ball.y, e.power);
     sound.clink(e.power);
+  } else if (e.type === 'over') {
+    feat('over');
+  } else if (e.type === 'puff') {
+    fx.puff(e.x, e.y, e.kind);
+    sound.puff(e.kind);
+  } else if (e.type === 'land') {
+    if (e.vn > 900) cam.shake = Math.min(1, e.vn / 2200);
+    // atterrissage parfait : dans le sens de la route, sans choc, après un vrai saut
+    if (airTime > 0.35 && e.vt > 650 && e.vn < 170) {
+      feat('perfect');
+      fx.big('Parfait !', ball.x, ball.y - 110, '#4f7a2b');
+    }
+    airTime = 0;
   } else if (e.type === 'splash') {
     fx.splash(ball.x, ball.y);
     sound.splash(e.power);
@@ -352,7 +439,9 @@ function arrive() {
   run.running = false;
   save.setProgress(null);
   $('temps').textContent = clock(run.time);
-  $('stats').textContent = `${run.loops} loopings · ${run.bonuses} bonus`;
+  const stars = Array.from({ length: SHEETS - 1 }, (_, k) => game.starsIn(k)).reduce((a, b) => a + b, 0);
+  run.stars = stars;
+  $('stats').textContent = `${game.score} points · ${stars} ★ sur ${(SHEETS - 1) * 3} · ${run.loops} loopings · ${run.bonuses} bonus · meilleur enchaînement ×${game.bestCombo}`;
   $('nom').value = save.lastName || '';
   $('fin-saisie').hidden = false;
   $('fin-scores').innerHTML = '';
@@ -362,7 +451,7 @@ function arrive() {
 
 function recordScore() {
   const name = ($('nom').value || '').trim().slice(0, 16) || 'Anonyme';
-  const rank = save.addScore({ name, time: run.time, loops: run.loops, bonuses: run.bonuses, date: Date.now() });
+  const rank = save.addScore({ name, time: run.time, score: game.score, stars: run.stars || 0, loops: run.loops, bonuses: run.bonuses, date: Date.now() });
   $('fin-saisie').hidden = true;
   $('fin-scores').innerHTML = `${rank >= 0 ? `<p>Tu es ${rank === 0 ? '<b>premier</b>' : `<b>${rank + 1}e</b>`} du tableau !</p>` : '<p>Pas dans les 10 meilleurs temps, cette fois.</p>'}${scoreTable(rank)}`;
 }
@@ -371,7 +460,10 @@ function render(dt) {
   const W = canvas.width, H = canvas.height, s = cam.scale, x0 = cam.x, x1 = cam.x + cam.viewW;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   drawPaper(ctx, W, H, cam);
-  ctx.setTransform(s, 0, 0, s, -cam.x * s, -cam.y * s);
+  // petit tremblement de caméra aux gros atterrissages
+  cam.shake = Math.max(0, (cam.shake || 0) - dt * 3);
+  const sh = (cam.shake || 0) * 10 * cam.dpr, ox = (Math.random() - 0.5) * sh, oy = (Math.random() - 0.5) * sh;
+  ctx.setTransform(s, 0, 0, s, -cam.x * s + ox, -cam.y * s + oy);
   ctx.save();
   ctx.beginPath();
   ctx.rect(0, cam.y - 10, SHEET * SHEETS, cam.viewH + 20);
@@ -385,10 +477,14 @@ function render(dt) {
   drawForks(ctx, track, time, x0, x1, slow ? 1 : 0);
   ctx.restore();
   drawTable(ctx, cam);
+  drawPlanks(ctx, track, x0, x1);
+  drawObstacles(ctx, track, x0, x1, art.q);
+  game.drawStars(ctx, x0, x1, time);
+  game.drawGhost(ctx);
   bonuses.draw(ctx, time, x0, x1, save.options.labels);
   fx.drawHeat(ctx, ball);
   fx.drawSpeed(ctx, ball);
-  drawBall(ctx, art.body, ball, track, time);
+  drawBall(ctx, art.body, ball, track, time, save.skin);
   fx.draw(ctx);
   weather.draw(ctx);
   // ralenti : écran légèrement bleuté, bords assombris
@@ -440,6 +536,9 @@ const menu = new Menu($('menu'), {
     const p = save.progress;
     if (!p) return restart(true);
     ball.respawn(p.level);
+    game.reset();
+    game.enterLevel(p.level);
+    game.score = p.score || 0;
     Object.assign(run, { time: p.time, running: false, finished: false, loops: p.loops, bonuses: p.bonuses });
     launched = false;
     hint.classList.remove('cache');
@@ -447,6 +546,11 @@ const menu = new Menu($('menu'), {
   options: (k) => {
     applyOptions();
     if (k === 'wideLandscape') refreshButtons();
+  },
+  skin: (id) => {
+    save.setSkin(id);
+    ball.setSkin(skinPhys(id));
+    art.body = buildBallBody(Math.min(cam.followScale * 1.5, 3), id);
   },
 });
 
@@ -480,9 +584,11 @@ addEventListener('keydown', (e) => {
   if (menu.isOpen) return;
   if (k === 'z') toggleZoom();
   if (k === 'm') toggleMusic();
+  // aiguillage au clavier : ↑ chemin du haut, ↓ chemin du bas (↑ saute quand il n'y a rien à choisir)
+  if ((k === 'arrowup' || k === 'w') && near && !near.decided) { pick('b'); input.hopAsked = false; }
+  if ((k === 'arrowdown' || k === 's') && near) pick('a');
   if (k === 'a') toggleFork();
-  if (k === 'arrowdown' || k === 's') pick('a');
-  if (k === 'enter' && slow) pick(slow.route);
+  if ((k === 'enter' || k === ' ') && infoOpen) closeInfo();
   if (k === 'f') { meterOn = !meterOn; fpsBox.hidden = !meterOn; }
   sound.unlock();
 });

@@ -22,7 +22,8 @@ const JUMP_SHAPE = [
 export class Builder {
   /** @param {number[][]} start points déjà posés (le dernier est le curseur) */
   constructor(name, start, prev) {
-    this.meta = { pieces: [], loops: [], jumps: [], puddles: [], bonuses: [], bridges: [], forks: [], checkpoints: [] };
+    this.meta = { pieces: [], loops: [], jumps: [], puddles: [], bonuses: [], bridges: [], forks: [], checkpoints: [], obstacles: [], stars: [] };
+    this.platformCount = 0;
     this.forkCount = 0;
     this.open(name, start, prev);
   }
@@ -38,6 +39,8 @@ export class Builder {
 
   /** Courbe douce (cosinus) jusqu'à (x + w, y + dy). */
   slope(w, dy = 0) {
+    // virages assez larges pour la boule (rayon de la route ≥ 40 px), sinon on allonge la pente
+    w = Math.max(w, Math.sqrt(Math.abs(dy) * 205));
     const x0 = this.x, y0 = this.y, n = Math.max(2, Math.round(w / 55));
     for (let i = 1; i <= n; i++) {
       const t = i / n;
@@ -48,9 +51,12 @@ export class Builder {
 
   flat(w) { return this.slope(w, 0); }
 
-  /** Bosse (h > 0) ou creux (h < 0) qui revient à la même hauteur. */
-  hill(w, h) {
+  /** Bosse (h > 0) ou creux (h < 0) qui revient à la même hauteur ; étoile au-dessus de la crête (saut). */
+  hill(w, h, star = false) {
+    // pied et sommet assez larges pour la boule (rayon de la route ≥ 40 px)
+    h = Math.sign(h) * Math.min(Math.abs(h), (w * w) / 800);
     const x0 = this.x, y0 = this.y, n = Math.max(4, Math.round(w / 50));
+    if (star) this.meta.stars.push({ x: x0 + w / 2, y: y0 - h - 170 });
     for (let i = 1; i <= n; i++) {
       const t = i / n;
       this.add(x0 + w * t, y0 - h * (1 - Math.cos(2 * Math.PI * t)) / 2);
@@ -69,17 +75,19 @@ export class Builder {
     return this.flat(60);
   }
 
-  /** Looping à l'échelle s (le dessin d'origine = 1). */
-  loop(s = 1) {
+  /** Looping à l'échelle s (le dessin d'origine = 1) ; étoile au sommet, à l'intérieur. */
+  loop(s = 1, star = false) {
     const cx = this.x, cy = this.y, X = [cx + 95 * s, cy - 29 * s];
+    if (star) this.meta.stars.push({ x: X[0] + 105 * s, y: X[1] - 446 * s + 48 });
     for (const p of LOOP_SHAPE.slice(1)) this.add(X[0] + (p[0] - X1[0]) * s, X[1] + (p[1] - X1[1]) * s);
     this.meta.loops.push([this.cur.name, X[0] - 125 * s, X[0] + 260 * s]);
     return this.flat(40);
   }
 
-  /** Tremplin au-dessus d'une fosse (comme au niveau 2). */
-  jump(s = 1) {
+  /** Tremplin au-dessus d'une fosse (comme au niveau 2) ; étoile sur la trajectoire du saut. */
+  jump(s = 1, star = false) {
     const x0 = this.x, y0 = this.y;
+    if (star) this.meta.stars.push({ x: x0 + 400 * s, y: y0 - 250 * s });
     for (const p of JUMP_SHAPE.slice(1)) this.add(x0 + p[0] * s, y0 + p[1] * s);
     const lip = [x0 + 235 * s, y0 - 175 * s];
     this.meta.jumps.push({ piece: this.cur.name, x0: lip[0] - 40 * s, x1: lip[0] + 45 * s, yMax: lip[1] + 50 * s, pitEnd: x0 + 560 * s, pit: [x0 + 258 * s, x0 + 526 * s], bottom: y0 + 153 * s });
@@ -94,6 +102,65 @@ export class Builder {
     return this;
   }
 
+  /** Grande flaque : trop large et trop freinante pour la traverser en roulant, il faut sauter. */
+  bigPuddle(w, star = true) {
+    const x0 = this.x;
+    this.flat(w);
+    this.meta.puddles.push({ piece: this.cur.name, x0: x0 + 25, x1: x0 + w - 25, y: this.y, big: true });
+    if (star) this.meta.stars.push({ x: x0 + w / 2, y: this.y - 165 });
+    return this;
+  }
+
+  /**
+   * Obstacle posé sur un replat, qu'on ne passe qu'en sautant : rocher, tronc couché,
+   * gros tas de feuilles (automne), gros tas de neige (hiver). Étoile au-dessus.
+   */
+  obstacle(kind, star = true) {
+    const size = { rock: [96, 84], trunk: [150, 66], leaves: [230, 92], snow: [230, 98] }[kind];
+    this.flat(140);
+    const x = this.x + size[0] / 2;
+    this.meta.obstacles.push({ kind, piece: this.cur.name, x, y: this.y, w: size[0], h: size[1] });
+    if (star) this.meta.stars.push({ x, y: this.y - Math.min(185, size[1] + 95) });
+    return this.flat(size[0] + 150);
+  }
+
+  /** Escalier de n marches : chaque marche est un petit plateau ; on monte en sautant. Étoile en haut. */
+  stairs(n = 3, stepW = 150, stepH = 72, star = true) {
+    this.flat(120);
+    const x0 = this.x, y0 = this.y;
+    for (let k = 1; k <= n; k++) {
+      const a = x0 + (k - 1) * stepW, b = x0 + k * stepW + (k === n ? 70 : 0), top = y0 - stepH * k;
+      this.platform(a, b, top, { wall: true, ground: y0 });
+    }
+    if (star) this.meta.stars.push({ x: x0 + n * stepW - 20, y: y0 - stepH * n - 120 });
+    return this.flat(n * stepW + 260);
+  }
+
+  /** Plateformes au-dessus d'une fosse : on saute de l'une à l'autre (ou on file assez vite pour enchaîner). */
+  platforms(n = 3, w = 150, gap = 120, star = true) {
+    const x0 = this.x, y0 = this.y, total = n * w + (n + 1) * gap;
+    this.slope(160, 170).flat(total - 320).slope(160, -170);
+    for (let k = 0; k < n; k++) {
+      const a = x0 + gap + k * (w + gap);
+      this.platform(a, a + w, y0, { wall: false });
+    }
+    if (star) this.meta.stars.push({ x: x0 + gap + Math.floor(n / 2) * (w + gap) + w / 2, y: y0 - 150 });
+    return this;
+  }
+
+  /** Plateau indépendant de la route (une marche, une plateforme). */
+  platform(a, b, top, { wall, ground } = {}) {
+    const name = `p${this.platformCount++}`;
+    this.meta.pieces.push({ name, pts: [[a, top], [(a + b) / 2, top], [b, top]], prev: [a - 40, top], next: [b + 40, top], platform: true });
+    if (wall) this.meta.obstacles.push({ kind: 'step', piece: null, x: (a + b) / 2, y: ground, w: b - a, h: ground - top, top });
+  }
+
+  /** Étoile libre (dx, dy par rapport à la route au curseur). */
+  star(dx = 0, dy = 170) {
+    this.meta.stars.push({ x: this.x + dx, y: this.y - dy });
+    return this;
+  }
+
   bonus(color, dx = 0) {
     this.meta.bonuses.push({ piece: this.cur.name, x: this.x + dx, color });
     return this;
@@ -101,8 +168,10 @@ export class Builder {
 
   /** Va en douceur jusqu'au point (x, y). */
   to(x, y) {
-    if (x - this.x < 30) return this;
-    return this.slope(x - this.x, y - this.y);
+    // jamais de mur : au moins 2,4 px de long par px de dénivelé (quitte à déborder un peu)
+    const w = Math.max(x - this.x, Math.abs(y - this.y) * 2.4);
+    if (w < 30) return this;
+    return this.slope(w, y - this.y);
   }
 
   checkpoint(level) {
@@ -122,6 +191,7 @@ export class Builder {
     const branch = (name, lead, fill, tail) => {
       this.open(name, [F, [F[0] + lead, F[1]]], F0);
       fill(this);
+      if (this.x > em[0] - tail - 70) throw new Error(`aiguillage ${i} : le chemin ${name} est trop long de ${Math.round(this.x - (em[0] - tail - 70))} px`);
       this.to(em[0] - tail - 60, F[1]);
       this.add(em[0] - tail, F[1]).add(em[0], em[1]);
       this.cur.next = [em[0] + 40, em[1]];

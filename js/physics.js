@@ -12,17 +12,15 @@
  * - Au bout d'un tronçon, elle passe au suivant (à un aiguillage : le chemin choisi).
  */
 import { WORLD, SHEET, JUMPS, BALL_R, sample, segmentsNear } from './track.js';
-import { biomeAt, windAt } from './biomes.js';
+import { biomeParams, windAt } from './biomes.js';
+import { hitObstacles } from './obstacles.js';
 
 export const G = 2400;            // px/s² (≈ 1 m pour 245 px)
 const AIR = 0.00009;              // traînée de l'air (par px)
 const STATIC = 70;                // px/s² : en dessous, la bille reste posée
-const BOUNCE_MIN = 380;           // px/s : vitesse d'impact qui fait rebondir
-const RESTITUTION = 0.32;         // rebond acier sur la route
 const V_MAX = 4200;
 const BOOST = 950;                // px/s ajoutés par la boule rouge
 const BOND = 1250;                // px/s d'élan vers le haut donnés par la boule verte
-const HOP = 900;                  // px/s : saut commandé par le joueur
 const HOP_REST = 0.5;             // s entre deux sauts
 
 /** Durées des effets de bonus (s) et leur couleur. */
@@ -38,6 +36,7 @@ export class Ball {
     this.tr = track;
     this.events = [];
     this.clock = 0;
+    this.skin = { hop: 900, restitution: 0.32, bounceMin: 380, rollRes: 1, wind: 1, puddle: 1, crush: false };
     this.respawn();
   }
 
@@ -61,8 +60,14 @@ export class Ball {
     return this.onTrack ? Math.abs(this.v) : Math.hypot(this.vx, this.vy);
   }
 
+  /** Saison sous la boule (réglages mélangés près des jonctions). */
   biome() {
-    return biomeAt(this.x);
+    return biomeParams(this.x);
+  }
+
+  /** Boule choisie (acier, verre, pétanque…) : ses réglages physiques. */
+  setSkin(skin) {
+    this.skin = skin;
   }
 
   /** Teinte actuelle de la boule (effet de bonus le plus fort) : [r, g, b, force] ou null. */
@@ -98,8 +103,9 @@ export class Ball {
     if (!this.onTrack || this.hopWait > 0) return false;
     const p = this.frame();
     this.takeOff(p);
-    this.vx += p.nx * HOP;
-    this.vy += p.ny * HOP;
+    this.vx += p.nx * this.skin.hop;
+    this.vy += p.ny * this.skin.hop;
+    this.events.push({ type: 'hop' });
     this.hopWait = HOP_REST;
     return true;
   }
@@ -129,6 +135,7 @@ export class Ball {
     if (this.onTrack) this.stepTrack(dt, push);
     else this.stepAir(dt);
     this.angle += this.omega * dt;
+    hitObstacles(this, dt);
     const k0 = Math.floor(px / SHEET), k1 = Math.floor(this.x / SHEET);
     if (k1 > k0 && k1 > 0 && this.x < WORLD.w) this.events.push({ type: 'level', n: k1 + 1 });
     if (this.y > WORLD.h + 400) this.respawn(Math.max(0, Math.floor(this.x / SHEET)));
@@ -151,8 +158,8 @@ export class Ball {
     }
     const pushT = push.x * p.tx + push.y * p.ty;
     let along = b.roll * G * grav * p.ty + b.roll * (pushT ? this.control(pushT) : 0);
-    if (b.wind) along += b.roll * windAt(this.clock) * p.tx;
-    let resist = b.roll * b.rollRes * N + AIR * this.v * this.v;
+    if (b.wind) along += b.roll * windAt(this.clock) * b.wind * this.skin.wind * p.tx;
+    let resist = b.roll * b.rollRes * this.skin.rollRes * N + AIR * this.v * this.v;
     resist += this.puddleDrag(p);
     if (Math.abs(this.v) < 6 && Math.abs(along) < STATIC + resist) {
       this.v = 0;
@@ -177,6 +184,10 @@ export class Ball {
         this.pc = this.pc.next();
         if (this.pc.fork) this.pc.fork.last = this.pc;
         this.lastS = 0;
+      } else if (this.pc.platform) {
+        // bout d'une marche ou d'une plateforme : la boule part dans le vide
+        this.s = this.pc.length;
+        return this.takeOff(this.frame());
       } else {
         // butoir au bout de l'arrivée
         this.s = this.pc.length;
@@ -187,6 +198,9 @@ export class Ball {
       this.pc = this.pc.prev();
       this.s += this.pc.length;
       this.lastS = this.s;
+    } else if (this.s < 0 && this.pc.platform) {
+      this.s = 0;
+      return this.takeOff(this.frame());
     }
     p = this.frame();
     this.x = p.x;
@@ -202,7 +216,7 @@ export class Ball {
     for (const d of this.pc.puddles) {
       if (p.x < d.x0 || p.x > d.x1 || (d.yMin && p.y < d.yMin)) continue;
       wet = true;
-      drag = d.deep ? 1100 + 1.8 * Math.abs(this.v) : 650 + 1.7 * Math.abs(this.v);
+      drag = (d.deep ? 1100 + 1.8 * Math.abs(this.v) : d.big ? 1700 + 2 * Math.abs(this.v) : 650 + 1.7 * Math.abs(this.v)) * this.skin.puddle;
     }
     if (wet && !this.inPuddle && Math.abs(this.v) > 120) this.events.push({ type: 'splash', power: Math.abs(this.v) });
     this.inPuddle = wet;
@@ -221,7 +235,7 @@ export class Ball {
     const b = this.biome(), grav = this.fx.yellow > 0 ? 0.45 : 1;
     const sp = Math.hypot(this.vx, this.vy);
     const drag = 1 - AIR * sp * dt;
-    this.vx = this.vx * drag + (b.wind ? windAt(this.clock) * 0.6 * dt : 0);
+    this.vx = this.vx * drag + (b.wind ? windAt(this.clock) * 0.6 * b.wind * this.skin.wind * dt : 0);
     this.vy = this.vy * drag + G * grav * dt;
     const ox = this.x, oy = this.y;
     this.x += this.vx * dt;
@@ -243,16 +257,16 @@ export class Ball {
       const nx = pc.ty[i], ny = -pc.tx[i];
       if ((ox - ax) * nx + (oy - ay) * ny < 0) continue; // venu de dessous : on ignore
       // près d'un embranchement, une boule qui retombe atterrit sur le chemin choisi
-      if (pc.fork && pc !== (pc.fork.route === 'a' ? pc.fork.A : pc.fork.B) && ax < pc.fork.x + 350) continue;
+      if (pc.fork && pc.fork.route && pc !== (pc.fork.route === 'a' ? pc.fork.A : pc.fork.B) && ax < pc.fork.x + 350) continue;
       if (!best || hit.a < best.a) best = { ...hit, i, pc };
     }
     if (!best) return;
     const s = (best.i + best.b) * best.pc.step;
     const p = sample(best.pc, s);
     const vn = this.vx * p.nx + this.vy * p.ny, vt = this.vx * p.tx + this.vy * p.ty;
-    if (-vn > BOUNCE_MIN) {
-      this.vx = vt * p.tx * 0.92 - vn * RESTITUTION * p.nx;
-      this.vy = vt * p.ty * 0.92 - vn * RESTITUTION * p.ny;
+    if (-vn > this.skin.bounceMin) {
+      this.vx = vt * p.tx * 0.92 - vn * this.skin.restitution * p.nx;
+      this.vy = vt * p.ty * 0.92 - vn * this.skin.restitution * p.ny;
       this.x = p.x + p.nx;
       this.y = p.y + p.ny;
       this.omega = this.omega * 0.6 + (vt / BALL_R) * 0.4;
@@ -270,6 +284,7 @@ export class Ball {
       this.x = p.x;
       this.y = p.y;
       if (-vn > 120) this.events.push({ type: 'clink', power: -vn });
+      this.events.push({ type: 'land', vn: -vn, vt: Math.abs(vt) });
     }
   }
 }
