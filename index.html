@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#e6e5e1">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>La boule et le looping</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #e6e5e1; overscroll-behavior: none; }
+    body { position: fixed; inset: 0; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+    #jeu { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
+    #consigne {
+      position: absolute; left: 50%; top: max(14px, env(safe-area-inset-top)); transform: translateX(-50%) rotate(-1.5deg);
+      width: min(92vw, 560px); text-align: center; pointer-events: none; color: #3d3d42;
+      font: 600 clamp(15px, 1.6vw + 9px, 24px)/1.25 "Segoe Print", "Bradley Hand", "Chalkboard SE", "Comic Sans MS", "Comic Neue", cursive;
+      transition: opacity .8s, transform .8s;
+    }
+    #consigne small { display: block; font-size: .72em; opacity: .75; margin-top: .2em; }
+    #consigne.cache { opacity: 0; transform: translateX(-50%) translateY(-20px) rotate(-1.5deg); }
+    #rejouer {
+      position: absolute; right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom));
+      width: 46px; height: 46px; border-radius: 50%; border: 2px solid rgba(60,60,66,.55);
+      background: rgba(236,235,231,.75); color: #3d3d42; font-size: 24px; line-height: 1; cursor: pointer; touch-action: manipulation;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="jeu" aria-label="Boule en métal sur une route avec looping"></canvas>
+  <div id="consigne">Glisse ton doigt vers la droite pour lancer la boule&nbsp;!
+    <small>Plus tu glisses vite, plus elle va vite. Doigt posé&nbsp;: elle roule vers ton doigt.</small></div>
+  <button id="rejouer" type="button" aria-label="Recommencer en haut de la butte" title="Recommencer (R)">↺</button>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
