@@ -81,6 +81,6 @@ for (let k = 0; k < SHEETS - 1; k++) {
   }
   if (times.length) total += times.reduce((a, b) => a + b) / times.length;
 }
-console.log(`\nDurée pour le robot : ${(total / 60).toFixed(1)} min (un joueur met en général 2 à 3 fois plus, avec les essais).`);
+console.log(`\nDurée pour le robot (lancers parfaits, aucun raté) : ${(total / 60).toFixed(1)} min. Un joueur met bien plus longtemps ; le vrai temps s'affiche en haut à gauche du jeu.`);
 console.log(problems ? `\n${problems} problème(s).` : '\nTout est jouable.');
 process.exitCode = problems ? 1 : 0;
