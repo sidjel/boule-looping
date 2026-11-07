@@ -81,7 +81,7 @@ export function makePaper() {
     light.addColorStop(0, 'rgba(255,255,255,0.55)');
     light.addColorStop(1, 'rgba(160,158,150,0.25)');
     ctx.fillStyle = light;
-    ctx.fillRect(-1000, -3000, WORLD.w + 2000, WORLD.h + 4000);
+    ctx.fillRect(-3000, -12000, WORLD.w + 6000, WORLD.h + 14000);
     const fold = ctx.createLinearGradient(1500, 700, 1700, 560);
     fold.addColorStop(0, 'rgba(255,255,255,0)');
     fold.addColorStop(0.45, 'rgba(255,255,255,0.16)');
@@ -189,4 +189,34 @@ export function drawSun(ctx, disk, cx, cy, radius, t) {
   ctx.restore();
   const s = disk.size * (1 + 0.015 * Math.sin(t * 1.7));
   ctx.drawImage(disk.canvas, cx - s / 2, cy - s / 2, s, s);
+}
+
+/**
+ * Table sous la feuille, visible sur les côtés en vue d'ensemble (écran plus large que le dessin).
+ * Appelée dans le repère du monde.
+ */
+export function drawTable(ctx, cam) {
+  const left = cam.x, right = cam.x + cam.viewW;
+  if (left >= -3 && right <= WORLD.w + 3) return;
+  const top = cam.y - 20, h = cam.viewH + 40;
+  ctx.save();
+  ctx.fillStyle = '#b9b2a6';
+  if (left < 0) ctx.fillRect(left - 10, top, -left + 10, h);
+  if (right > WORLD.w) ctx.fillRect(WORLD.w, top, right - WORLD.w + 10, h);
+  for (const [x0, dir] of [[0, -1], [WORLD.w, 1]]) {
+    const shadow = ctx.createLinearGradient(x0, 0, x0 + dir * 40, 0);
+    shadow.addColorStop(0, 'rgba(60,52,40,0.35)');
+    shadow.addColorStop(1, 'rgba(60,52,40,0)');
+    ctx.fillStyle = shadow;
+    ctx.fillRect(Math.min(x0, x0 + dir * 40), top, 40, h);
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(1, top);
+  ctx.lineTo(1, top + h);
+  ctx.moveTo(WORLD.w - 1, top);
+  ctx.lineTo(WORLD.w - 1, top + h);
+  ctx.stroke();
+  ctx.restore();
 }

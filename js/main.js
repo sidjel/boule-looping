@@ -1,27 +1,30 @@
 /**
- * Boucle du mini-jeu : caméra qui suit la bille, physique en petits pas (1/600 s),
- * dessin du décor, de la bille et des petits effets.
+ * Boucle du mini-jeu : caméra (vue d'ensemble ou suivi), physique en petits pas (1/600 s),
+ * dessin du décor, de la boule et des petits effets.
  */
-import { WORLD, BALL_R, buildTrack } from './track.js';
+import { WORLD, buildTrack } from './track.js';
 import { Ball } from './physics.js';
 import { Input } from './input.js';
-import { buildInk, makePaper, buildCloud, buildSunDisk, drawSun } from './scenery.js';
+import { Camera } from './camera.js';
+import { setupFullscreen } from './fullscreen.js';
+import { buildInk, makePaper, drawTable, buildCloud, buildSunDisk, drawSun } from './scenery.js';
 import { buildBallBody, drawBall } from './ballArt.js';
 import { Effects } from './effects.js';
 
 const canvas = document.getElementById('jeu');
 const ctx = canvas.getContext('2d');
 const hint = document.getElementById('consigne');
+const zoomBtn = document.getElementById('zoom');
 const track = buildTrack();
 const ball = new Ball(track);
 const input = new Input(canvas);
 const fx = new Effects();
+const cam = new Camera();
 const drawPaper = makePaper();
 const SUN = { x: 1700, y: 238, r: 108 };
 const FLICK_GAIN = 0.3;
 const FLICK_MAX = 9000;
 
-const cam = { x: 0, y: 0, scale: 1, viewW: WORLD.w, viewH: WORLD.h, dpr: 1 };
 let art = null;
 const clouds = [
   { seed: 3, w: 620, h: 250, x: 1340, y: 262, speed: 9 },
@@ -30,33 +33,34 @@ const clouds = [
 ];
 
 function resize() {
-  cam.dpr = Math.min(2, devicePixelRatio || 1);
-  canvas.width = Math.round(innerWidth * cam.dpr);
-  canvas.height = Math.round(innerHeight * cam.dpr);
-  // Paysage : la feuille remplit l'écran. Portrait : on garde au moins 1000 px du dessin
-  // en largeur, le ciel (papier) continue au-dessus.
-  cam.scale = Math.min(Math.max(canvas.width / WORLD.w, canvas.height / WORLD.h), canvas.width / 1000);
-  cam.viewW = canvas.width / cam.scale;
-  cam.viewH = canvas.height / cam.scale;
-  const q = Math.min(cam.scale, 1.5);
-  art = {
-    q,
-    ink: buildInk(track, q),
-    sun: buildSunDisk(SUN.r, q),
-    body: buildBallBody(Math.min(cam.scale * 1.5, 3)),
-    clouds: clouds.map((c) => buildCloud(c.seed, c.w, c.h, q)),
-  };
-  follow(1, true);
+  const dpr = Math.min(2, devicePixelRatio || 1);
+  canvas.width = Math.round(innerWidth * dpr);
+  canvas.height = Math.round(innerHeight * dpr);
+  cam.resize(canvas.width, canvas.height, dpr);
+  // Calques dessinés pour le cadrage le plus zoomé : nets dans les deux vues.
+  const q = Math.min(cam.followScale, 1.5);
+  if (!art || Math.abs(art.q - q) > 0.05) {
+    art = {
+      q,
+      ink: buildInk(track, q),
+      sun: buildSunDisk(SUN.r, q),
+      body: buildBallBody(Math.min(cam.followScale * 1.5, 3)),
+      clouds: clouds.map((c) => buildCloud(c.seed, c.w, c.h, q)),
+    };
+  }
+  cam.update(1, ball, true);
+  refreshZoomBtn();
 }
 
-function follow(dt, snap = false) {
-  const lookX = ball.onTrack ? ball.v * 0.1 : ball.vx * 0.1;
-  const tx = clamp(ball.x + clamp(lookX, -250, 250) - cam.viewW / 2, 0, WORLD.w - cam.viewW);
-  const lookY = clamp(ball.onTrack ? 0 : ball.vy * 0.12, -150, 250);
-  const ty = cam.viewH >= WORLD.h ? WORLD.h - cam.viewH : clamp(ball.y + lookY - cam.viewH * 0.42, 0, WORLD.h - cam.viewH);
-  const kx = snap ? 1 : 1 - Math.exp(-dt * 4), ky = snap ? 1 : 1 - Math.exp(-dt * 6);
-  cam.x += (tx - cam.x) * kx;
-  cam.y += (ty - cam.y) * ky;
+function refreshZoomBtn() {
+  zoomBtn.classList.toggle('large', cam.wide);
+  zoomBtn.setAttribute('aria-label', cam.wide ? 'Zoomer sur la boule' : 'Voir tout le parcours');
+  zoomBtn.title = cam.wide ? 'Zoomer sur la boule (Z)' : 'Voir tout le parcours (Z)';
+}
+
+function toggleZoom() {
+  cam.toggle();
+  refreshZoomBtn();
 }
 
 let last = performance.now(), time = 0, launched = false;
@@ -75,7 +79,8 @@ function update(dt) {
     ball.respawn();
   }
   for (const f of input.takeFlicks()) {
-    const k = f.keyboard ? 1 : cam.dpr / cam.scale;
+    // Même geste, même élan, quel que soit le cadrage.
+    const k = f.keyboard ? 1 : cam.dpr / cam.followScale;
     let wx = f.vx * k, wy = f.vy * k;
     const m = Math.hypot(wx, wy);
     if (m > FLICK_MAX) { wx *= FLICK_MAX / m; wy *= FLICK_MAX / m; }
@@ -96,12 +101,12 @@ function update(dt) {
     if (c.x > WORLD.w + 60) c.x = -c.w - 60;
   }
   fx.update(dt);
-  follow(dt);
+  cam.update(dt, ball);
 }
 
 function onEvent(e) {
   if (e.type === 'spawn') {
-    follow(0, true);
+    cam.update(0, ball, !cam.wide);
     fx.sparkle(ball.x, ball.y);
   } else if (e.type === 'loop') {
     fx.text('Looping !', ball.x, ball.y + 90);
@@ -111,16 +116,22 @@ function onEvent(e) {
 }
 
 function render() {
-  const W = canvas.width, H = canvas.height;
+  const W = canvas.width, H = canvas.height, s = cam.scale;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   drawPaper(ctx, W, H, cam);
-  ctx.setTransform(cam.scale, 0, 0, cam.scale, -cam.x * cam.scale, -cam.y * cam.scale);
+  ctx.setTransform(s, 0, 0, s, -cam.x * s, -cam.y * s);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, cam.y - 10, WORLD.w, cam.viewH + 20);
+  ctx.clip();
   drawSun(ctx, art.sun, SUN.x, SUN.y, SUN.r, time);
   clouds.forEach((c, i) => {
     const a = art.clouds[i];
     ctx.drawImage(a.canvas, c.x - 20, c.y - 20, a.w, a.h);
   });
   ctx.drawImage(art.ink, 0, 0, WORLD.w, WORLD.h);
+  ctx.restore();
+  drawTable(ctx, cam);
   fx.drawSpeed(ctx, ball);
   drawBall(ctx, art.body, ball, track, time);
   fx.draw(ctx);
@@ -128,18 +139,15 @@ function render() {
   fx.drawTrail(ctx, input.liveTrail(), input.holding() ? input.active.last : null);
 }
 
-function clamp(v, a, b) {
-  return b < a ? (a + b) / 2 : v < a ? a : v > b ? b : v;
-}
-
 document.getElementById('rejouer').addEventListener('click', () => ball.respawn());
-document.getElementById('rejouer').addEventListener('pointerdown', (e) => e.stopPropagation());
-canvas.addEventListener('pointerdown', () => {
-  fx.unlockSound();
-  if (matchMedia('(pointer: coarse)').matches && !document.fullscreenElement) {
-    document.documentElement.requestFullscreen?.({ navigationUI: 'hide' })?.catch(() => {});
-  }
-}, { once: true });
+for (const b of document.querySelectorAll('button')) b.addEventListener('pointerdown', (e) => e.stopPropagation());
+zoomBtn.addEventListener('click', toggleZoom);
+addEventListener('keydown', (e) => {
+  if (e.key === 'z' || e.key === 'Z') toggleZoom();
+});
+canvas.addEventListener('pointerdown', () => fx.unlockSound(), { once: true });
+setupFullscreen(document.getElementById('plein-ecran'), document.getElementById('astuce'));
+
 let resizeTimer = 0;
 addEventListener('resize', () => {
   clearTimeout(resizeTimer);
@@ -147,4 +155,4 @@ addEventListener('resize', () => {
 });
 resize();
 requestAnimationFrame(frame);
-window.__boule = { ball, track, cam, BALL_R };
+window.__boule = { ball, track, cam };
