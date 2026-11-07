@@ -10,7 +10,7 @@ import { Camera } from './camera.js';
 import { Sound } from './audio.js';
 import { setupFullscreen } from './fullscreen.js';
 import { inkSteps, buildInk } from './ink.js';
-import { makePaper, drawTable, buildSunDisk, drawSun, drawForks } from './scenery.js';
+import { makePaper, drawTable, buildSunDisk, drawSun, drawForks, drawWindsocks } from './scenery.js';
 import { buildClouds, moveClouds, drawClouds, drawBirds } from './clouds.js';
 import { buildBallBody, drawBall } from './ballArt.js';
 import { Effects } from './effects.js';
@@ -20,7 +20,7 @@ import { biomeAt, biomeOfSheet } from './biomes.js';
 import { save } from './save.js';
 import { Menu, scoreTable } from './menu.js';
 import { Game, skinPhys, medalTimes } from './game.js';
-import { drawObstacles, drawPlanks } from './obstacles.js';
+import { drawObstacles, drawPlanks, obstaclesOf } from './obstacles.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('jeu'), ctx = canvas.getContext('2d');
@@ -202,7 +202,7 @@ function toggleMusic() {
 
 /* ---------- partie : temps, statistiques, sauvegarde, reprise ---------- */
 
-let last = performance.now(), time = 0, launched = false, timeScale = 1, airSlow = 0, infoOpen = false, airTime = 0;
+let last = performance.now(), time = 0, launched = false, timeScale = 1, airSlow = 0, infoOpen = false, airTime = 0, tutorial = false;
 const run = { time: 0, running: false, finished: false, loops: 0, bonuses: 0 };
 let lastSave = 0;
 
@@ -214,11 +214,20 @@ function saveProgress() {
   save.setProgress({ level: level(), time: run.time, loops: run.loops, bonuses: run.bonuses, score: game.score });
 }
 
+/**
+ * ↺ : repart du dernier point de reprise passé dans le niveau (juste avant le passage difficile),
+ * ou du début du niveau ; les étoiles déjà prises restent prises.
+ */
+function retryPoint() {
+  const lv = level(), start = lv * SHEET;
+  return track.retries.filter((r) => r.x >= start - 5 && r.x < ball.x - 40).pop() || null;
+}
+
 function restart(fromStart = false) {
-  const lv = fromStart ? 0 : level();
-  ball.respawn(lv);
+  const lv = fromStart ? 0 : level(), point = fromStart ? null : retryPoint();
+  ball.respawn(lv, point);
   if (fromStart) game.reset();
-  else game.enterLevel(lv);
+  else if (!point || point.x < lv * SHEET + 60) game.enterLevel(lv);
   if (fromStart) {
     Object.assign(run, { time: 0, running: false, finished: false, loops: 0, bonuses: 0 });
     launched = false;
@@ -253,7 +262,8 @@ function update(realDt) {
   const wasSlow = !!slow, choosing = updateForks();
   cam.focus = near && near.x - ball.x < FORK_ZONE + 150 ? near.x : null;
   if (!!choosing !== wasSlow) sound.slow(!!choosing);
-  const target = freeze ? 0 : choosing ? SLOW : airSlow > 0 ? 0.45 : 1;
+  updateTutorial();
+  const target = freeze ? 0 : choosing ? SLOW : tutorial ? 0.3 : airSlow > 0 ? 0.45 : 1;
   airSlow = Math.max(0, airSlow - realDt);
   timeScale = freeze ? 0 : timeScale + (target - timeScale) * Math.min(1, realDt * 6);
   const dt = realDt * timeScale;
@@ -261,12 +271,9 @@ function update(realDt) {
   const taps = input.takeTaps();
   if (input.hopAsked || taps.length) {
     input.hopAsked = false;
-    if (ball.hop()) {
-      fx.whoosh(ball.x, ball.y, 0);
-      sound.clink(260);
-      if (!launched) { launched = true; hint.classList.add('cache'); }
-      run.running = run.running || !run.finished;
-    }
+    ball.hop(); // le retour (son, traînée) vient de l'événement « hop », y compris pour un saut gardé
+    if (!launched) { launched = true; hint.classList.add('cache'); }
+    run.running = run.running || !run.finished;
   }
   for (const f of input.takeFlicks()) {
     // Même geste, même élan, quel que soit le cadrage.
@@ -355,6 +362,22 @@ function closeInfo() {
   infoOpen = false;
 }
 
+/**
+ * Premier obstacle de la partie (une seule fois) : le temps ralentit, une bulle dit
+ * « Touche l'écran pour sauter ! » au-dessus de la boule, jusqu'au premier saut.
+ */
+function updateTutorial() {
+  if (save.hasSeen('saut')) return;
+  const o = obstaclesOf(track).find((q) => q.x - ball.x > 0 && q.x - ball.x < 520);
+  const want = !!o && ball.onTrack && ball.v > 60;
+  if (want && !tutorial) { tutorial = true; $('astuce-saut').hidden = false; }
+  if (tutorial && (!o || ball.x > o.x)) { tutorial = false; save.markSeen('saut'); $('astuce-saut').hidden = true; }
+  if (tutorial) {
+    const sx = ((ball.x - cam.x) * cam.scale) / cam.dpr, sy = ((ball.y - cam.y) * cam.scale) / cam.dpr;
+    $('astuce-saut').style.transform = `translate(${Math.round(sx)}px, ${Math.round(sy - 90)}px) translate(-50%, -100%)`;
+  }
+}
+
 /** Un exploit : points, et « ×2, ×3… » quand on enchaîne. */
 function feat(kind) {
   const n = game.feat(kind);
@@ -413,6 +436,12 @@ function onEvent(e) {
   } else if (e.type === 'clink') {
     fx.clink(ball.x, ball.y, e.power);
     sound.clink(e.power);
+  } else if (e.type === 'hop') {
+    fx.whoosh(ball.x, ball.y, 0);
+    sound.clink(260);
+    if (tutorial) { tutorial = false; save.markSeen('saut'); $('astuce-saut').hidden = true; }
+  } else if (e.type === 'fell') {
+    restart();
   } else if (e.type === 'over') {
     feat('over');
   } else if (e.type === 'puff') {
@@ -479,6 +508,7 @@ function render(dt) {
   drawTable(ctx, cam);
   drawPlanks(ctx, track, x0, x1);
   drawObstacles(ctx, track, x0, x1, art.q);
+  drawWindsocks(ctx, track, weather.wind(), time, x0, x1);
   game.drawStars(ctx, x0, x1, time);
   game.drawGhost(ctx);
   bonuses.draw(ctx, time, x0, x1, save.options.labels);

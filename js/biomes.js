@@ -45,11 +45,12 @@ export function biomeAt(x) {
 }
 
 /**
- * Vent d'automne (px/s², vers la droite si positif) : surtout de face, en rafales,
- * avec de courtes accalmies où il pousse dans le dos.
+ * Vent d'automne (px/s², vers la droite si positif) : plutôt de face, en rafales douces,
+ * avec des accalmies où il pousse dans le dos ; au plus un cinquième de la gravité.
  */
 export function windAt(t) {
-  return -330 + 420 * Math.sin(t * 0.37) + 230 * Math.sin(t * 1.13 + 2) + 90 * Math.sin(t * 3.1);
+  const w = -160 + 230 * Math.sin(t * 0.37) + 110 * Math.sin(t * 1.13 + 2) + 40 * Math.sin(t * 3.1);
+  return Math.max(-480, Math.min(260, w)); // rafales plafonnées
 }
 
 /* ---------- passages de saison en fondu ---------- */

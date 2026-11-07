@@ -13,7 +13,7 @@
  */
 import { WORLD, SHEET, JUMPS, BALL_R, sample, segmentsNear } from './track.js';
 import { biomeParams, windAt } from './biomes.js';
-import { hitObstacles } from './obstacles.js';
+import { hitObstacles, windCalm } from './obstacles.js';
 
 export const G = 2400;            // px/s² (≈ 1 m pour 245 px)
 const AIR = 0.00009;              // traînée de l'air (par px)
@@ -21,7 +21,9 @@ const STATIC = 70;                // px/s² : en dessous, la bille reste posée
 const V_MAX = 4200;
 const BOOST = 950;                // px/s ajoutés par la boule rouge
 const BOND = 1250;                // px/s d'élan vers le haut donnés par la boule verte
-const HOP_REST = 0.5;             // s entre deux sauts
+const HOP_REST = 0.35;            // s entre deux sauts
+const HOP_GRACE = 0.16;           // s de tolérance avant et après le contact avec la route
+const HOP_FORWARD = 260;          // px/s de poussée vers l'avant au saut
 
 /** Durées des effets de bonus (s) et leur couleur. */
 export const BONUS = {
@@ -36,19 +38,22 @@ export class Ball {
     this.tr = track;
     this.events = [];
     this.clock = 0;
-    this.skin = { hop: 900, restitution: 0.32, bounceMin: 380, rollRes: 1, wind: 1, puddle: 1, crush: false };
+    this.skin = { hop: 1050, restitution: 0.32, bounceMin: 380, rollRes: 1, wind: 1, puddle: 1, crush: false };
     this.respawn();
   }
 
   /** Repart d'un point de reprise (début d'un niveau). */
-  respawn(level = 0) {
-    const cp = this.tr.checkpoints[Math.max(0, Math.min(this.tr.checkpoints.length - 1, level))];
+  /** Repart d'un début de niveau, ou d'un point de reprise donné ({ pc, s }). */
+  respawn(level = 0, point = null) {
+    const cp = point || this.tr.checkpoints[Math.max(0, Math.min(this.tr.checkpoints.length - 1, level))];
     const p = sample(cp.pc, cp.s);
     Object.assign(this, { onTrack: true, jumpZone: null, pc: cp.pc, s: cp.s, v: 0, x: p.x, y: p.y, vx: 0, vy: 0, omega: 0, angle: 0, age: 0 });
     this.fx = { red: 0, blue: 0, green: 0, yellow: 0 };
     this.lastS = this.s;
     this.inPuddle = false;
     this.hopWait = 0;
+    this.hopBuffer = 0;
+    this.leftTrack = -1;
     this.events.push({ type: 'spawn', level });
   }
 
@@ -98,15 +103,32 @@ export class Ball {
     }
   }
 
-  /** Saut demandé par le joueur (touche brève sur l'écran) : seulement si la boule touche la route. */
+  /**
+   * Saut demandé par le joueur (touche brève sur l'écran). Tolérant :
+   * - possible encore un court instant après avoir quitté la route (bord d'une marche) ;
+   * - demandé un peu trop tôt en l'air, il est gardé et part dès que la boule touche la route.
+   * Il pousse aussi un peu vers l'avant, dans le sens de la marche.
+   */
   hop() {
-    if (!this.onTrack || this.hopWait > 0) return false;
-    const p = this.frame();
-    this.takeOff(p);
-    this.vx += p.nx * this.skin.hop;
-    this.vy += p.ny * this.skin.hop;
+    if (this.hopWait > 0) return false;
+    let p;
+    if (this.onTrack) {
+      p = this.frame();
+      this.takeOff(p);
+    } else if (this.clock - this.leftTrack < HOP_GRACE && !this.hopped && this.lastFrame) {
+      p = this.lastFrame;
+      this.vy = Math.min(this.vy, 0);
+    } else {
+      this.hopBuffer = HOP_GRACE;
+      return false;
+    }
+    const dir = Math.abs(this.vx) > 20 ? Math.sign(this.vx) : 1;
+    this.vx += p.nx * this.skin.hop + p.tx * dir * HOP_FORWARD;
+    this.vy += p.ny * this.skin.hop + p.ty * dir * HOP_FORWARD;
     this.events.push({ type: 'hop' });
     this.hopWait = HOP_REST;
+    this.hopped = true;
+    this.hopBuffer = 0;
     return true;
   }
 
@@ -136,9 +158,14 @@ export class Ball {
     else this.stepAir(dt);
     this.angle += this.omega * dt;
     hitObstacles(this, dt);
+    // saut demandé un peu trop tôt : il part dès que la boule touche la route
+    if (this.hopBuffer > 0) {
+      this.hopBuffer -= dt;
+      if (this.onTrack) this.hop();
+    }
     const k0 = Math.floor(px / SHEET), k1 = Math.floor(this.x / SHEET);
     if (k1 > k0 && k1 > 0 && this.x < WORLD.w) this.events.push({ type: 'level', n: k1 + 1 });
-    if (this.y > WORLD.h + 400) this.respawn(Math.max(0, Math.floor(this.x / SHEET)));
+    if (this.y > WORLD.h + 400) this.events.push({ type: 'fell' });
   }
 
   stepTrack(dt, push) {
@@ -158,7 +185,7 @@ export class Ball {
     }
     const pushT = push.x * p.tx + push.y * p.ty;
     let along = b.roll * G * grav * p.ty + b.roll * (pushT ? this.control(pushT) : 0);
-    if (b.wind) along += b.roll * windAt(this.clock) * b.wind * this.skin.wind * p.tx;
+    if (b.wind) along += b.roll * windAt(this.clock) * b.wind * this.skin.wind * windCalm(this.tr, this.x) * p.tx;
     let resist = b.roll * b.rollRes * this.skin.rollRes * N + AIR * this.v * this.v;
     resist += this.puddleDrag(p);
     if (Math.abs(this.v) < 6 && Math.abs(along) < STATIC + resist) {
@@ -225,6 +252,9 @@ export class Ball {
 
   takeOff(p) {
     this.onTrack = false;
+    this.leftTrack = this.clock;
+    this.lastFrame = p;
+    this.hopped = false;
     this.vx = this.v * p.tx;
     this.vy = this.v * p.ty;
     this.x = p.x + p.nx * 0.8;
@@ -235,7 +265,7 @@ export class Ball {
     const b = this.biome(), grav = this.fx.yellow > 0 ? 0.45 : 1;
     const sp = Math.hypot(this.vx, this.vy);
     const drag = 1 - AIR * sp * dt;
-    this.vx = this.vx * drag + (b.wind ? windAt(this.clock) * 0.6 * b.wind * this.skin.wind * dt : 0);
+    this.vx = this.vx * drag + (b.wind ? windAt(this.clock) * 0.6 * b.wind * this.skin.wind * windCalm(this.tr, this.x) * dt : 0);
     this.vy = this.vy * drag + G * grav * dt;
     const ox = this.x, oy = this.y;
     this.x += this.vx * dt;

@@ -32,13 +32,13 @@ export function medalOf(level, t) {
 /** Les boules : acier (de départ), puis débloquées par le total d'étoiles. */
 export const SKINS = [
   { id: 'acier', name: 'Bille d’acier', stars: 0, text: 'La boule du dessin.', phys: {} },
-  { id: 'verre', name: 'Bille de verre', stars: 8, text: 'Légère : saute plus haut, sent davantage le vent.', phys: { hop: 1050, wind: 1.5, rollRes: 0.8 } },
-  { id: 'petanque', name: 'Boule de pétanque', stars: 18, text: 'Lourde : traverse les tas de feuilles et de neige, peu gênée par le vent et l’eau.', phys: { hop: 820, wind: 0.4, puddle: 0.6, crush: true } },
-  { id: 'rebond', name: 'Balle rebondissante', stars: 28, text: 'Rebondit sur tout, et saute très haut.', phys: { hop: 1200, restitution: 0.75, bounceMin: 150 } },
+  { id: 'verre', name: 'Bille de verre', stars: 8, text: 'Légère : saute plus haut, sent davantage le vent.', phys: { hop: 1200, wind: 1.5, rollRes: 0.8 } },
+  { id: 'petanque', name: 'Boule de pétanque', stars: 18, text: 'Lourde : traverse les tas de feuilles et de neige, peu gênée par le vent et l’eau.', phys: { hop: 980, wind: 0.4, puddle: 0.6, crush: true } },
+  { id: 'rebond', name: 'Balle rebondissante', stars: 28, text: 'Rebondit sur tout, et saute très haut.', phys: { hop: 1350, restitution: 0.75, bounceMin: 150 } },
   { id: 'couleurs', name: 'Boule aux crayons de couleur', stars: 40, text: 'Pour la beauté du geste : elle change de couleur en roulant.', phys: {} },
 ];
 
-const BASE_PHYS = { hop: 900, restitution: 0.32, bounceMin: 380, rollRes: 1, wind: 1, puddle: 1, crush: false };
+const BASE_PHYS = { hop: 1050, restitution: 0.32, bounceMin: 380, rollRes: 1, wind: 1, puddle: 1, crush: false };
 export const skinPhys = (id) => ({ ...BASE_PHYS, ...(SKINS.find((s) => s.id === id) || SKINS[0]).phys });
 
 export function totalStars() {

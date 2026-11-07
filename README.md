@@ -19,8 +19,12 @@ looping, saut, obstacle franchi, bonus, étoile ou atterrissage parfait (×2, ×
 s'affiche à chaque niveau ; la boule grise est ton meilleur passage. Les étoiles débloquent des
 boules : verre (légère), pétanque (lourde, traverse les tas), balle rebondissante, crayons de couleur.
 
-**Sauts obligés** : rochers, troncs couchés, gros tas de feuilles (automne) ou de neige (hiver),
-escaliers, plateformes au-dessus d'une fosse, grandes flaques.
+**Obstacles** : rochers et troncs bas, gros tas de feuilles (automne) ou de neige (hiver),
+escaliers de deux marches, plateformes au-dessus d'une fosse, grandes flaques. Un saut les passe
+toujours ; avec assez d'élan, la boule passe aussi d'elle-même ; les tas freinent sans arrêter.
+Une nouveauté à la fois : automne 5 = le vent, 6 = rocher et tronc (avec l'astuce « touche pour
+sauter »), 7 = tas de feuilles et aiguillage, 8 = escalier ; hiver et pluie de même.
+↺ ramène juste avant le passage difficile raté.
 
 **Passages de saison en fondu** : herbe, neige, ciel, météo, vent et glace changent peu à peu.
 
@@ -41,7 +45,7 @@ tout est fabriqué dans le navigateur (Web Audio), sans fichier son, donc sans d
 
 ## Jouer
 - **Glisser puis lâcher** : lance la boule. Plus le doigt va vite, plus elle part vite.
-- **Toucher bref** (n'importe où) : la boule saute, si elle touche la route.
+- **Toucher bref** (n'importe où) : la boule saute (tolérant : un peu avant de toucher la route ou juste après l'avoir quittée).
 - **Doigt posé** : la boule roule doucement vers le doigt.
 - **Loupe** (en bas à droite) : passe de la vue d'ensemble (tout le parcours) au zoom sur la boule.
   En paysage, la vue d'ensemble est le réglage de départ ; en portrait, c'est le zoom.
@@ -82,7 +86,8 @@ Settings → Pages → Source : « Deploy from a branch », branche `main`, doss
 
 ## Vérifier les niveaux
 `node tools/verifier-niveaux.mjs` : contrôle la géométrie (place dans chaque feuille, hauteur,
-virages) et fait jouer chaque niveau, et chaque chemin des aiguillages, par un petit robot.
+virages, étoiles à portée de saut) et fait jouer chaque niveau, et chaque chemin des aiguillages,
+par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même robot sans jamais sauter.
 
 ## Mesurer la fluidité
 Ajouter `#fps` à l'adresse (ou touche F) : images par seconde, pire image, feuilles en mémoire.

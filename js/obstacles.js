@@ -1,8 +1,9 @@
 /**
  * Obstacles posés sur la route, qu'on ne passe qu'en sautant par-dessus :
- * - durs (rocher, tronc couché, marche d'escalier) : la boule rebondit dessus ;
- * - mous (gros tas de feuilles, gros tas de neige) : la boule s'y enfonce et s'arrête,
- *   en soulevant feuilles ou neige — la boule de pétanque, lourde, les traverse.
+ * - durs (rocher, tronc couché, marche d'escalier) : trop lente, la boule bute dessus ;
+ *   avec assez d'élan, elle monte dessus et passe d'elle-même ; un saut passe toujours ;
+ * - mous (gros tas de feuilles, gros tas de neige) : la boule les traverse en s'y enfonçant,
+ *   mais ils la freinent fort — la boule de pétanque, lourde, les écrase.
  * Les marches ont un dessus (un petit plateau de la route) : on y roule, puis on saute
  * à la suivante.
  */
@@ -11,6 +12,8 @@ import { rng, range, pencilLine, hatch } from './pencil.js';
 
 const R = BALL_R;
 const SOFT = { leaves: true, snow: true };
+const SOFT_DRAG = 2600;     // freinage dans un tas (px/s²)
+const CLIMB_SPEED = 620;    // px/s : au-dessus, la boule passe d'elle-même sur un rocher, un tronc, une marche
 
 export function obstaclesOf(track) {
   if (!track.obstacles) track.obstacles = OBSTACLES.map((o) => ({ ...o, gone: 0, passed: false }));
@@ -21,11 +24,12 @@ export function obstaclesOf(track) {
 export function hitObstacles(ball, dt) {
   for (const o of obstaclesOf(ball.tr)) {
     if (o.gone > 0) { o.gone -= dt; continue; }
+    if (o.skip > 0) { o.skip -= dt; continue; } // la boule est en train de passer par-dessus
     const dx = ball.x - o.x;
     if (Math.abs(dx) > o.w / 2 + R + 10) {
       // passé par-dessus en l'air : petite récompense (enchaînement)
       if (!o.passed && dx > 0 && dx < o.w / 2 + R + 60 && !ball.onTrack) { o.passed = true; ball.events.push({ type: 'over', kind: o.kind }); }
-      if (dx < -200) o.passed = false;
+      if (dx < -200) { o.passed = false; o.puffed = false; }
       continue;
     }
     const hit = o.kind === 'step' ? stepHit(ball, o) : moundHit(ball, o);
@@ -38,25 +42,36 @@ export function hitObstacles(ball, dt) {
       continue;
     }
     const soft = !!SOFT[o.kind];
+    if (soft) {
+      // tas de feuilles ou de neige : on le traverse en s'y enfonçant, mais il freine fort
+      const sp = ball.speed(), k = Math.max(0.35, 1 - SOFT_DRAG * dt / Math.max(200, sp));
+      if (ball.onTrack) ball.v *= k;
+      else { ball.vx *= k; ball.vy *= k; }
+      if (!o.puffed) { o.puffed = true; ball.events.push({ type: 'puff', kind: o.kind, x: ball.x, y: o.y - o.h / 2 }); }
+      continue;
+    }
     if (ball.onTrack) {
-      // poussée en arrière le long de la route
       const p = ball.frame(), along = Math.sign(nx * p.tx + ny * p.ty) || -Math.sign(ball.v) || -1;
-      ball.s += along * (depth + 0.5);
       const v0 = ball.v;
-      ball.v = soft ? along * Math.min(60, Math.abs(v0) * 0.1) : along * Math.abs(v0) * 0.35;
-      if (Math.abs(v0) > 80) ball.events.push(soft ? { type: 'puff', kind: o.kind, x: ball.x + nx * -R, y: ball.y } : { type: 'clink', power: Math.abs(v0) });
-    } else if (soft) {
-      // tombée dans le tas : elle s'y enfonce, puis ressort juste devant, sur la route
-      ball.events.push({ type: 'puff', kind: o.kind, x: ball.x, y: ball.y });
-      putBefore(ball, o);
+      // assez d'élan : la boule monte sur l'obstacle et passe par-dessus d'elle-même
+      if (Math.abs(v0) > CLIMB_SPEED && Math.sign(v0) !== along) {
+        ball.takeOff(p);
+        ball.vx = v0 * 0.85;
+        ball.vy = -Math.min(800, 250 + Math.abs(v0) * 0.35);
+        o.skip = 0.35;
+        ball.events.push({ type: 'clink', power: 300 });
+        continue;
+      }
+      // trop lente : elle bute et repart un peu en arrière
+      ball.s += along * (depth + 0.5);
+      ball.v = along * Math.abs(v0) * 0.35;
+      if (Math.abs(v0) > 80) ball.events.push({ type: 'clink', power: Math.abs(v0) }, { type: 'bump', kind: o.kind });
     } else {
       const vn = ball.vx * nx + ball.vy * ny;
       if (vn < 0) {
-        const e = soft ? 0.05 : 0.4;
-        ball.vx -= (1 + e) * vn * nx;
-        ball.vy -= (1 + e) * vn * ny;
-        if (soft) { ball.vx *= 0.3; ball.vy *= 0.3; }
-        ball.events.push(soft ? { type: 'puff', kind: o.kind, x: ball.x, y: ball.y } : { type: 'clink', power: -vn });
+        ball.vx -= 1.4 * vn * nx;
+        ball.vy -= 1.4 * vn * ny;
+        ball.events.push({ type: 'clink', power: -vn });
       }
       ball.x += nx * (depth + 0.5);
       ball.y += ny * (depth + 0.5);
@@ -89,22 +104,6 @@ function stepHit(ball, o) {
     return null;
   }
   return [dx / d, dy / d, R - d];
-}
-
-/** Repose la boule sur la route, juste avant l'obstacle, presque arrêtée. */
-function putBefore(ball, o) {
-  const pc = ball.tr.byName[o.piece];
-  if (!pc) return;
-  const target = o.x - o.w / 2 - R - 140; // rejetée un peu en arrière : de la place pour reprendre de l'élan
-  let i = 0;
-  while (i < pc.n - 1 && pc.x[i] < target) i++;
-  ball.onTrack = true;
-  ball.pc = pc;
-  ball.s = i * pc.step;
-  ball.v = -120;
-  const p = ball.frame();
-  ball.x = p.x;
-  ball.y = p.y;
 }
 
 /* ---------- dessin au crayon (une petite image par obstacle, faite une fois) ---------- */
@@ -220,4 +219,11 @@ export function drawPlanks(ctx, track, x0, x1) {
     ctx.stroke();
   }
   ctx.restore();
+}
+
+/** Le vent se calme près des obstacles : 0 juste à côté, 1 à plus de 450 px. */
+export function windCalm(track, x) {
+  let d = Infinity;
+  for (const o of obstaclesOf(track)) d = Math.min(d, Math.abs(x - o.x) - o.w / 2);
+  return Math.max(0, Math.min(1, (d - 60) / 390));
 }

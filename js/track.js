@@ -4,7 +4,7 @@
  * toujours à gauche du sens de marche, ce qui marche sur le sol comme dans les loopings.
  * Les tronçons se raccordent bout à bout ; à l'aiguillage, le suivant dépend du chemin choisi.
  */
-import { WORLD, SHEET, LEVELS, SHEETS, PIECES, LOOP_ZONES, JUMPS, PUDDLES, FORKS, CHECKPOINTS, BONUSES, HILL, BRIDGE, BRIDGES, FINISH, OBSTACLES, STARS } from './levels.js';
+import { WORLD, SHEET, LEVELS, SHEETS, PIECES, LOOP_ZONES, JUMPS, PUDDLES, FORKS, CHECKPOINTS, BONUSES, HILL, BRIDGE, BRIDGES, FINISH, OBSTACLES, STARS, RETRIES } from './levels.js';
 import { biomeAt } from './biomes.js';
 
 export { WORLD, SHEET, LEVELS, SHEETS, JUMPS, HILL, BRIDGE, BRIDGES, FINISH, BONUSES, OBSTACLES, STARS };
@@ -128,6 +128,13 @@ export function buildTrack() {
     return { pc, s: indexWhere(pc, (i) => pc.x[i] >= x) * STEP };
   });
   track.spawnS = track.checkpoints[0].s;
+  // reprises : débuts de niveau et points juste avant les passages difficiles, dans l'ordre
+  track.retries = [...track.checkpoints.map((c) => ({ ...c, x: c.pc.x[Math.round(c.s / STEP)] })),
+    ...RETRIES.map(({ piece, x }) => {
+      const pc = p[piece];
+      const s = indexWhere(pc, (i) => pc.x[i] >= x) * STEP;
+      return { pc, s, x: pc.x[Math.round(s / STEP)] };
+    })].sort((a, b) => a.x - b.x);
   track.ground = groundProfile(p);
   track.grid = buildGrid(track.pieces);
   return track;

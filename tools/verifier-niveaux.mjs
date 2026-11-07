@@ -50,6 +50,8 @@ function play(k, routes) {
       if (e.type === 'jump') stats.jumps++;
       if (e.type === 'pit') stats.pits++;
       if (e.type === 'splash') stats.splash++;
+      if (e.type === 'bump') stats.bumps = (stats.bumps || 0) + 1;
+      if (e.type === 'fell') { const r = track.retries.filter((q) => q.x < ball.x).pop(); ball.respawn(k, r); stats.falls = (stats.falls || 0) + 1; }
     }
     for (const st of stars) if (!st.got && Math.hypot(ball.x - st.x, ball.y - st.y) < 30 + 34) { st.got = true; stats.stars++; }
     // comme un joueur : saut devant un obstacle, une marche, une grande flaque, ou au bout d'une plateforme
@@ -59,7 +61,7 @@ function play(k, routes) {
       const need = obstacles.some((o) => ahead(o.x - o.w / 2 - 30) && (o.kind !== 'step' || ball.y > o.top))
         || bigs.some((d) => ahead(d.x0 - 20))
         || (ball.pc.platform && ball.pc.length - ball.s < 40 + ball.v * 0.05);
-      if (need) { ball.hop(); stats.hops++; lastHop = t; }
+      if (need && !process.env.SANS_SAUT) { ball.hop(); stats.hops++; lastHop = t; }
     }
     const hit = bonuses.update(1 / 60, ball);
     if (hit) { ball.bonus(hit.color); stats.bonus.push(hit.color); }
@@ -108,7 +110,7 @@ for (let k = 0; k < SHEETS - 1; k++) {
     const name = `niveau ${String(k + 1).padStart(2)} ${biomeOfSheet(k).name.padEnd(8)}${way}`.padEnd(32);
     if (s.time === Infinity) { warn(`${name} pas terminé en 3 min (boule bloquée vers x=${s.where})`); continue; }
     times.push(s.time);
-    console.log(`  ✓ ${name} ${s.time.toFixed(1).padStart(5)} s · ${String(s.flicks).padStart(2)} lancers · ${s.hops} sauts · ${s.stars}★ · ${s.loops} looping · ${s.jumps} saut, ${s.pits} chute · ${s.splash} flaque · bonus ${s.bonus.join(', ') || '—'}`);
+    console.log(`  ✓ ${name} ${s.time.toFixed(1).padStart(5)} s · ${String(s.flicks).padStart(2)} lancers · ${s.hops} sauts · ${s.bumps || 0} butées · ${s.stars}★ · ${s.loops} looping · ${s.jumps} saut, ${s.pits} chute · ${s.splash} flaque · bonus ${s.bonus.join(', ') || '—'}`);
   }
   if (times.length) total += times.reduce((a, b) => a + b) / times.length;
 }

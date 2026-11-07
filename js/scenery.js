@@ -254,3 +254,54 @@ export function drawForks(ctx, track, t, x0, x1, pulse) {
     ctx.restore();
   }
 }
+
+/**
+ * Manches à air de l'automne, au crayon : rayées rouge et blanc, elles se gonflent et
+ * pointent dans le sens du vent (vent fort = manche à l'horizontale, vent faible = qui pend).
+ */
+const SOCKS = [];
+for (let k = 0; k < SHEETS; k++) {
+  if (!biomeOfSheet(k).wind) continue;
+  for (const dx of [260, 1250]) SOCKS.push(k * SHEET + dx);
+}
+
+export function drawWindsocks(ctx, track, wind, t, x0, x1) {
+  const strength = Math.min(1, Math.abs(wind) / 480), dir = wind >= 0 ? 1 : -1;
+  for (const x of SOCKS) {
+    if (x < x0 - 200 || x > x1 + 200) continue;
+    const base = groundY(track, x) + 4, top = base - 170;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = GRAPHITE;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(x, base);
+    ctx.lineTo(x, top);
+    ctx.stroke();
+    // angle : de pendante (vers le bas) à horizontale selon la force du vent, petit battement
+    const a = (Math.PI / 2) * (1 - strength) * 0.85 + Math.sin(t * (4 + 6 * strength)) * 0.08 * (0.3 + strength);
+    ctx.translate(x, top + 6);
+    ctx.rotate(dir > 0 ? a : Math.PI - a);
+    for (let i = 0; i < 4; i++) {
+      const x0s = i * 20, h0 = 15 - i * 2.4, h1 = 15 - (i + 1) * 2.4;
+      ctx.fillStyle = i % 2 ? 'rgba(245,240,230,0.95)' : 'rgba(205,70,50,0.85)';
+      ctx.beginPath();
+      ctx.moveTo(x0s, -h0);
+      ctx.lineTo(x0s + 20, -h1);
+      ctx.lineTo(x0s + 20, h1);
+      ctx.lineTo(x0s, h0);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(90,40,30,0.7)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, -15);
+    ctx.lineTo(80, -5.4);
+    ctx.lineTo(80, 5.4);
+    ctx.lineTo(0, 15);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+}

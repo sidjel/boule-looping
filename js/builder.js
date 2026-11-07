@@ -22,7 +22,7 @@ const JUMP_SHAPE = [
 export class Builder {
   /** @param {number[][]} start points déjà posés (le dernier est le curseur) */
   constructor(name, start, prev) {
-    this.meta = { pieces: [], loops: [], jumps: [], puddles: [], bonuses: [], bridges: [], forks: [], checkpoints: [], obstacles: [], stars: [] };
+    this.meta = { pieces: [], loops: [], jumps: [], puddles: [], bonuses: [], bridges: [], forks: [], checkpoints: [], obstacles: [], stars: [], retries: [] };
     this.platformCount = 0;
     this.forkCount = 0;
     this.open(name, start, prev);
@@ -104,6 +104,7 @@ export class Builder {
 
   /** Grande flaque : trop large et trop freinante pour la traverser en roulant, il faut sauter. */
   bigPuddle(w, star = true) {
+    this.retry();
     const x0 = this.x;
     this.flat(w);
     this.meta.puddles.push({ piece: this.cur.name, x0: x0 + 25, x1: x0 + w - 25, y: this.y, big: true });
@@ -116,16 +117,18 @@ export class Builder {
    * gros tas de feuilles (automne), gros tas de neige (hiver). Étoile au-dessus.
    */
   obstacle(kind, star = true) {
-    const size = { rock: [96, 84], trunk: [150, 66], leaves: [230, 92], snow: [230, 98] }[kind];
+    const size = { rock: [92, 58], trunk: [140, 46], leaves: [220, 66], snow: [220, 70] }[kind];
+    this.retry();
     this.flat(140);
     const x = this.x + size[0] / 2;
     this.meta.obstacles.push({ kind, piece: this.cur.name, x, y: this.y, w: size[0], h: size[1] });
-    if (star) this.meta.stars.push({ x, y: this.y - Math.min(185, size[1] + 95) });
+    if (star) this.meta.stars.push({ x, y: this.y - size[1] - 120 });
     return this.flat(size[0] + 150);
   }
 
   /** Escalier de n marches : chaque marche est un petit plateau ; on monte en sautant. Étoile en haut. */
-  stairs(n = 3, stepW = 150, stepH = 72, star = true) {
+  stairs(n = 2, stepW = 180, stepH = 45, star = true) {
+    this.retry();
     this.flat(120);
     const x0 = this.x, y0 = this.y;
     for (let k = 1; k <= n; k++) {
@@ -138,6 +141,7 @@ export class Builder {
 
   /** Plateformes au-dessus d'une fosse : on saute de l'une à l'autre (ou on file assez vite pour enchaîner). */
   platforms(n = 3, w = 150, gap = 120, star = true) {
+    this.retry();
     const x0 = this.x, y0 = this.y, total = n * w + (n + 1) * gap;
     this.slope(160, 170).flat(total - 320).slope(160, -170);
     for (let k = 0; k < n; k++) {
@@ -153,6 +157,12 @@ export class Builder {
     const name = `p${this.platformCount++}`;
     this.meta.pieces.push({ name, pts: [[a, top], [(a + b) / 2, top], [b, top]], prev: [a - 40, top], next: [b + 40, top], platform: true });
     if (wall) this.meta.obstacles.push({ kind: 'step', piece: null, x: (a + b) / 2, y: ground, w: b - a, h: ground - top, top });
+  }
+
+  /** Point de reprise juste avant un passage difficile (↺ y ramène, pas au début du niveau). */
+  retry() {
+    this.meta.retries.push({ piece: this.cur.name, x: this.x - 40 });
+    return this;
   }
 
   /** Étoile libre (dx, dy par rapport à la route au curseur). */
