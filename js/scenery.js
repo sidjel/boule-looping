@@ -5,7 +5,7 @@
  */
 import { WORLD, SHEET, SHEETS, groundY } from './track.js';
 import { biomeOfSheet } from './biomes.js';
-import { colourWeight } from './ete.js';
+import { colourWeight } from './balade.js';
 import { rng, range, pencilLine, hatch, grain, noiseTile } from './pencil.js';
 
 const GRAPHITE = '#4b4b4f';

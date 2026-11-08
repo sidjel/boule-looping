@@ -4,16 +4,18 @@ Mini-jeu pour navigateur (téléphone et PC), dessiné au crayon d'après un des
 une boule en métal roule sur une route pleine de loopings, de tremplins et d'aiguillages,
 à travers quatre saisons. Une partie dure une dizaine de minutes.
 
-- **Été (niveaux 1 à 4)**
-  - Niveau 1 aux crayons de couleur, en cinq plans de parallaxe (`js/ete.js`) : l'herbe du premier
-    plan qui ondule au vent, la butte et son looping (la route est relevée sur le dessin :
-    `tools/route-niveau1.py` → `js/niveau1-route.js`), le moulin dont les ailes tournent et la
-    charrette dont les pailles s'envolent, les gros nuages, le ciel et le soleil qui brille
-    (`images/niveau0/`, découpés par `tools/decouper-niveau0.py`, `animer-niveau0.py`,
-    `moulin-niveau0.py`). Musique et bruitages du jeu, même physique que les autres niveaux.
-  - Niveaux 2 à 4, au crayon : tremplin au-dessus d'une fosse, deux loopings à la suite,
-    aiguillage entre un souterrain (grand looping) et une grande bosse (butte de terre pleine,
-    le chemin du bas la traverse en galerie). Herbe verte, buissons, arbres, fleurs.
+- **Été (niveaux 1 à 4)** : les niveaux 1 et 2 forment une seule balade aux crayons de couleur
+  (`js/balade.js`), sans raccord : chaque plan est une bande continue sous les deux niveaux (ciel
+  au crayon bleu, soleil qui brille, petits et gros nuages, montagnes, une seule bande de champs,
+  terre en texture sous la route, herbe au vent au premier plan). Plus un plan est loin, moins il
+  glisse quand la caméra avance.
+  - Niveau 1 : la butte et son looping (route relevée sur le dessin : `tools/route-niveau1.py`),
+    la charrette et ses pailles qui s'envolent, le moulin aux ailes qui tournent.
+  - Niveau 2 : tremplin au-dessus d'une fosse et looping, devant la ferme et ses trois cochons.
+  - Niveaux 3 et 4, encore au crayon : deux loopings à la suite ; aiguillage entre un souterrain
+    (grand looping) et une grande bosse (butte de terre pleine, galerie dessous).
+  Images : `images/niveau0/` (dessins du niveau 1) et `images/balade/` (`tools/decouper-balade.py` :
+  terre, ciel, montagnes et champs du niveau 1 ; ferme, cochon, nuages).
 - **Automne (5 à 8)** : feuilles mortes qui volent, vent en rafales qui gêne l'avancée.
 - **Hiver (9 à 12)** : neige, route glacée : la boule glisse, va plus vite, répond moins aux
   gestes, et revenir en arrière est difficile.

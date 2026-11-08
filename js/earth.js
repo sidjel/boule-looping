@@ -2,9 +2,8 @@
  * Premier plan : la terre sous la route de tous les niveaux. Elle est opaque : rien de
  * l'arrière-plan ne se voit à travers. Elle est peinte dans le calque d'encre de chaque feuille (ink.js).
  *
- * - Niveaux 1 à 3 (couleurs) : la terre de la butte du niveau 1 (images/ete/terre-*) ; au
- *   niveau 1, le dessin de la butte lui-même se pose par-dessus (ink.js).
- * - Niveaux 4 et suivants (crayon) : trois morceaux tirés d'un dessin, répétés en miroir :
+ * - Niveaux en couleurs (la balade) : la texture de terre, peinte par ink.js (balade.js).
+ * - Niveaux au crayon : trois morceaux tirés d'un dessin, répétés en miroir :
  *   le fond hachuré, la bande plus brune qui suit la route, les touffes d'herbe du bas.
  * Selon la saison, la terre prend une légère teinte (automne plus chaud, pluie plus sombre) ;
  * l'hiver la couvre de neige (ink.js).
@@ -13,11 +12,10 @@ import { WORLD, surfaceY as groundY } from './track.js';
 import { biomeMix } from './biomes.js';
 
 
-const NAMES = ['terre-bande', 'terre-fond', 'terre-herbe', 'ete/terre-bande', 'ete/terre-fond', 'niveau0/plan2-butte'];
+const NAMES = ['terre-bande', 'terre-fond', 'terre-herbe'];
 /** Jeux de textures : le crayon d'origine, ou la terre du niveau 0 (été en couleurs, niveaux 2 et 3). */
 const SETS = {
   crayon: { fond: 'terre-fond', bande: 'terre-bande', herbe: 'terre-herbe', tint: true },
-  ete: { fond: 'ete/terre-fond', bande: 'ete/terre-bande', herbe: null, tint: false },
 };
 const img = {};
 export const earthReady = Promise.all(NAMES.map((n) => new Promise((ok) => {
@@ -28,9 +26,6 @@ export const earthReady = Promise.all(NAMES.map((n) => new Promise((ok) => {
   img[n] = i;
 })));
 const ready = () => NAMES.every((n) => img[n].complete && img[n].naturalWidth > 0);
-
-/** Le dessin de la butte du niveau 1 (s'il est chargé). */
-export const butteImage = () => (ready() ? img['niveau0/plan2-butte'] : null);
 
 /** Une image et son miroir (gauche-droite), pour répéter sans raccord visible. */
 const flipped = new Map();

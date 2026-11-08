@@ -7,9 +7,8 @@
 import { WORLD, SHEET, SHEETS, JUMPS, HILL, BRIDGE, BRIDGES, FINISH, BALL_R, surfaceY } from './track.js';
 import { biomeOfSheet, biomeMix, biomeParams } from './biomes.js';
 import { rng, range, pencilLine, hatch, grain } from './pencil.js';
-import { paintEarth, groundPath, butteImage } from './earth.js';
-import { DESSIN1 } from './niveau1-route.js';
-import { STYLE_SHEETS } from './ete.js';
+import { paintEarth, groundPath } from './earth.js';
+import { STYLE_SHEETS, earthPattern } from './balade.js';
 
 const GRAPHITE = '#4b4b4f';
 const GREY = '#8a8a8e';
@@ -32,18 +31,18 @@ export function* inkSteps(track, q, sheet) {
   g.scale(q, q);
   g.translate(-sheet * SHEET, 0);
   const x0 = sheet * SHEET - 120, x1 = (sheet + 1) * SHEET + 120, bio = (x) => biomeOfSheet(Math.floor(x / SHEET));
-  // la terre du premier plan, tout en dessous
-  const colour = STYLE_SHEETS.has(sheet); // été aux crayons de couleur (niveau 1)
-  yield* paintEarth(g, track, x0, x1, colour ? 'ete' : 'crayon');
-  if (sheet === 0) {
-    // niveau 1 : le dessin de la butte lui-même (terre, route, looping), sans rien ajouter
-    yield* drawButte(g);
+  // la balade en couleurs : la terre (texture) et la route, d'un seul tenant d'une feuille à l'autre
+  if (STYLE_SHEETS.has(sheet)) {
+    yield* paintBalade(g, track, x0, x1);
     return c;
   }
+  // la terre du premier plan, tout en dessous
+  const colour = false;
+  yield* paintEarth(g, track, x0, x1, 'crayon');
   yield* drawGround(g, track, x0, x1, bio);
   drawUnderline(g, track, x0, x1, bio);
   yield;
-  if (!colour) drawDecor(g, track, sheet); // en couleurs, le décor vient des dessins (ete.js)
+  if (!colour) drawDecor(g, track, sheet); // (la balade en couleurs a son propre décor : balade.js)
   drawPits(g, track, x0, x1, bio);
   drawTunnels(g, track, x0, x1);
   if (sheet === SHEETS - 1) drawFinish(g, track);
@@ -394,30 +393,40 @@ function earthClip(g, track, x0, x1) {
   g.clip();
 }
 
-/** Niveau 1 : le dessin de la butte, posé comme la route a été relevée (niveau1-route.js). */
-function* drawButte(g) {
-  const i = butteImage();
-  if (!i) return;
-  const { K, offY } = DESSIN1, top = 560; // le dessin est découpé à partir de y = 560
-  const w = 2932 * K, h = (1440 - top) * K, y = offY + top * K;
-  // bas et bord droit du dessin en fondu : la terre des niveaux en couleurs (tirée du même
-  // dessin) prend le relais dessous et au niveau 2, sans couture
-  const c = document.createElement('canvas');
-  c.width = i.naturalWidth; c.height = i.naturalHeight;
-  const t = c.getContext('2d');
-  t.drawImage(i, 0, 0);
-  t.globalCompositeOperation = 'destination-out';
-  const fb = t.createLinearGradient(0, c.height - 160, 0, c.height);
-  fb.addColorStop(0, 'rgba(0,0,0,0)');
-  fb.addColorStop(1, 'rgba(0,0,0,1)');
-  t.fillStyle = fb;
-  t.fillRect(0, c.height - 160, c.width, 160);
-  const fr = t.createLinearGradient(c.width - 140, 0, c.width, 0);
-  fr.addColorStop(0, 'rgba(0,0,0,0)');
-  fr.addColorStop(1, 'rgba(0,0,0,1)');
-  t.fillStyle = fr;
-  // seulement dans la terre (le trait de la route garde sa fin) : sous la route, à droite
-  t.fillRect(c.width - 140, 360, 140, c.height - 360);
-  g.drawImage(c, 0, y, w, h);
+/**
+ * La balade en couleurs : sous la route, la texture de terre (motif en coordonnées du monde : aucun
+ * raccord entre deux feuilles), assombrie juste sous la route ; puis la route, un trait de crayon
+ * brun foncé. Tout est tracé d'un seul tenant (même hasard pour tout le tronçon), donc identique
+ * des deux côtés d'un bord de feuille.
+ */
+function* paintBalade(g, track, x0, x1) {
+  const pat = earthPattern(g);
+  g.save();
+  groundPath(g, track, x0, x1);
+  g.clip();
+  g.fillStyle = pat || '#c08a55';
+  g.fillRect(x0, 0, x1 - x0, WORLD.h + 60);
+  // ombre douce sous la route (comme sur le dessin de la butte)
+  g.lineJoin = 'round';
+  g.lineCap = 'round';
+  for (const [w, a] of [[70, 0.1], [40, 0.12], [18, 0.14]]) {
+    g.strokeStyle = `rgba(92,52,24,${a})`;
+    g.lineWidth = w;
+    for (const pc of track.pieces) {
+      if (pc.platform || pc.line[pc.line.length - 1][0] < x0 - 60 || pc.line[0][0] > x1 + 60) continue;
+      g.beginPath();
+      pc.line.forEach(([x, y], k) => (k ? g.lineTo(x, y + w / 2 - 6) : g.moveTo(x, y + w / 2 - 6)));
+      g.stroke();
+    }
+  }
+  g.restore();
+  yield;
+  drawTunnels(g, track, x0, x1);
+  track.pieces.forEach((pc, i) => {
+    if (pc.line[pc.line.length - 1][0] < x0 - 60 || pc.line[0][0] > x1 + 60) return;
+    pencilLine(g, pc.line, rng(77 + i * 10), { color: '#3a2a1f', width: 6.5, alpha: 0.6, passes: 4, wobble: 1.4 });
+    pencilLine(g, pc.line, rng(78 + i * 10), { color: '#1d140e', width: 2.6, alpha: 0.5, passes: 2, wobble: 0.9 });
+  });
+  drawPuddles(g, track, x0, x1);
   yield;
 }
