@@ -325,44 +325,57 @@ function drawFinish(g, track) {
 
 /**
  * Chemins du bas qui passent sous une butte : une galerie creusée dans la terre (plus
- * sombre), avec son plafond au crayon. Les loopings du chemin du bas restent dessinés
- * par-dessus la terre, devant la butte.
+ * sombre), avec son plafond au crayon. Elle suit tout le chemin, loopings compris : là où
+ * un looping entre dans la butte, la galerie tourne avec lui. Hors de la terre, rien.
  */
 function drawTunnels(g, track, x0, x1) {
   const h = BALL_R * 2 + 18, rand = rng(606);
   for (const f of track.forks) {
     const line = f.A.line;
     if (line[line.length - 1][0] < x0 || line[0][0] > x1) continue;
-    // le plancher : le point le plus bas du chemin à chaque x (les loopings n'y sont pas)
-    const floor = new Map();
-    for (const [x, y] of line) {
-      const k = Math.round(x / 4);
-      if (!floor.has(k) || y > floor.get(k)) floor.set(k, y);
-    }
-    const keys = [...floor.keys()].sort((a, b) => a - b);
-    const pts = keys.map((k) => [k * 4, floor.get(k)]);
-    // seulement là où la terre recouvre le chemin
-    const covered = pts.filter(([x, y]) => surfaceY(track, x) < y - 8);
+    // la butte recouvre-t-elle ce chemin quelque part ?
+    const covered = line.filter(([x, y]) => surfaceY(track, x) < y - 8);
     if (covered.length < 3) continue;
-    const xa = covered[0][0] - 40, xb = covered[covered.length - 1][0] + 40;
-    const run = pts.filter(([x]) => x >= xa && x <= xb);
+    const xa = Math.min(...covered.map((p) => p[0])) - 60, xb = Math.max(...covered.map((p) => p[0])) + 60;
+    let ia = line.findIndex(([x]) => x >= xa), ib = line.length - 1;
+    while (ib > ia && line[ib][0] > xb) ib--;
+    // côté de la boule : normale à gauche du sens de la marche
+    const off = (d) => {
+      const out = [];
+      for (let i = ia; i <= ib; i++) {
+        const a = line[Math.max(ia, i - 2)], b = line[Math.min(ib, i + 2)];
+        const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+        out.push([line[i][0] + ((b[1] - a[1]) / l) * d, line[i][1] - ((b[0] - a[0]) / l) * d]);
+      }
+      return out;
+    };
+    const stroke = (pts, width, color) => {
+      g.beginPath();
+      pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+      g.lineWidth = width;
+      g.strokeStyle = color;
+      g.stroke();
+    };
     g.save();
-    earthClip(g, track, xa - 20, xb + 20);
-    g.beginPath();
-    run.forEach(([x, y], i) => (i ? g.lineTo(x, y + 4) : g.moveTo(x, y + 4)));
-    for (let i = run.length - 1; i >= 0; i--) g.lineTo(run[i][0], run[i][1] - h);
-    g.closePath();
-    g.fillStyle = 'rgba(78,54,38,0.38)';
-    g.fill();
-    // ombre au fond de la galerie, plus sombre sous le plafond
-    g.fillStyle = 'rgba(60,40,28,0.18)';
-    g.beginPath();
-    run.forEach(([x, y], i) => (i ? g.lineTo(x, y - h + 18) : g.moveTo(x, y - h + 18)));
-    for (let i = run.length - 1; i >= 0; i--) g.lineTo(run[i][0], run[i][1] - h);
-    g.closePath();
-    g.fill();
-    const ceil = run.filter(([x, y]) => surfaceY(track, x) < y - h - 4).map(([x, y]) => [x, y - h]);
-    if (ceil.length > 2) pencilLine(g, ceil, rand, { color: '#4b3a2e', width: 3, alpha: 0.55, passes: 2, wobble: 1.2 });
+    earthClip(g, track, xa - 300, xb + 300);
+    g.lineCap = 'butt';
+    g.lineJoin = 'round';
+    // le creux de la galerie, puis l'ombre sous le plafond
+    stroke(off(h / 2 - 3), h + 6, 'rgba(78,54,38,0.38)');
+    stroke(off(h - 9), 18, 'rgba(60,40,28,0.18)');
+    // plafond au crayon, seulement dans la terre
+    const ceil = off(h).filter(([x, y]) => surfaceY(track, x) < y - 4);
+    let run = [];
+    const flush = () => {
+      if (run.length > 2) pencilLine(g, run, rand, { color: '#4b3a2e', width: 3, alpha: 0.55, passes: 2, wobble: 1.2 });
+      run = [];
+    };
+    for (const p of ceil) {
+      const q = run[run.length - 1];
+      if (q && Math.hypot(p[0] - q[0], p[1] - q[1]) > 12) flush();
+      run.push(p);
+    }
+    flush();
     g.restore();
   }
 }
