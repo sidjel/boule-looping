@@ -1,11 +1,10 @@
 /**
- * Premier plan : la terre brune hachurée et l'herbe, dans le style du dessin du niveau 1,
- * sous la route de tous les niveaux. Elle est opaque : rien de l'arrière-plan ne se voit
- * à travers. Elle est peinte dans le calque d'encre de chaque feuille (ink.js).
+ * Premier plan : la terre sous la route de tous les niveaux. Elle est opaque : rien de
+ * l'arrière-plan ne se voit à travers. Elle est peinte dans le calque d'encre de chaque feuille (ink.js).
  *
- * - Niveau 1 : le dessin lui-même (sol1.webp, calé sur la route par tools/decouper-sol1.py).
- * - Ailleurs : trois morceaux tirés du même dessin (tools/decouper-terre.py), répétés
- *   en miroir pour ne pas voir de raccord :
+ * - Niveaux 1 à 3 (couleurs) : la terre de la butte du niveau 1 (images/ete/terre-*) ; au
+ *   niveau 1, le dessin de la butte lui-même se pose par-dessus (ink.js).
+ * - Niveaux 4 et suivants (crayon) : trois morceaux tirés d'un dessin, répétés en miroir :
  *   le fond hachuré, la bande plus brune qui suit la route, les touffes d'herbe du bas.
  * Selon la saison, la terre prend une légère teinte (automne plus chaud, pluie plus sombre) ;
  * l'hiver la couvre de neige (ink.js).
@@ -13,11 +12,8 @@
 import { WORLD, surfaceY as groundY } from './track.js';
 import { biomeMix } from './biomes.js';
 
-const SOL1 = { x: -6, y: 489.8, w: 2014.2, h: 945.55 };
-/** La terre du dessin du niveau 1 s'efface entre ce x et 2000 (fondu sur la terre répétée). */
-export const EARTH_END = 1780;
 
-const NAMES = ['sol1', 'terre-bande', 'terre-fond', 'terre-herbe', 'ete/terre-bande', 'ete/terre-fond'];
+const NAMES = ['terre-bande', 'terre-fond', 'terre-herbe', 'ete/terre-bande', 'ete/terre-fond', 'niveau0/plan2-butte'];
 /** Jeux de textures : le crayon d'origine, ou la terre du niveau 0 (été en couleurs, niveaux 2 et 3). */
 const SETS = {
   crayon: { fond: 'terre-fond', bande: 'terre-bande', herbe: 'terre-herbe', tint: true },
@@ -32,6 +28,9 @@ export const earthReady = Promise.all(NAMES.map((n) => new Promise((ok) => {
   img[n] = i;
 })));
 const ready = () => NAMES.every((n) => img[n].complete && img[n].naturalWidth > 0);
+
+/** Le dessin de la butte du niveau 1 (s'il est chargé). */
+export const butteImage = () => (ready() ? img['niveau0/plan2-butte'] : null);
 
 /** Une image et son miroir (gauche-droite), pour répéter sans raccord visible. */
 const flipped = new Map();
@@ -119,8 +118,6 @@ export function* paintEarth(g, track, x0, x1, style = 'crayon') {
     g.drawImage(src, u, 0, sw, bh, x, groundY(track, x) - 1, sw + 0.6, bh);
     if (++n % 120 === 0) yield;
   }
-  // niveau 1 : le dessin lui-même, par-dessus (il s'efface tout seul vers sa fin)
-  if (style === 'crayon' && x0 < SOL1.x + SOL1.w) { g.drawImage(img.sol1, SOL1.x, SOL1.y, SOL1.w, SOL1.h); yield; }
   // teinte de saison, en fondu près des jonctions
   for (let x = x0; x < x1 && T.tint; x += 20) {
     const m = biomeMix(x + 10);

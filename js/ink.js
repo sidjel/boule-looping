@@ -7,7 +7,8 @@
 import { WORLD, SHEET, SHEETS, JUMPS, HILL, BRIDGE, BRIDGES, FINISH, BALL_R, surfaceY } from './track.js';
 import { biomeOfSheet, biomeMix, biomeParams } from './biomes.js';
 import { rng, range, pencilLine, hatch, grain } from './pencil.js';
-import { paintEarth, groundPath } from './earth.js';
+import { paintEarth, groundPath, butteImage } from './earth.js';
+import { DESSIN1 } from './niveau1-route.js';
 import { STYLE_SHEETS } from './ete.js';
 
 const GRAPHITE = '#4b4b4f';
@@ -32,8 +33,13 @@ export function* inkSteps(track, q, sheet) {
   g.translate(-sheet * SHEET, 0);
   const x0 = sheet * SHEET - 120, x1 = (sheet + 1) * SHEET + 120, bio = (x) => biomeOfSheet(Math.floor(x / SHEET));
   // la terre du premier plan, tout en dessous
-  const colour = STYLE_SHEETS.has(sheet); // été aux crayons de couleur (niveaux 2 et 3)
+  const colour = STYLE_SHEETS.has(sheet); // été aux crayons de couleur (niveaux 1 à 3)
   yield* paintEarth(g, track, x0, x1, colour ? 'ete' : 'crayon');
+  if (sheet === 0) {
+    // niveau 1 : le dessin de la butte lui-même (terre, route, looping), sans rien ajouter
+    yield* drawButte(g);
+    return c;
+  }
   yield* drawGround(g, track, x0, x1, bio);
   drawUnderline(g, track, x0, x1, bio);
   yield;
@@ -47,7 +53,7 @@ export function* inkSteps(track, q, sheet) {
   g.font = `600 44px ${HAND}`;
   g.fillStyle = 'rgba(70,70,76,0.55)';
   const b = biomeOfSheet(sheet);
-  g.fillText(sheet === SHEETS - 1 ? 'arrivée' : `niveau ${sheet + 1} · ${b.name.toLowerCase()}`, sheet * SHEET + (sheet ? 110 : 60), 86);
+  if (!colour) g.fillText(sheet === SHEETS - 1 ? 'arrivée' : `niveau ${sheet + 1} · ${b.name.toLowerCase()}`, sheet * SHEET + (sheet ? 110 : 60), 86);
   yield;
   g.setTransform(1, 0, 0, 1, 0, 0);
   grain(g, c.width, c.height, 0.5);
@@ -386,4 +392,32 @@ function drawTunnels(g, track, x0, x1) {
 function earthClip(g, track, x0, x1) {
   groundPath(g, track, x0, x1);
   g.clip();
+}
+
+/** Niveau 1 : le dessin de la butte, posé comme la route a été relevée (niveau1-route.js). */
+function* drawButte(g) {
+  const i = butteImage();
+  if (!i) return;
+  const { K, offY } = DESSIN1, top = 560; // le dessin est découpé à partir de y = 560
+  const w = 2932 * K, h = (1440 - top) * K, y = offY + top * K;
+  // bas et bord droit du dessin en fondu : la terre des niveaux en couleurs (tirée du même
+  // dessin) prend le relais dessous et au niveau 2, sans couture
+  const c = document.createElement('canvas');
+  c.width = i.naturalWidth; c.height = i.naturalHeight;
+  const t = c.getContext('2d');
+  t.drawImage(i, 0, 0);
+  t.globalCompositeOperation = 'destination-out';
+  const fb = t.createLinearGradient(0, c.height - 160, 0, c.height);
+  fb.addColorStop(0, 'rgba(0,0,0,0)');
+  fb.addColorStop(1, 'rgba(0,0,0,1)');
+  t.fillStyle = fb;
+  t.fillRect(0, c.height - 160, c.width, 160);
+  const fr = t.createLinearGradient(c.width - 140, 0, c.width, 0);
+  fr.addColorStop(0, 'rgba(0,0,0,0)');
+  fr.addColorStop(1, 'rgba(0,0,0,1)');
+  t.fillStyle = fr;
+  // seulement dans la terre (le trait de la route garde sa fin) : sous la route, à droite
+  t.fillRect(c.width - 140, 360, 140, c.height - 360);
+  g.drawImage(c, 0, y, w, h);
+  yield;
 }
