@@ -5,7 +5,6 @@
  * Oiseaux au crayon dans le ciel de la deuxième feuille.
  */
 import { WORLD, SHEET, SHEETS } from './track.js';
-import { STYLE_SHEETS } from './ete.js';
 import { biomeOfSheet } from './biomes.js';
 import { rng, range } from './pencil.js';
 
@@ -89,7 +88,6 @@ export function moveClouds(dt) {
 /** Ne dessine que les nuages visibles. */
 export function drawClouds(ctx, built, x0, x1) {
   for (const c of CLOUDS) {
-    if (STYLE_SHEETS.has(c.home)) continue; // niveaux en couleurs : leurs propres nuages (ete.js)
     const a = built[c.shape];
     if (c.x + a.w < x0 || c.x > x1) continue;
     const img = canvasOf(a);

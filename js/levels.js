@@ -1,6 +1,6 @@
 /**
  * Les seize niveaux et l'arrivée, une feuille de 2000 × 1433 chacun.
- * - Niveau 1 : relevé sur le dessin de la butte (niveau1-route.js) ; niveaux 2 à 4 faits à la main.
+ * - Niveaux 1 à 4 (été) : faits à la main, d'après le dessin.
  * - Niveaux 5 à 16 (automne, hiver, pluie) : assemblés par pièces (builder.js) selon une
  *   petite recette par niveau, puis vérifiés par simulation (tools/verifier-niveaux.mjs).
  * La route est faite de tronçons raccordés : « main » (niveaux 1 à 4 jusqu'au premier
@@ -8,14 +8,13 @@
  * Aux raccords, les points voisins sont alignés : pas de cassure dans la route.
  */
 import { Builder } from './builder.js';
-import { ROUTE1 } from './niveau1-route.js';
 
 export const SHEET = 2000;
 export const LEVELS = 16;
 export const SHEETS = LEVELS + 1;          // + la feuille d'arrivée
 export const WORLD = { w: SHEET * SHEETS, h: 1433 };
 
-/** Le looping du premier dessin : forme reprise par les loopings des niveaux 2 et 3. */
+/** Niveau 1 : relevé sur le dessin. */
 const LEVEL1 = [
   [-14, 500], [25, 498], [60, 497], [88, 498], [108, 520], [130, 590], [158, 680],
   [190, 772], [228, 858], [268, 937], [306, 1010], [355, 1070], [410, 1115], [470, 1148],
@@ -69,8 +68,7 @@ const EM = [8000, 1150], E1 = [8040, 1150];
 const BIG = [7400, 1170], BIG_S = 1.05;
 
 const HAND = {
-  // niveau 1 : la route du dessin de la butte (le niveau 0 validé), puis les niveaux 2 à 4
-  main: { pts: [...ROUTE1, ...LEVEL2, ...LEVEL3, F0, F], next: [6310, 1122] },
+  main: { pts: [...LEVEL1, ...LEVEL2, ...LEVEL3, F0, F], next: [6310, 1122] },
   under: {
     prev: F0,
     pts: [
@@ -152,7 +150,7 @@ for (const pc of GEN.pieces) PIECES[pc.name] = { pts: pc.pts, prev: pc.prev, nex
 
 /** Sommets des loopings (tronçon, plage de x) : pour le petit effet de réussite. */
 export const LOOP_ZONES = [
-  ['main', 540, 830], ['main', 3540, 3900], ['main', 4500, 4860], ['main', 4880, 5200], ['under', 7270, 7680],
+  ['main', 560, 980], ['main', 3540, 3900], ['main', 4500, 4860], ['main', 4880, 5200], ['under', 7270, 7680],
   ...GEN.loops,
 ];
 /** Tremplins : lèvre (seul endroit d'une bosse où l'on décolle) et fosse. */
@@ -166,7 +164,7 @@ export const OBSTACLES = GEN.obstacles;
 export const RETRIES = GEN.retries;
 /** Étoiles : trois par niveau (niveaux 1 à 4 placées à la main, au-dessus de la route ou dans les loopings). */
 export const STARS = [
-  { x: 60, y: 488 }, { x: 684, y: 805 }, { x: 1239, y: 689 },
+  { x: 60, y: 330 }, { x: 810, y: 731 }, { x: 1350, y: 722 },
   { x: 2195, y: 590 }, { x: 3120, y: 880 }, { x: 3812, y: 801 },
   { x: 4704, y: 828 }, { x: 5019, y: 963 }, { x: 5480, y: 852 },
   { x: 7510, y: 747 }, { x: 7080, y: 300 }, { x: 7450, y: 470 },
