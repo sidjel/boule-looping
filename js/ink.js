@@ -7,7 +7,7 @@
 import { WORLD, SHEET, SHEETS, JUMPS, HILL, BRIDGE, BRIDGES, FINISH, BALL_R, groundY } from './track.js';
 import { biomeOfSheet, biomeMix, biomeParams } from './biomes.js';
 import { rng, range, pencilLine, hatch, grain } from './pencil.js';
-import { EARTH_END } from './earth.js';
+import { paintEarth, groundPath } from './earth.js';
 
 const GRAPHITE = '#4b4b4f';
 const GREY = '#8a8a8e';
@@ -30,6 +30,8 @@ export function* inkSteps(track, q, sheet) {
   g.scale(q, q);
   g.translate(-sheet * SHEET, 0);
   const x0 = sheet * SHEET - 120, x1 = (sheet + 1) * SHEET + 120, bio = (x) => biomeOfSheet(Math.floor(x / SHEET));
+  // la terre du premier plan, tout en dessous
+  yield* paintEarth(g, track, x0, x1);
   yield* drawGround(g, track, x0, x1, bio);
   drawUnderline(g, track, x0, x1, bio);
   yield;
@@ -51,10 +53,21 @@ export function* inkSteps(track, q, sheet) {
   yield;
   g.setTransform(1, 0, 0, 1, 0, 0);
   grain(g, c.width, c.height, 0.5);
+  // le grain a piqué la terre : on rebouche par-dessous avec la couleur du papier du dessin,
+  // pour qu'elle reste opaque (rien de l'arrière-plan ne passe à travers)
+  g.setTransform(q, 0, 0, q, -sheet * SHEET * q, 0);
+  g.globalCompositeOperation = 'destination-over';
+  g.fillStyle = '#e4ddd3';
+  groundPath(g, track, x0, x1);
+  g.fill();
+  g.globalCompositeOperation = 'source-over';
   return c;
 }
 
-/** Herbe en hachures (couleurs de la saison) ; en hiver, neige blanche et hachures bleutées. */
+/**
+ * Le sol (la terre du dessin est peinte à part, earth.js) : en hiver, de la neige
+ * par-dessus avec des hachures bleutées.
+ */
 function* drawGround(g, track, x0, x1, bio) {
   // neige : on blanchit d'abord le sol, en fondu à l'arrivée de l'hiver et au dégel
   g.save();
@@ -70,7 +83,7 @@ function* drawGround(g, track, x0, x1, bio) {
   let x = -20, i = 0, n = 0;
   while (x < WORLD.w + 40) {
     const r = rng(5000 + i++);
-    if (x > x0 && x < x1 && x > EARTH_END) {
+    if (x > x0 && x < x1 && biomeParams(x).snow > 0.5) {
       // près d'une jonction, les couleurs des deux saisons se mélangent peu à peu
       const m = biomeMix(x), b = r() < m.t ? m.b : m.a, cols = b.grass;
       const top = groundY(track, x) + range(r, 4, 22);
@@ -87,7 +100,7 @@ function* drawGround(g, track, x0, x1, bio) {
   }
 }
 
-/** Sous la route : ombre brune (glace bleutée en hiver), et quelques zones gribouillées. */
+/** Sous la route : ombre brune (glace bleutée en hiver). */
 function drawUnderline(g, track, x0, x1, bio) {
   const under = [], rand = rng(99);
   let color = BROWN;
@@ -110,20 +123,6 @@ function drawUnderline(g, track, x0, x1, bio) {
     const flank = [];
     for (let x = HILL.x1; x <= HILL.flank; x += 3) flank.push([x, groundY(track, x)]);
     pencilLine(g, flank, rand, { color: GRAPHITE, width: 3.5, alpha: 0.45, passes: 3, wobble: 1.4 });
-  }
-  // gribouillis bruns sous le sol, deux ou trois par feuille
-  for (let k = Math.floor(Math.max(0, x0) / SHEET); k <= Math.floor(x1 / SHEET); k++) {
-    const r = rng(9000 + k * 31);
-    if (biomeOfSheet(k).snow) continue;
-    for (let z = 0; z < 3; z++) {
-      const a = k * SHEET + range(r, 100, 1700), w = range(r, 150, 260), depth = range(r, 26, 60);
-      for (let i = 0; i < w / 9; i++) {
-        const x = range(r, a, a + w), len = range(r, 40, 120);
-        if (x + len < x0 || x > x1 || x < EARTH_END) continue;
-        const y0 = groundY(track, x) + range(r, 4, depth), y1 = groundY(track, x + len) + range(r, 4, depth);
-        hatch(g, r, x, y0, x + len, y1, { color: r() < 0.7 ? BROWN : '#b4786a', width: 2, alpha: 0.28, passes: 1, wobble: 1 });
-      }
-    }
   }
 }
 

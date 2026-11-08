@@ -22,7 +22,7 @@ import { Menu, scoreTable } from './menu.js';
 import { Game, skinPhys, medalTimes } from './game.js';
 import { drawObstacles, drawPlanks, obstaclesOf } from './obstacles.js';
 import { Background } from './background.js';
-import { drawEarth } from './earth.js';
+import { earthReady } from './earth.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('jeu'), ctx = canvas.getContext('2d');
@@ -74,6 +74,10 @@ function resize() {
 /* ---------- feuilles : dessinées à l'avance, petit à petit, quatre au plus en mémoire ---------- */
 
 const visible = (k) => cam.x < (k + 1) * SHEET && cam.x + cam.viewW > k * SHEET;
+
+// la terre du premier plan est peinte dans les feuilles : une fois ses images chargées,
+// on redessine les feuilles préparées sans elle
+earthReady.then(() => { if (art) { art.ink.clear(); art.pending.clear(); } });
 
 function inkFor(k) {
   if (!art.ink.has(k)) {
@@ -505,7 +509,6 @@ function render(dt) {
   drawBirds(ctx, time, dt, x0, x1);
   decor.draw(ctx, cam, track);
   drawClouds(ctx, art.clouds, x0, x1);
-  drawEarth(ctx, x0, x1);
   for (let k = Math.max(0, Math.floor(x0 / SHEET)); k <= Math.min(SHEETS - 1, Math.floor(x1 / SHEET)); k++) {
     ctx.drawImage(inkFor(k), k * SHEET, 0, SHEET, WORLD.h);
   }
