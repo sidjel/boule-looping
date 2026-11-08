@@ -9,69 +9,6 @@ import { rng, range, pencilLine, hatch, grain, noiseTile } from './pencil.js';
 
 const GRAPHITE = '#4b4b4f';
 
-/** Papier un peu gris de la photo, son grain, un pli par feuille, la couleur du ciel de la saison. */
-export function makePaper() {
-  const tile = noiseTile(160, 9, true);
-  const folds = Array.from({ length: SHEETS }, (_, k) => {
-    const r = rng(50 + k * 13), ax = k * SHEET + range(r, 300, 1600), ay = range(r, 100, 900);
-    return [ax, ay, ax + 200, ay - 140, ax - 300, ay - 700, 1000, 1500];
-  });
-  return function drawPaper(ctx, w, h, cam) {
-    ctx.fillStyle = '#e6e5e1';
-    ctx.fillRect(0, 0, w, h);
-    ctx.save();
-    ctx.setTransform(cam.scale, 0, 0, cam.scale, -cam.x * cam.scale, -cam.y * cam.scale);
-    for (let k = 0; k < SHEETS; k++) {
-      if (k * SHEET > cam.x + cam.viewW || (k + 1) * SHEET < cam.x) continue;
-      const cx = k * SHEET + 900, x0 = k * SHEET - (k === 0 ? 3000 : 0), wSheet = SHEET + (k === 0 || k === SHEETS - 1 ? 3000 : 0);
-      const light = ctx.createRadialGradient(cx, 600, 100, cx, 600, 1500);
-      light.addColorStop(0, 'rgba(255,255,255,0.55)');
-      light.addColorStop(1, 'rgba(160,158,150,0.25)');
-      ctx.fillStyle = light;
-      ctx.fillRect(x0, -12000, wSheet, WORLD.h + 14000);
-      const sky = biomeOfSheet(k).sky;
-      if (sky) {
-        // ciel de la saison, qui s'efface en douceur vers une feuille d'une autre saison
-        const fadeL = k > 0 && biomeOfSheet(k - 1) !== biomeOfSheet(k), fadeR = k < SHEETS - 1 && biomeOfSheet(k + 1) !== biomeOfSheet(k);
-        const tint = ctx.createLinearGradient(0, 0, 0, WORLD.h);
-        tint.addColorStop(0, sky);
-        tint.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(x0, -12000, wSheet, WORLD.h + 12000);
-        ctx.clip();
-        ctx.fillStyle = tint;
-        ctx.fillRect(x0, -12000, wSheet, WORLD.h + 12000);
-        ctx.globalCompositeOperation = 'destination-out';
-        for (const [on, a, b] of [[fadeL, k * SHEET - 450, k * SHEET + 450], [fadeR, (k + 1) * SHEET + 450, (k + 1) * SHEET - 450]]) {
-          if (!on) continue;
-          const fade = ctx.createLinearGradient(a, 0, b, 0);
-          fade.addColorStop(0, 'rgba(0,0,0,0.5)');
-          fade.addColorStop(0.5, 'rgba(0,0,0,0.5)');
-          fade.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.fillStyle = fade;
-          ctx.fillRect(Math.min(a, b), -12000, Math.abs(b - a), WORLD.h + 12000);
-        }
-        ctx.restore();
-      }
-      const [ax, ay, bx, by, rx, ry, rw, rh] = folds[k];
-      const fold = ctx.createLinearGradient(ax, ay, bx, by);
-      fold.addColorStop(0, 'rgba(255,255,255,0)');
-      fold.addColorStop(0.45, 'rgba(255,255,255,0.16)');
-      fold.addColorStop(0.52, 'rgba(120,118,112,0.07)');
-      fold.addColorStop(0.75, 'rgba(255,255,255,0)');
-      ctx.fillStyle = fold;
-      ctx.fillRect(rx, ry, rw, rh);
-    }
-    ctx.restore();
-    ctx.save();
-    ctx.globalAlpha = 0.16;
-    ctx.translate(-(cam.x * cam.scale) % 160, -(cam.y * cam.scale) % 160);
-    ctx.fillStyle = ctx.createPattern(tile, 'repeat');
-    ctx.fillRect(-160, -160, w + 320, h + 320);
-    ctx.restore();
-  };
-}
 
 /** Disque du soleil hachuré en jaune, contour orangé. */
 export function buildSunDisk(radius, q) {
@@ -143,28 +80,6 @@ export function drawTable(ctx, cam) {
       shadow.addColorStop(1, 'rgba(60,52,40,0)');
       ctx.fillStyle = shadow;
       ctx.fillRect(Math.min(x0, x0 + dir * 40), top, 40, h);
-    }
-  }
-  for (let k = 1; k < SHEETS; k++) {
-    const x = k * SHEET;
-    if (x < left - 60 || x > right + 60) continue;
-    const seam = ctx.createLinearGradient(x - 14, 0, x + 2, 0);
-    seam.addColorStop(0, 'rgba(70,64,55,0)');
-    seam.addColorStop(1, 'rgba(70,64,55,0.22)');
-    ctx.fillStyle = seam;
-    ctx.fillRect(x - 14, 0, 16, WORLD.h);
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.fillRect(x, 0, 2, WORLD.h);
-    for (const [ty, rot] of [[70, -0.12], [1320, 0.09]]) {
-      ctx.save();
-      ctx.translate(x, ty);
-      ctx.rotate(rot);
-      ctx.fillStyle = 'rgba(236,228,200,0.55)';
-      ctx.strokeStyle = 'rgba(150,140,110,0.35)';
-      ctx.lineWidth = 1.5;
-      ctx.fillRect(-70, -22, 140, 44);
-      ctx.strokeRect(-70, -22, 140, 44);
-      ctx.restore();
     }
   }
   ctx.restore();

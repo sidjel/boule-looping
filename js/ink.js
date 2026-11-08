@@ -10,6 +10,7 @@ import { rng, range, pencilLine, hatch, grain } from './pencil.js';
 import { paintEarth, groundPath } from './earth.js';
 
 const GRAPHITE = '#4b4b4f';
+const ROAD = '#4a3426'; // la route : brun foncé, comme le dessin de référence
 const GREY = '#8a8a8e';
 const BROWN = '#9c6b55';
 const HAND = '"Segoe Print", "Bradley Hand", "Chalkboard SE", "Comic Sans MS", "Comic Neue", cursive';
@@ -132,8 +133,8 @@ function drawRoad(g, track, x0, x1, bio) {
         pencilLine(g, [[ax, ay - 3], [bx, by - 3]], r, { color: '#ffffff', width: 2.2, alpha: 0.8, passes: 1, wobble: 0.3 });
       }
     }
-    pencilLine(g, pc.line, rng(77 + i * 10), { color: GRAPHITE, width: 5.5, alpha: 0.55, passes: 4, wobble: 1.8 });
-    pencilLine(g, pc.line, rng(78 + i * 10), { color: '#2f2f33', width: 2.2, alpha: 0.45, passes: 2, wobble: 1 });
+    pencilLine(g, pc.line, rng(77 + i * 10), { color: ROAD, width: 5.5, alpha: 0.55, passes: 4, wobble: 1.8 });
+    pencilLine(g, pc.line, rng(78 + i * 10), { color: '#2a1d15', width: 2.2, alpha: 0.45, passes: 2, wobble: 1 });
   });
 }
 

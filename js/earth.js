@@ -1,29 +1,23 @@
 /**
- * Premier plan : la terre brune hachurée et l'herbe, dans le style du dessin du niveau 1,
- * sous la route de tous les niveaux. Elle est opaque : rien de l'arrière-plan ne se voit
- * à travers. Elle est peinte dans le calque d'encre de chaque feuille (ink.js).
- *
- * - Niveau 1 : le dessin lui-même (sol1.webp, calé sur la route par tools/decouper-sol1.py).
- * - Ailleurs : trois morceaux tirés du même dessin (tools/decouper-terre.py), répétés
- *   en miroir pour ne pas voir de raccord :
- *   le fond hachuré, la bande plus brune qui suit la route, les touffes d'herbe du bas.
- * Selon la saison, la terre prend une légère teinte (automne plus chaud, pluie plus sombre) ;
+ * Premier plan : la terre ocre au crayon de couleur du dessin de référence, sous la route de
+ * tous les niveaux. Elle est opaque : rien de l'arrière-plan ne se voit à travers. Elle est
+ * peinte dans le calque d'encre de chaque feuille (ink.js).
+ * Deux morceaux tirés du dessin (tools/decouper-style.py), répétés en miroir pour ne pas
+ * voir de raccord : le fond, et la bande qui suit la route. L'herbe du bas est à part, devant
+ * tout, et ondule au vent (style.js).
+ * Selon la saison, la terre prend une teinte (automne plus rousse, pluie plus sombre) ;
  * l'hiver la couvre de neige (ink.js).
  */
 import { WORLD, surfaceY as groundY } from './track.js';
 import { biomeMix } from './biomes.js';
 
-const SOL1 = { x: -6, y: 489.8, w: 2014.2, h: 945.55 };
-/** La terre du dessin du niveau 1 s'efface entre ce x et 2000 (fondu sur la terre répétée). */
-export const EARTH_END = 1780;
-
-const NAMES = ['sol1', 'terre-bande', 'terre-fond', 'terre-herbe'];
+const NAMES = ['terre-bande', 'terre-fond'];
 const img = {};
 export const earthReady = Promise.all(NAMES.map((n) => new Promise((ok) => {
   const i = new Image();
   i.decoding = 'async';
   i.onload = i.onerror = () => ok();
-  i.src = `images/${n}.webp`;
+  i.src = `images/style/${n}.webp`;
   img[n] = i;
 })));
 const ready = () => NAMES.every((n) => img[n].complete && img[n].naturalWidth > 0);
@@ -56,7 +50,26 @@ function strip(g, name, x0, x1, y, h) {
   }
 }
 
-const TINTS = { automne: 'rgba(214,140,60,0.16)', pluie: 'rgba(80,96,112,0.16)' };
+/** Le grain de la terre en motif (2 × 2 en miroir : aucun raccord). */
+let grainTile = null;
+function grainPattern(g) {
+  if (!grainTile) {
+    const i = img['terre-fond'], w = i.naturalWidth, h = i.naturalHeight, c = document.createElement('canvas');
+    c.width = w * 2; c.height = h * 2;
+    const t = c.getContext('2d');
+    for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+      t.save();
+      t.translate(sx < 0 ? w * 2 : 0, sy < 0 ? h * 2 : 0);
+      t.scale(sx, sy);
+      t.drawImage(i, 0, 0);
+      t.restore();
+    }
+    grainTile = c;
+  }
+  return g.createPattern(grainTile, 'repeat');
+}
+
+const TINTS = { automne: 'rgba(190,80,30,0.2)', pluie: 'rgba(55,50,48,0.28)' };
 const tintOf = (b) => TINTS[b.name.toLowerCase()] || null;
 
 /** Chemin de la forme du sol : tout ce qui est sous la route, entre x0 et x1. */
@@ -81,28 +94,21 @@ export function* paintEarth(g, track, x0, x1) {
   g.save();
   groundPath(g, track, x0, x1);
   g.clip();
-  // fond hachuré, répété en miroir en largeur et en hauteur, calé sur le bas du monde
-  const fh = img['terre-fond'].naturalHeight;
-  let top = bottom, row = 0;
-  let minY = Infinity;
-  for (let x = x0; x <= x1; x += 16) minY = Math.min(minY, groundY(track, x));
-  while (top > minY - fh) {
-    top -= fh;
-    if (row++ % 2 === 0) strip(g, 'terre-fond', x0, x1, top, fh);
-    else {
-      g.save();
-      g.translate(0, top + fh);
-      g.scale(1, -1);
-      strip(g, 'terre-fond', x0, x1, 0, fh);
-      g.restore();
-    }
-    yield;
-  }
-  // touffes d'herbe au pied de la feuille
-  const hh = img['terre-herbe'].naturalHeight;
-  strip(g, 'terre-herbe', x0, x1, WORLD.h + 12 - hh, hh);
+  // la terre : un dégradé ocre (plus clair vers le bas, comme le dessin), puis le grain du
+  // crayon par-dessus, en incrustation (motif répété en miroir)
+  const grad = g.createLinearGradient(0, 700, 0, WORLD.h);
+  grad.addColorStop(0, '#c48e5e');
+  grad.addColorStop(0.55, '#d6a774');
+  grad.addColorStop(1, '#d2b77c');
+  g.fillStyle = grad;
+  g.fillRect(x0, 0, x1 - x0, bottom);
   yield;
-  // bande brune qui suit la route : tranches de 3 px décalées à la hauteur de la route
+  g.globalCompositeOperation = 'overlay';
+  g.fillStyle = grainPattern(g);
+  g.fillRect(x0, 0, x1 - x0, bottom);
+  g.globalCompositeOperation = 'source-over';
+  yield;
+  // bande qui suit la route : tranches de 3 px décalées à la hauteur de la route
   const bh = img['terre-bande'].naturalHeight;
   let n = 0;
   for (let x = x0; x < x1; x += 3) {
@@ -111,8 +117,6 @@ export function* paintEarth(g, track, x0, x1) {
     g.drawImage(src, u, 0, sw, bh, x, groundY(track, x) - 1, sw + 0.6, bh);
     if (++n % 120 === 0) yield;
   }
-  // niveau 1 : le dessin lui-même, par-dessus (il s'efface tout seul vers sa fin)
-  if (x0 < SOL1.x + SOL1.w) { g.drawImage(img.sol1, SOL1.x, SOL1.y, SOL1.w, SOL1.h); yield; }
   // teinte de saison, en fondu près des jonctions
   for (let x = x0; x < x1; x += 20) {
     const m = biomeMix(x + 10);
