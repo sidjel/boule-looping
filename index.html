@@ -129,14 +129,15 @@
     table.scores th, table.scores td { padding: 5px 4px; border-bottom: 1px dashed rgba(60,60,66,.3); }
     table.scores tr.moi td { background: #ffe9a8; font-weight: 700; }
     .vide { opacity: .75; }
-    /* bilan d'un niveau terminé : en bas, sans arrêter le jeu */
+    /* bilan d'un niveau terminé : une ligne en haut, sous le bandeau (jamais sur les boutons d'aiguillage) */
     #bilan {
-      position: absolute; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translate(-50%, 30px); max-width: 76vw;
-      padding: 8px 16px; border-radius: 16px; background: rgba(250,248,240,.95); border: 2px solid rgba(60,60,66,.45);
-      font-size: 16px; text-align: center; opacity: 0; pointer-events: none; transition: opacity .35s, transform .35s;
+      position: absolute; left: 50%; top: calc(max(10px, env(safe-area-inset-top)) + 52px); transform: translate(-50%, -12px);
+      max-width: min(92vw, 640px); padding: 4px 14px; border-radius: 14px; background: rgba(250,248,240,.92);
+      border: 2px solid rgba(60,60,66,.35); font-size: 15px; text-align: center; white-space: nowrap; overflow: hidden;
+      text-overflow: ellipsis; opacity: 0; pointer-events: none; transition: opacity .35s, transform .35s;
     }
     #bilan.visible { opacity: 1; transform: translate(-50%, 0); }
-    #bilan small { display: block; font-size: 13px; opacity: .7; }
+    #bilan small { font-size: 13px; opacity: .7; }
     .medaille { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 10px; font-weight: 700; font-size: 14px; background: #ddd; }
     .medaille.or { background: #f2cf5b; } .medaille.argent { background: #cfd4da; } .medaille.bronze { background: #d9a06b; }
     .boules { list-style: none; padding: 0; text-align: left; }

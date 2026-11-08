@@ -257,6 +257,7 @@ function frame(now) {
   else cam.update(dt, ball);
   render(paused ? 0 : dt * timeScale);
   placeForkButtons();
+  updateRecap(paused ? 0 : dt);
   meter(dt);
   requestAnimationFrame(frame);
 }
@@ -395,16 +396,41 @@ function feat(kind) {
   }
 }
 
-/** Petit bilan du niveau terminé, en bas de l'écran, sans arrêter le jeu. */
-let recapTimer = 0;
+/**
+ * Petit bilan du niveau terminé : une ligne en haut, sous le bandeau, sans arrêter le jeu.
+ * Le choix d'un chemin passe avant : tant que les boutons d'aiguillage sont là (ou une
+ * explication, ou le menu), le bilan attend ; il s'affiche une fois le choix fait.
+ */
+let recap = null; // { html, t : temps déjà affiché }
+const RECAP_TIME = 3.2;
 function showRecap(r) {
   if (!r || r.level < 0 || r.level > SHEETS - 2) return;
   const m = medalTimes(r.level), medal = r.medal ? `<span class="medaille ${r.medal}">${r.medal}</span>` : '<span class="medaille">sans médaille</span>';
-  const next = r.medal === 'or' ? '' : ` · or en ${Math.round(m.or)} s`;
-  $('bilan').innerHTML = `<b>Niveau ${r.level + 1}</b> · ${'★'.repeat(r.stars)}${'☆'.repeat(3 - r.stars)} · ${Math.round(r.time)} s ${medal}${r.combo >= 2 ? ` · enchaînement ×${r.combo}` : ''}${r.newRecord ? ' · <b>record !</b>' : ''}<small>${next}</small>`;
-  $('bilan').classList.add('visible');
-  clearTimeout(recapTimer);
-  recapTimer = setTimeout(() => $('bilan').classList.remove('visible'), 3200);
+  const next = r.medal === 'or' ? '' : ` <small>· or en ${Math.round(m.or)} s</small>`;
+  const html = `<b>Niveau ${r.level + 1}</b> · ${'★'.repeat(r.stars)}${'☆'.repeat(3 - r.stars)} · ${Math.round(r.time)} s ${medal}${r.combo >= 2 ? ` · enchaînement ×${r.combo}` : ''}${r.newRecord ? ' · <b>record !</b>' : ''}${next}`;
+  recap = { html, t: 0 };
+}
+
+function updateRecap(dt) {
+  const el = $('bilan');
+  if (!recap) return;
+  if (near || infoOpen || menu.isOpen) {
+    // place aux boutons : on le cache ; s'il n'a été vu qu'un instant, il reviendra après
+    if (el.classList.contains('visible')) {
+      el.classList.remove('visible');
+      if (recap.t > 1.5) recap = null;
+    }
+    return;
+  }
+  if (!el.classList.contains('visible')) {
+    el.innerHTML = recap.html;
+    el.classList.add('visible');
+  }
+  recap.t += dt;
+  if (recap.t > RECAP_TIME) {
+    el.classList.remove('visible');
+    recap = null;
+  }
 }
 
 /** Jauges des bonus en cours (bleu, jaune…), sous le bandeau du haut. */
