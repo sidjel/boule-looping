@@ -101,6 +101,16 @@ r2 = ridge_of(img2)
 solid = (yy >= r2[None, :] + 5)
 a = np.maximum(a, cv2.GaussianBlur(solid.astype(np.float32), (0, 0), 1.2))
 c = np.where(solid[..., None], img2, c)
+# papier blanc collé au ciel (au-dessus du trait de crête) : transparent
+pale = ((img2.min(2) > 195) & ((img2.max(2) - img2.min(2)) < 40)).astype(np.uint8)
+pale = cv2.morphologyEx(pale, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+skyz = (a < 0.15).astype(np.uint8)
+n, lab, st, _ = cv2.connectedComponentsWithStats(pale | skyz)
+skyids = np.unique(lab[skyz > 0])
+touch = np.isin(lab, skyids[skyids > 0]) & (pale > 0)
+touch &= (yy < 900)  # seulement le long des montagnes
+a[cv2.dilate(touch.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0] = 0
+solid &= ~touch
 # au-dessus de la crête : pas de poussières isolées
 spk = ((a > 0.1) & ~solid).astype(np.uint8)
 n, lab, st, _ = cv2.connectedComponentsWithStats(spk)
@@ -124,19 +134,31 @@ SUN, RS = (1330, 255), 250
 sky = cv2.imread(ciel).astype(np.float32)
 b, g, r = sky[..., 0], sky[..., 1], sky[..., 2]
 sunm = ((r - b > 45) & (r > 160)).astype(np.uint8)
-sunm = cv2.dilate(sunm, np.ones((9, 9), np.uint8))
+sunm = cv2.morphologyEx(sunm, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
 yy, xx = np.mgrid[0:sky.shape[0], 0:sky.shape[1]]
 near = (np.hypot(xx - SUN[0], yy - SUN[1]) < RS + 20)
 sunm = sunm.astype(bool) & near
 # sprite : le soleil seul, sur fond transparent
 x0, y0 = max(0, SUN[0] - RS - 20), max(0, SUN[1] - RS - 20)
 crop = sky[y0:SUN[1] + RS + 20, x0:SUN[0] + RS + 20]
-a = cv2.GaussianBlur(sunm[y0:SUN[1] + RS + 20, x0:SUN[0] + RS + 20].astype(np.float32), (0, 0), 1.5)
+a = cv2.GaussianBlur(cv2.erode(sunm[y0:SUN[1] + RS + 20, x0:SUN[0] + RS + 20].astype(np.uint8), np.ones((3, 3), np.uint8)).astype(np.float32), (0, 0), 1.0)
 spr = np.dstack([crop[..., ::-1], a * 255])
 spr = cv2.resize(spr, (round(spr.shape[1] * S5), round(spr.shape[0] * S5)), interpolation=cv2.INTER_AREA)
 save('soleil.webp', spr, q=85)
 geo['soleil'] = {'x': SUN[0] - x0, 'y': SUN[1] - y0, 'cx': SUN[0], 'cy': SUN[1]}
-# le ciel garde son soleil : le soleil animé se pose exactement dessus
+# le ciel garde son soleil (le soleil animé se pose dessus) mais perd le papier blanc autour
+ring = (np.hypot(xx - SUN[0], yy - SUN[1]) < RS + 40)
+pale = ring & ~sunm & ((b - r) < 40) & (sky.min(2) > 175)
+pale = cv2.dilate(pale.astype(np.uint8), np.ones((5, 5), np.uint8)).astype(bool) & ~sunm
+fill = sky.copy(); todo = pale.copy()
+for dx in (620, -620, 820, -820, 1000):
+    srcs = np.roll(sky, dx, axis=1); bad = np.roll(pale | sunm, dx, axis=1)
+    okp = todo & ~bad; fill[okp] = srcs[okp]; todo &= ~okp
+w = cv2.GaussianBlur(pale.astype(np.float32), (0, 0), 2)[..., None]
+skyc = sky * (1 - w) + fill * w
+p5 = cv2.resize(skyc, (round(sky.shape[1] * S5), round(sky.shape[0] * S5)), interpolation=cv2.INTER_AREA)
+Image.fromarray(p5[..., ::-1].clip(0, 255).astype(np.uint8)).save(out + 'plan5-ciel.webp', quality=78, method=6)
+print('plan5-ciel.webp : papier autour du soleil retiré', int(pale.sum()))
 geo['moulin'] = {'hub': [HUB[0], HUB[1]], 'aile': [blade.shape[1], blade.shape[0]], 'echelle': S3,
                  'foin': [[372, 812], [743, 963]]}
 json.dump(geo, open(out + 'geo.json', 'w'))

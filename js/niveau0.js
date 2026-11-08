@@ -385,24 +385,29 @@ function layerBlend(i, f, x, y, w, h, part = 0.22) {
 const body = buildBallBody(2);
 let time = 0;
 
+/**
+ * L'herbe ondule au vent. Elle est découpée en fines bandes HORIZONTALES (pas verticales :
+ * plus de coupures dans les brins) ; chaque bande glisse de côté d'autant plus qu'elle est
+ * haute, le pied ne bouge pas. Le souffle varie lentement (rafales douces).
+ */
 function drawGrass() {
   const i = img['plan1-herbe'];
   if (!ok(i)) return;
-  const f = 1.3, s = cam.scale, scale = WW / 2932 * 1.0;
+  const f = 1.3, s = cam.scale, scale = WW / 2932;
   const w = (i.naturalWidth / 0.8) * scale, h = (i.naturalHeight / 0.8) * scale;
-  const base = WH + 70; // le pied de l'herbe, un peu sous le bas de l'écran
-  const vh = H / s, top = base - h;
+  const base = WH + 70, top = base - h, vh = H / s;
   const ox = -cam.x * f, oy = -(cam.y - (WH - vh)) * f - (WH - vh);
-  const SL = 24, iw = i.naturalWidth, sc = iw / w;
-  for (let sx = Math.floor((-ox) / SL) * SL; sx + ox < W / s + SL; sx += SL) {
-    // pente des brins à cet endroit : un souffle qui passe d'une touffe à l'autre
-    const k = 0.13 * Math.sin(time * 1.4 - sx * 0.004) + 0.05 * Math.sin(time * 2.9 - sx * 0.012) + 0.05;
-    const tile = Math.floor(sx / w), u = sx - tile * w, flip = ((tile % 2) + 2) % 2 === 1;
-    const src = flip ? mirror(i) : i, sw = Math.min(SL, w - u);
-    ctx.save();
-    ctx.setTransform(s, 0, -k * s, s, k * s * (base + oy), 0);
-    ctx.drawImage(src, u * sc, 0, sw * sc, i.naturalHeight, sx + ox, top + oy, sw + 0.7, h);
-    ctx.restore();
+  const gust = 0.09 * Math.sin(time * 1.3) + 0.04 * Math.sin(time * 2.7 + 1) + 0.02 * Math.sin(time * 5.1) + 0.03;
+  const ROW = 3, ih = i.naturalHeight, sc = ih / h;
+  const k0 = Math.floor(-ox / w) - 1, k1 = Math.ceil((W / s - ox) / w);
+  for (let y = 0; y < h; y += ROW) {
+    const lift = (h - y) / h; // 1 en haut, 0 au pied
+    const dx = gust * h * lift * lift;
+    const rh = Math.min(ROW, h - y);
+    for (let k = k0; k <= k1; k++) {
+      const src = ((k % 2) + 2) % 2 === 1 ? mirror(i) : i;
+      ctx.drawImage(src, 0, y * sc, i.naturalWidth, rh * sc, (ox + k * w + dx) * s, (top + oy + y) * s, w * s + 1, rh * s + 0.6);
+    }
   }
 }
 
@@ -433,9 +438,9 @@ function drawSky() {
   const sun = img.soleil, g = geo.soleil;
   const cx = (sx + g.cx * k) * s, cy = (sy + g.cy * (hh / WH)) * s;
   const pulse = 0.5 + 0.5 * Math.sin(time * 1.6), R0 = 150 * k * s;
-  const halo = ctx.createRadialGradient(cx, cy, R0 * 0.6, cx, cy, R0 * (2.1 + 0.25 * pulse));
-  halo.addColorStop(0, `rgba(255,236,150,${0.35 + 0.15 * pulse})`);
-  halo.addColorStop(1, 'rgba(255,236,150,0)');
+  const halo = ctx.createRadialGradient(cx, cy, R0 * 0.9, cx, cy, R0 * (1.7 + 0.2 * pulse));
+  halo.addColorStop(0, `rgba(255,214,90,${0.16 + 0.1 * pulse})`);
+  halo.addColorStop(1, 'rgba(255,214,90,0)');
   ctx.fillStyle = halo;
   ctx.fillRect(cx - R0 * 3, cy - R0 * 3, R0 * 6, R0 * 6);
   if (ok(sun)) {
