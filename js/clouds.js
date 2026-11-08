@@ -107,6 +107,159 @@ export function buildCloud(seed, w, h, q, grey = false) {
   return { canvas: c, w: w + pad * 2, h: h + pad * 2, pad };
 }
 
+/* ---------- gros nuages au crayon de couleur ---------- */
+
+/** Bosses d'un amas : dôme de bosses en haut, rangée de petites bosses en bas (base bosselée). */
+function clusterPuffs(rand, x0, y0, w, h) {
+  const out = [], base = y0 + h * 0.86;
+  const n = Math.max(6, Math.round(w / 70));
+  for (let i = 0; i < n; i++) {
+    const t = (i + range(rand, 0.2, 0.8)) / n, dome = Math.max(0, 1 - (2 * t - 1) ** 2) ** 0.8;
+    const r = h * range(rand, 0.17, 0.27) * (0.65 + 0.7 * dome);
+    out.push({ x: x0 + w * t, y: base - r * 0.55 - h * 0.5 * dome * range(rand, 0.6, 1), r });
+  }
+  // le gros chou du sommet
+  out.push({ x: x0 + w * range(rand, 0.4, 0.6), y: y0 + h * 0.36, r: h * range(rand, 0.3, 0.36) });
+  // dessous : quelques bosses moyennes dont seul le bas dépasse (base doucement bosselée)
+  for (let x = x0 + h * 0.2; x < x0 + w - h * 0.15; x += h * range(rand, 0.32, 0.42)) {
+    const r = h * range(rand, 0.2, 0.26);
+    out.push({ x, y: base + h * 0.1 - r, r });
+  }
+  // remplissage du cœur : pas de trou entre les bosses
+  const core = [];
+  const sorted = [...out].sort((p, q) => p.x - q.x);
+  for (let i = 1; i < sorted.length; i++) {
+    const p = sorted[i - 1], q = sorted[i], r = Math.min(p.r, q.r) * 0.85;
+    core.push({ x: (p.x + q.x) / 2, y: Math.max(p.y, q.y) + r * 0.25, r, core: true });
+  }
+  for (let x = x0 + w * 0.15; x < x0 + w * 0.85; x += h * 0.25) core.push({ x, y: base - h * 0.3, r: h * 0.28, core: true });
+  return out.concat(core);
+}
+
+/** Points du bord extérieur d'un amas de bosses, en morceaux (là où le bord n'est pas caché). */
+function outerRuns(ps, step = 0.05) {
+  const runs = [];
+  ps.forEach((p, i) => {
+    let run = [];
+    for (let a = 0; a <= Math.PI * 2 + 0.001; a += step) {
+      const x = p.x + Math.cos(a) * p.r, y = p.y + Math.sin(a) * p.r;
+      if (!inside(ps, x, y, i)) run.push([x, y]);
+      else { if (run.length > 2) runs.push(run); run = []; }
+    }
+    if (run.length > 2) runs.push(run);
+  });
+  return runs;
+}
+
+/**
+ * Un amas : blanc en haut, bleuté en bas, traits de crayon blancs et bleus, reflets,
+ * contour bleu-gris repassé et quelques creux entre les bosses.
+ */
+function drawCluster(g, rand, ps, w, h, pad, pal) {
+  const c = document.createElement('canvas');
+  c.width = g.canvas.width; c.height = g.canvas.height;
+  const t = c.getContext('2d');
+  t.setTransform(g.getTransform());
+  const top = Math.min(...ps.map((p) => p.y - p.r)), bot = Math.max(...ps.map((p) => p.y + p.r));
+  // corps
+  t.fillStyle = pal.fill;
+  for (const p of ps) { t.beginPath(); t.arc(p.x, p.y, p.r, 0, Math.PI * 2); t.fill(); }
+  t.globalCompositeOperation = 'source-atop';
+  const sh = t.createLinearGradient(0, top, 0, bot);
+  sh.addColorStop(0, pal.top);
+  sh.addColorStop(0.55, pal.mid);
+  sh.addColorStop(1, pal.bottom);
+  t.fillStyle = sh;
+  t.fillRect(-pad, top - 5, w + pad * 2, bot - top + 10);
+  // volume de chaque bosse : clair en haut à gauche, bleuté en bas à droite
+  for (const p of ps) {
+    if (p.core) continue;
+    const d = t.createRadialGradient(p.x + p.r * 0.35, p.y + p.r * 0.45, p.r * 0.1, p.x + p.r * 0.2, p.y + p.r * 0.3, p.r * 1.05);
+    d.addColorStop(0, pal.shade);
+    d.addColorStop(1, 'rgba(0,0,0,0)');
+    t.fillStyle = d;
+    t.fillRect(p.x - p.r, p.y - p.r, p.r * 2.2, p.r * 2.2);
+    const l = t.createRadialGradient(p.x - p.r * 0.3, p.y - p.r * 0.4, 0, p.x - p.r * 0.3, p.y - p.r * 0.4, p.r * 0.75);
+    l.addColorStop(0, pal.light);
+    l.addColorStop(1, 'rgba(255,255,255,0)');
+    t.fillStyle = l;
+    t.fillRect(p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
+  }
+  // crayon de couleur : traits obliques, bleus dans le bas, blancs dans le haut
+  t.lineCap = 'round';
+  for (let i = 0, n = Math.round((w * h) / 520); i < n; i++) {
+    const x = range(rand, 0, w), y = range(rand, top, bot), k = (y - top) / (bot - top);
+    const len = range(rand, 10, 26), a = -0.6 + range(rand, -0.2, 0.2);
+    const blue = rand() < k * 1.1;
+    t.strokeStyle = blue ? pal.pencil : '#ffffff';
+    t.globalAlpha = blue ? range(rand, 0.08, 0.2) * (0.4 + k) : range(rand, 0.15, 0.4) * (1.2 - k);
+    t.lineWidth = range(rand, 1.4, 2.6);
+    t.beginPath();
+    t.moveTo(x, y);
+    t.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
+    t.stroke();
+  }
+  t.globalAlpha = 1;
+  // reflets : petits traits blancs sur le haut des grosses bosses
+  for (const p of ps) {
+    if (p.core || p.r < h * 0.2 || rand() < 0.5) continue;
+    const a0 = range(rand, -2.5, -1.9), a1 = a0 + range(rand, 0.35, 0.7), rr = p.r * 0.72;
+    t.strokeStyle = 'rgba(255,255,255,0.95)';
+    t.lineWidth = Math.max(2, p.r * 0.07);
+    t.beginPath();
+    t.arc(p.x, p.y, rr, a0, a1);
+    t.stroke();
+  }
+  t.globalCompositeOperation = 'source-over';
+  // creux entre les bosses : le bas de quelques bosses, à l'intérieur de l'amas
+  ps.forEach((p, i) => {
+    if (p.core || p.r < h * 0.15 || rand() < 0.55) return;
+    const pts = [];
+    for (let a = 0.15; a <= Math.PI - 0.15; a += 0.06) {
+      const x = p.x + Math.cos(a) * p.r, y = p.y + Math.sin(a) * p.r;
+      if (inside(ps, x, y, i)) pts.push([x, y]);
+    }
+    if (pts.length > 6) pencilLine(t, pts, rand, { color: pal.line, width: 2, alpha: 0.32, passes: 1, wobble: 0.8 });
+  });
+  // contour : crayon bleu-gris, repassé
+  for (const run of outerRuns(ps)) pencilLine(t, run, rand, { color: pal.line, width: 2.8, alpha: 0.75, passes: 2, wobble: 0.9 });
+  g.save();
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.drawImage(c, 0, 0);
+  g.restore();
+}
+
+const BIG_PAL = {
+  white: {
+    back: { fill: '#eef4fb', top: '#f6f9fd', mid: '#e1ebf6', bottom: '#bcd2e8', shade: 'rgba(150,185,222,0.22)', light: 'rgba(255,255,255,0.9)', pencil: '#7fa6cf', line: '#5f7f9f' },
+    front: { fill: '#ffffff', top: '#ffffff', mid: '#f3f7fc', bottom: '#d3e3f2', shade: 'rgba(160,192,226,0.18)', light: 'rgba(255,255,255,1)', pencil: '#8fb2d6', line: '#5f7f9f' },
+  },
+  grey: {
+    back: { fill: '#c9cfd8', top: '#d6dbe2', mid: '#c2c9d3', bottom: '#98a4b3', shade: 'rgba(90,105,125,0.35)', light: 'rgba(235,238,242,0.7)', pencil: '#6e7d90', line: '#4f5a68' },
+    front: { fill: '#dde1e7', top: '#e6e9ee', mid: '#d3d8df', bottom: '#aab4c1', shade: 'rgba(100,112,130,0.3)', light: 'rgba(245,247,250,0.8)', pencil: '#7a889a', line: '#4f5a68' },
+  },
+};
+
+/** Gros nuage : un amas du fond (plus haut, plus bleuté) et un amas de devant (plus blanc). */
+export function buildBigCloud(seed, w, h, q, grey = false) {
+  const rand = rng(seed), pad = 30;
+  const c = document.createElement('canvas');
+  c.width = Math.ceil((w + pad * 2) * q);
+  c.height = Math.ceil((h + pad * 2) * q);
+  const g = c.getContext('2d');
+  g.scale(q, q);
+  g.translate(pad, pad);
+  const pal = BIG_PAL[grey ? 'grey' : 'white'];
+  const flip = rand() < 0.5;
+  const back = clusterPuffs(rand, w * (flip ? 0.26 : 0.04), 0, w * 0.7, h * 0.74);
+  const front = clusterPuffs(rand, w * (flip ? 0 : 0.16), h * 0.36, w * 0.84, h * 0.6);
+  drawCluster(g, rand, back, w, h, pad, pal.back);
+  drawCluster(g, rand, front, w, h, pad, pal.front);
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  grain(g, c.width, c.height, 0.12);
+  return { canvas: c, w: w + pad * 2, h: h + pad * 2, pad };
+}
+
 /**
  * Les nuages : un petit stock de formes (blanches, et grises pour la pluie) réutilisées sur
  * tout le parcours ; chaque nuage dérive au-dessus de sa feuille et revient à son début.
@@ -114,6 +267,9 @@ export function buildCloud(seed, w, h, q, grey = false) {
 export const SHAPES = [
   [3, 640, 250], [8, 380, 150], [15, 280, 115], [21, 520, 200], [34, 330, 130], [55, 450, 170],
   [89, 560, 220, true], [144, 420, 170, true], [233, 300, 120, true], [377, 480, 190, true],
+  // gros nuages au crayon de couleur (blancs et bleutés, gris pour la pluie)
+  [610, 820, 360, false, true], [987, 640, 290, false, true], [1597, 940, 400, false, true],
+  [2584, 760, 330, true, true], [4181, 900, 380, true, true],
 ];
 
 export const CLOUDS = (() => {
@@ -125,7 +281,16 @@ export const CLOUDS = (() => {
       const shape = rain ? 6 + ((k + i) % 4) : 1 + ((k * 3 + i) % 5);
       out.push({ shape, x: k * SHEET + 150 + i * 560 + ((k * 137) % 200), y: 90 + ((k * 7 + i * 3) % 5) * 55, speed: 6 + ((k + i) % 4) * 3, home: k });
     }
+    // un gros nuage par feuille (deux une fois sur trois), plus lent : il paraît plus loin
+    const big = rain ? [13, 14] : [10, 11, 12];
+    for (let j = 0; j < (k % 3 === 1 ? 2 : 1); j++) {
+      const shape = big[(k + j) % big.length], w = SHAPES[shape][1];
+      const x = k === 0 ? -120 : k * SHEET + ((k * 433 + j * 911) % (SHEET - w)) - 200;
+      out.push({ shape, x, y: 20 + ((k * 5 + j * 2) % 4) * 40, speed: 3 + ((k + j) % 3) * 1.5, home: k });
+    }
   }
+  // les gros nuages passent derrière les petits
+  out.sort((a, b) => (SHAPES[b.shape][4] ? 1 : 0) - (SHAPES[a.shape][4] ? 1 : 0));
   return out;
 })();
 
@@ -147,7 +312,7 @@ export function drawClouds(ctx, built, x0, x1) {
 }
 
 export function buildClouds(q) {
-  return SHAPES.map(([seed, w, h, grey]) => buildCloud(seed, w, h, q, !!grey));
+  return SHAPES.map(([seed, w, h, grey, big]) => (big ? buildBigCloud(seed, w, h, Math.min(q, 0.8), !!grey) : buildCloud(seed, w, h, q, !!grey)));
 }
 
 /** Oiseaux en « v » qui planent et battent des ailes de temps en temps (feuille 2). */

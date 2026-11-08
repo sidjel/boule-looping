@@ -502,7 +502,7 @@ function render(dt) {
   ctx.clip();
   for (const sun of SUNS) if (sun.x + 400 > x0 && sun.x - 400 < x1) drawSun(ctx, art.sun, sun.x, sun.y, sun.r, time);
   drawBirds(ctx, time, dt, x0, x1);
-  decor.draw(ctx, cam, track, ball);
+  decor.draw(ctx, cam, track);
   drawClouds(ctx, art.clouds, x0, x1);
   for (let k = Math.max(0, Math.floor(x0 / SHEET)); k <= Math.min(SHEETS - 1, Math.floor(x1 / SHEET)); k++) {
     ctx.drawImage(inkFor(k), k * SHEET, 0, SHEET, WORLD.h);

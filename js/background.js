@@ -1,7 +1,7 @@
 /**
- * Arrière-plan du niveau 1, tiré du second dessin : montagnes bleues, charrette de foin,
- * arbre, moulin. Il est posé derrière la route et se décale moins vite qu'elle quand la
- * caméra avance (parallaxe) : la profondeur donne un effet 2,5D.
+ * Arrière-plan : une chaîne de montagnes bleues lointaine sur les niveaux 1 à 4, et pour le
+ * niveau 1 le second dessin (montagnes, charrette de foin, arbre, moulin). Posés derrière la
+ * route, ils se décalent moins vite qu'elle quand la caméra avance (parallaxe) : effet 2,5D.
  * Animations : les pales du moulin tournent, le feuillage se balance, le foin ondule dans
  * la charrette et quelques fines pailles s'envolent.
  *
@@ -9,6 +9,7 @@
  */
 import { SHEET } from './levels.js';
 import { groundY } from './track.js';
+import { mountainBand, BAND } from './mountains.js';
 
 const DIR = 'images/fond1/';
 // boîtes des morceaux dans le repère du dessin (x0, y0, x1, y1)
@@ -28,8 +29,11 @@ const HAY_BASE = 935;              // le foin ondule autour de son pied (bord de
 
 // pose dans le monde : le sol du dessin (y 1030) un peu sous la route, réduit (lointain)
 const PIVOT = [1000, 1030], ANCHOR = [960, 1080], SCALE = 0.84;
-// parallaxe : part du déplacement de la caméra que suit le décor (0 = collé à la route)
-const PAR_X = 0.24, PAR_Y = 0.14, REF = [1000, 716];
+// parallaxe : part du déplacement de la caméra que suit le décor (0 = collé à la route) ;
+// plus c'est loin, plus il suit la caméra, donc moins il glisse à l'écran
+const PAR_X = 0.18, PAR_Y = 0.12, REF = [1300, 716];
+// montagnes lointaines : jusqu'à la fin du niveau 4, effacées sur les derniers 700 px
+const FAR = { par: 0.36, parY: 0.2, ref: 1300, end: 4 * SHEET, fade: 700 };
 const ALPHA = 0.88;
 const RES = 0.5; // résolution de l'image de travail (part de celle de l'écran)
 
@@ -147,31 +151,35 @@ export class Background {
   }
 
   /**
-   * Dessine le décor, dans le repère du monde, sous la route.
+   * Dessine le décor, dans le repère du monde, sous la route. Il ne dépend que de la
+   * caméra : quand elle avance, les montagnes lointaines glissent moins vite que le décor
+   * du niveau 1, qui glisse moins vite que la route (parallaxe).
    * @param cam caméra (x, y, viewW, viewH)
-   * @param ball la boule : le décor suit aussi un peu son avancée, même quand la caméra
-   *   ne bouge pas (vue d'ensemble)
    */
-  draw(ctx, cam, track, ball) {
-    const x0 = cam.x, x1 = cam.x + cam.viewW;
+  draw(ctx, cam, track) {
+    const x0 = cam.x, x1 = cam.x + cam.viewW, y0 = cam.y, y1 = cam.y + cam.viewH;
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    // montagnes lointaines (niveaux 1 à 4)
+    const fox = (cx - FAR.ref) * FAR.par, foy = (cy - REF[1]) * FAR.parY;
+    const farOn = x0 < FAR.end;
+    // décor du niveau 1
+    const ox = (cx - REF[0]) * PAR_X, oy = (cy - REF[1]) * PAR_Y;
+    const toWorld = (px, py) => [ANCHOR[0] + ox + (px - PIVOT[0]) * SCALE, ANCHOR[1] + oy + (py - PIVOT[1]) * SCALE];
+    const [dl, dt] = toWorld(0, 380), [dr] = toWorld(2000, 1110);
     const layer = stillLayer();
-    if (!this.visible(x0) || !layer) return;
-    // « regard » entre le centre de l'écran et la boule
-    const cx = cam.x + cam.viewW / 2, cy = cam.y + cam.viewH / 2;
-    const vx = cx + (ball.x - cx) * 0.5, vy = cy + (ball.y - cy) * 0.3;
-    // lissé : pas d'à-coup quand la boule saute ou repart
-    this.vx = this.vx === undefined || Math.abs(this.vx - vx) > 1500 ? vx : this.vx + (vx - this.vx) * 0.08;
-    this.vy = this.vy === undefined || Math.abs(this.vy - vy) > 1500 ? vy : this.vy + (vy - this.vy) * 0.08;
-    const ox = (this.vx - REF[0]) * PAR_X, oy = (this.vy - REF[1]) * PAR_Y;
+    const nearOn = !!layer && x1 > dl && x0 < dr;
+    if (!farOn && !nearOn) return;
+    // rectangle utile (monde), puis à l'écran
+    const wa = x0, wb = Math.min(x1, Math.max(farOn ? FAR.end : -1e9, nearOn ? dr : -1e9));
+    const wt = Math.max(y0, Math.min(farOn ? BAND.y0 + foy : 1e9, nearOn ? dt : 1e9));
+    // en bas, pas plus loin que le point le plus bas de la route à l'écran (dessous, tout est effacé)
+    let low = 0;
+    for (let x = wa; x <= wb; x += 32) low = Math.max(low, groundY(track, x));
+    const wd = Math.min(y1, low + 12);
+    if (wb <= wa || wd <= wt) return;
     // Le décor est peint dans une image à demi-résolution (plus léger, et le léger flou
     // le met au loin), puis posé d'un seul coup sur l'écran.
-    const m = ctx.getTransform();
-    const k = RES;
-    const toWorld = (px, py) => [ANCHOR[0] + ox + (px - PIVOT[0]) * SCALE, ANCHOR[1] + oy + (py - PIVOT[1]) * SCALE];
-    const [dl, dt] = toWorld(0, 380), [dr, db] = toWorld(2000, 1110);
-    const wa = Math.max(x0, dl), wb = Math.min(x1, dr), wt = Math.max(cam.y, dt), wd = Math.min(cam.y + cam.viewH, db);
-    if (wb <= wa || wd <= wt) return;
-    // rectangle du décor à l'écran (pixels), et l'image de travail qui le couvre
+    const m = ctx.getTransform(), k = RES;
     const sx = Math.floor(m.a * wa + m.e), sy = Math.floor(m.d * wt + m.f);
     const sw = Math.ceil(m.a * (wb - wa)) + 2, sh = Math.ceil(m.d * (wd - wt)) + 2;
     const cw = Math.ceil(sw * k), ch = Math.ceil(sh * k);
@@ -182,12 +190,32 @@ export class Background {
     g.clearRect(0, 0, cw + 2, ch + 2);
     // repère du monde dans l'image de travail
     g.setTransform(m.a * k, 0, 0, m.d * k, (m.e - sx) * k, (m.f - sy) * k);
-    g.save();
-    g.translate(ANCHOR[0] + ox, ANCHOR[1] + oy);
-    g.scale(SCALE, SCALE);
-    g.translate(-PIVOT[0], -PIVOT[1]);
-    this.paint(g, layer, x0, x1, cam, ox, oy);
-    g.restore();
+    if (farOn) {
+      const b = mountainBand(), R = BAND.res;
+      const u0 = Math.max(BAND.u0, wa - fox), u1 = Math.min(BAND.u1, wb - fox);
+      if (u1 > u0) {
+        g.drawImage(b, (u0 - BAND.u0) * R, 0, (u1 - u0) * R, b.height, u0 + fox, BAND.y0 + foy, u1 - u0, b.height / R);
+      }
+      // elles s'effacent à la fin de l'été
+      const f0 = FAR.end - FAR.fade;
+      if (wb > f0) {
+        g.globalCompositeOperation = 'destination-out';
+        const grad = g.createLinearGradient(f0, 0, FAR.end, 0);
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(1, 'rgba(0,0,0,1)');
+        g.fillStyle = grad;
+        g.fillRect(f0, wt - 10, wb - f0 + 10, wd - wt + 20);
+        g.globalCompositeOperation = 'source-over';
+      }
+    }
+    if (nearOn) {
+      g.save();
+      g.translate(ANCHOR[0] + ox, ANCHOR[1] + oy);
+      g.scale(SCALE, SCALE);
+      g.translate(-PIVOT[0], -PIVOT[1]);
+      this.paint(g, layer, x0, x1, cam, ox, oy);
+      g.restore();
+    }
     // sous la route, c'est l'herbe du premier plan : on efface
     g.globalCompositeOperation = 'destination-out';
     g.beginPath();
