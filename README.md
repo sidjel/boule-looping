@@ -6,7 +6,9 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
 
 - **Été (niveaux 1 à 4)** : le dessin d'origine et sa suite : tremplin au-dessus d'une fosse,
   deux loopings à la suite, aiguillage entre un souterrain (grand looping) et une grande bosse
-  avec un pont. Herbe verte, buissons, arbres, fleurs.
+  avec un pont. Herbe verte, buissons, arbres, fleurs. Derrière le niveau 1, un second dessin
+  (montagnes, charrette de foin, arbre, moulin) fait l'arrière-plan : il se décale moins vite que
+  la route (effet 2,5D), les pales tournent, l'arbre et le foin bougent, des pailles s'envolent.
 - **Automne (5 à 8)** : feuilles mortes qui volent, vent en rafales qui gêne l'avancée.
 - **Hiver (9 à 12)** : neige, route glacée : la boule glisse, va plus vite, répond moins aux
   gestes, et revenir en arrière est difficile.
@@ -70,6 +72,7 @@ HTML + Canvas 2D + JavaScript en modules natifs, sans dépendance ni outil de co
 - `js/game.js` : étoiles, enchaînements, médailles, bilan, fantôme, boules à débloquer.
 - `js/obstacles.js` : obstacles à sauter (contacts et dessin).
 - `js/bonus.js` et `images/boule-*.png` : les boules bonus (la rouge vient du dessin, les autres sont recolorées).
+- `js/background.js` et `images/fond1/` : l'arrière-plan animé du niveau 1 (morceaux découpés dans le second dessin).
 - `js/ink.js` : le dessin fixe de chaque feuille, préparé petit à petit pendant le jeu.
 - `js/weather.js` : feuilles mortes, neige, pluie.
 - `js/audio.js` : musique composée hors temps réel par morceaux puis rejouée en boucle, roulement, vent, tintements (Web Audio).

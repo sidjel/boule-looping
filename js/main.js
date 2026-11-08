@@ -21,6 +21,7 @@ import { save } from './save.js';
 import { Menu, scoreTable } from './menu.js';
 import { Game, skinPhys, medalTimes } from './game.js';
 import { drawObstacles, drawPlanks, obstaclesOf } from './obstacles.js';
+import { Background } from './background.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('jeu'), ctx = canvas.getContext('2d');
@@ -35,6 +36,7 @@ const cam = new Camera();
 const sound = new Sound();
 const bonuses = new Bonuses(track);
 const weather = new Weather();
+const decor = new Background();
 const game = new Game();
 ball.setSkin(skinPhys(save.skin));
 const drawPaper = makePaper();
@@ -327,6 +329,7 @@ function update(realDt) {
   }
   if (!run.finished && ball.x > FINISH.x) arrive();
   moveClouds(dt);
+  decor.update(dt, cam.x);
   weather.update(dt, cam, ball.clock);
   fx.follow(ball, dt);
   fx.update(dt);
@@ -499,6 +502,7 @@ function render(dt) {
   ctx.clip();
   for (const sun of SUNS) if (sun.x + 400 > x0 && sun.x - 400 < x1) drawSun(ctx, art.sun, sun.x, sun.y, sun.r, time);
   drawBirds(ctx, time, dt, x0, x1);
+  decor.draw(ctx, cam, track, ball);
   drawClouds(ctx, art.clouds, x0, x1);
   for (let k = Math.max(0, Math.floor(x0 / SHEET)); k <= Math.min(SHEETS - 1, Math.floor(x1 / SHEET)); k++) {
     ctx.drawImage(inkFor(k), k * SHEET, 0, SHEET, WORLD.h);
@@ -640,4 +644,4 @@ applyOptions();
 resize();
 menu.open(false);
 requestAnimationFrame(frame);
-window.__boule = { ball, track, cam, sound, bonuses, weather, restart, menu, run, pick };
+window.__boule = { ball, track, cam, sound, bonuses, weather, decor, restart, menu, run, pick };
