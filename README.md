@@ -6,7 +6,8 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
 
 - **Été (niveaux 1 à 4)** : les niveaux 1 et 2 forment une seule balade aux crayons de couleur
   (`js/balade.js`), sans raccord : chaque plan est une bande continue sous les deux niveaux (ciel
-  au crayon bleu, soleil qui brille, petits et gros nuages, montagnes, une seule bande de champs,
+  au crayon bleu en dégradé, foncé en haut et clair en bas, soleil qui brille, petits et gros nuages
+  — jamais deux pareils côte à côte —, montagnes, une seule bande de champs,
   terre en texture sous la route, herbe au vent au premier plan). Plus un plan est loin, moins il
   glisse quand la caméra avance.
   - Niveau 1 : la butte et son looping (route relevée sur le dessin : `tools/route-niveau1.py`),

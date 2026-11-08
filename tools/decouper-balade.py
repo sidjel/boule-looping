@@ -26,11 +26,36 @@ T[:, :B] = T[:, :B] * a + T[:, w:w + B] * (1 - a)
 tile = T[:h, :w]
 tile = cv2.resize(tile, (tile.shape[1] * 3 // 4, tile.shape[0] * 3 // 4), interpolation=cv2.INTER_AREA)
 meta['terre'] = save('terre.webp', np.dstack([tile, np.full(tile.shape[:2], 255)]), 84)
-# ciel : sans les bords du papier
-s = np.array(Image.open(ciel).convert('RGB')).astype(np.float32)
-s = s[90:-90, 90:-90]
-s = cv2.resize(s, (s.shape[1] // 2, s.shape[0] // 2), interpolation=cv2.INTER_AREA)
-meta['ciel'] = save('ciel.webp', np.dstack([s, np.full(s.shape[:2], 255)]), 80)
+# ciel : seulement le grain du crayon de la texture (ses grandes taches, qui se verraient en se
+# répétant, sont retirées), posé sur un dégradé du bleu foncé en haut au bleu clair en bas.
+# La bande se raccorde sur elle-même en largeur (sans miroir) : bords fondus avec la suite.
+s = np.array(Image.open(ciel).convert('RGB')).astype(np.float32)[90:-90, 90:-90]
+grain = s / np.maximum(cv2.GaussianBlur(s, (0, 0), 40), 1)
+w, B = 2350, 200
+G = grain[:, :w + B].copy()
+a = (np.arange(B) / B)[None, :, None]
+G[:, :B] = G[:, :B] * a + G[:, w:w + B] * (1 - a)
+G = G[:, :w]
+Hs = G.shape[0]
+top, bottom = np.array([112, 166, 214], np.float32), np.array([214, 233, 246], np.float32)
+t = (np.arange(Hs) / (Hs - 1))[:, None, None] ** 0.9
+base = top * (1 - t) + bottom * t
+sky = np.clip(base * (1 + (G - 1) * 1.15), 0, 255)
+sky = cv2.resize(sky, (w // 2, Hs // 2), interpolation=cv2.INTER_AREA)
+meta['ciel'] = save('ciel.webp', np.dstack([sky, np.full(sky.shape[:2], 255)]), 80)
+meta['ciel_haut'] = top.tolist(); meta['ciel_bas'] = bottom.tolist()
+# les trois gros nuages du niveau 1, chacun à part
+p4 = np.array(Image.open('images/niveau0/plan4-nuages.webp').convert('RGBA')).astype(np.float32)
+m = (p4[..., 3] > 20).astype(np.uint8)
+n, lab, st, _ = cv2.connectedComponentsWithStats(cv2.dilate(m, np.ones((15, 15), np.uint8)))
+big = []
+for i in sorted(range(1, n), key=lambda i: st[i, cv2.CC_STAT_LEFT]):
+    x, y, ww, hh, area = st[i]
+    if area < 4000: continue
+    part = p4[y:y + hh, x:x + ww].copy()
+    part[..., 3] *= (lab[y:y + hh, x:x + ww] == i)
+    big.append(save(f'gros-nuage-{len(big)}.webp', part))
+meta['gros_nuages'] = big
 # montagnes et champs du niveau 1
 a = np.array(Image.open('images/niveau0/plan3-moulin.webp').convert('RGBA')).astype(np.float32)
 r, g, b, al = a[..., 0], a[..., 1], a[..., 2], a[..., 3]

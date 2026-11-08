@@ -3,8 +3,9 @@
  * sans raccord d'un niveau à l'autre. Chaque plan est une bande unique qui court sous tous les
  * niveaux en couleurs ; plus un plan est loin, plus il suit la caméra (q : part du mouvement de la
  * caméra qu'il suit), donc moins il glisse à l'écran.
- *   5. le ciel au crayon bleu (texture répétée en miroir), le soleil qui brille, de petits nuages ;
- *   4. les trois gros nuages du niveau 1, qui dérivent (bande répétée en miroir) ;
+ *   5. le ciel au crayon bleu en dégradé (foncé en haut, clair en bas ; bande qui se raccorde sur
+ *      elle-même, sans miroir), le soleil qui brille, de petits nuages ;
+ *   4. les gros nuages, qui dérivent ; jamais deux nuages pareils côte à côte ;
  *   3. les montagnes du niveau 1 (bande répétée en miroir) ;
  *   3. une seule bande de champs : ceux du niveau 1 (charrette, pailles, moulin aux ailes qui
  *      tournent), puis la ferme du niveau 2 et ses cochons ;
@@ -29,7 +30,8 @@ function load(key, src) {
 }
 for (const n of ['terre', 'ciel', 'montagnes', 'champs', 'ferme', 'cochon']) load(n, `images/balade/${n}.webp`);
 for (let k = 0; k < 6; k++) load(`nuage${k}`, `images/balade/nuage-${k}.webp`);
-for (const n of ['soleil', 'plan4-nuages', 'plan1-herbe', 'tour', 'ailes']) load(n, `images/niveau0/${n}.webp`);
+for (let k = 0; k < 3; k++) load(`gros${k}`, `images/balade/gros-nuage-${k}.webp`);
+for (const n of ['soleil', 'plan1-herbe', 'tour', 'ailes']) load(n, `images/niveau0/${n}.webp`);
 const ok = (i) => i && i.complete && i.naturalWidth > 0;
 let geo = null, meta = null;
 fetch('images/niveau0/geo.json').then((r) => r.json()).then((g) => (geo = g)).catch(() => {});
@@ -110,13 +112,44 @@ export function earthPattern(g) {
   return p;
 }
 
-/* ---------- petits nuages lointains ---------- */
+/* ---------- nuages : deux rangs, jamais deux nuages pareils côte à côte ---------- */
 
 const rnd = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-const SMALL = [];
-{
-  const r = rnd(7);
-  for (let u = -800; u < Z1 + 3000; u += 420 + r() * 520) SMALL.push({ u, y: 40 + r() * 330, k: Math.floor(r() * 6), s: 0.22 + r() * 0.16, v: 3 + r() * 4, flip: r() < 0.4 });
+/**
+ * Suite d'images pour un rang : chaque image diffère des `win` précédentes (et, au bout du rang,
+ * des premières, puisque le rang revient au début en dérivant).
+ */
+function sequence(pool, n, win, r) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const avoid = new Set(out.slice(Math.max(0, i - win)));
+    if (i >= n - win) for (let j = 0; j < win - (n - 1 - i); j++) avoid.add(out[j]);
+    const free = pool.filter((k) => !avoid.has(k));
+    const list = free.length ? free : pool.filter((k) => k !== out[i - 1]);
+    out.push(list[Math.floor(r() * list.length)]);
+  }
+  return out;
+}
+const SPAN = Z1 + 4000; // longueur d'un tour de dérive
+function row(seed, pool, win, gap, y, scale, v) {
+  const r = rnd(seed), us = [];
+  for (let u = 0; u < SPAN - gap[1]; u += gap[0] + r() * (gap[1] - gap[0])) us.push(u);
+  const ks = sequence(pool, us.length, win, r);
+  return us.map((u, i) => ({ u: u - 800, k: ks[i], y: y[0] + r() * (y[1] - y[0]), s: scale[0] + r() * (scale[1] - scale[0]), v, flip: r() < 0.35 }));
+}
+// au loin : les cinq petits nuages ; devant : les trois gros du niveau 1 et le plus grand des six
+const SMALL = row(7, ["nuage1", "nuage2", "nuage3", "nuage4", "nuage5"], 3, [560, 900], [60, 360], [0.26, 0.38], 5);
+const BIG = row(11, ["gros0", "gros1", "gros2", "nuage0"], 2, [1150, 1600], [-40, 150], [0.7, 0.9], 9);
+function drawRow(g, list, q, sx, sy, x0, x1, t) {
+  for (const c of list) {
+    const i = img[c.k];
+    if (!ok(i)) continue;
+    const k = c.k.startsWith('gros') ? c.s * 1.25 : c.s * 1.6;
+    const w = i.naturalWidth * k, h = i.naturalHeight * k;
+    const u = (((c.u + 800 + t * c.v) % SPAN) + SPAN) % SPAN - 800, x = u + sx(q), y = c.y + sy(q);
+    if (x + w < x0 || x > x1) continue;
+    g.drawImage(c.flip ? mirror(i) : i, x, y, w, h);
+  }
 }
 
 /* ---------- les cochons (position dans le dessin de la ferme : u en largeur, v en hauteur) ---------- */
@@ -190,12 +223,16 @@ export class Balade {
     ctx.save();
     ctx.globalAlpha = A;
     const g = ctx;
-    // 5 · ciel au crayon bleu
-    if (ok(img.ciel)) {
-      const p = g.createPattern(tile2(img.ciel), 'repeat');
-      p.setTransform(new DOMMatrix([1.5, 0, 0, 1.5, sx(Q.ciel), sy(Q.ciel)]));
-      g.fillStyle = p;
-      g.fillRect(x0, cam.y - 4, x1 - x0, cam.viewH + 8);
+    // 5 · ciel au crayon bleu : une bande en dégradé qui se raccorde sur elle-même en largeur ;
+    // au-dessus, le bleu du haut, en dessous le bleu clair du bas
+    if (ok(img.ciel) && meta) {
+      const i = img.ciel, w = i.naturalWidth * 2, h = i.naturalHeight * 1.6, y = -150 + sy(Q.ciel), ox = sx(Q.ciel);
+      const [r0, g0, b0] = meta.ciel_haut, [r1, g1, b1] = meta.ciel_bas;
+      g.fillStyle = `rgb(${r0},${g0},${b0})`;
+      g.fillRect(x0, cam.y - 4, x1 - x0, Math.max(0, y - cam.y + 6));
+      g.fillStyle = `rgb(${r1},${g1},${b1})`;
+      g.fillRect(x0, y + h - 2, x1 - x0, Math.max(0, cam.y + cam.viewH - y - h + 6));
+      for (let k = Math.floor((x0 - ox) / w); ox + k * w < x1; k++) g.drawImage(i, ox + k * w, y, w + 1, h);
     }
     // soleil qui brille
     if (ok(img.soleil)) {
@@ -214,20 +251,9 @@ export class Balade {
       g.drawImage(i, x - w / 2, y - h / 2, w, h);
       g.restore();
     }
-    // petits nuages lointains
-    for (const c of SMALL) {
-      const i = img[`nuage${c.k}`];
-      if (!ok(i)) continue;
-      const w = i.naturalWidth * c.s * 1.6, h = i.naturalHeight * c.s * 1.6;
-      const span = Z1 + 3800, u = ((c.u + 800 + t * c.v) % span) - 800, x = u + sx(Q.petits), y = c.y + sy(Q.petits);
-      if (x + w < x0 || x > x1) continue;
-      g.drawImage(c.flip ? mirror(i) : i, x, y, w, h);
-    }
-    // 4 · les trois gros nuages du niveau 1, en bande continue, qui dérivent
-    if (geo && ok(img['plan4-nuages'])) {
-      const p4 = geo.plan4, w = 2000, h = p4.h * K;
-      band(g, img['plan4-nuages'], sx(Q.nuages) + ((t * 8) % (w * 2)) - w * 2, (p4.y - 60) * K + OY + sy(Q.nuages), w, h, x0, x1);
-    }
+    // petits nuages au loin, puis 4 · les gros nuages devant ; ils dérivent lentement
+    drawRow(g, SMALL, Q.petits, sx, sy, x0, x1, t);
+    drawRow(g, BIG, Q.nuages, sx, sy, x0, x1, t);
     // 3 · les montagnes, en bande continue
     if (meta && ok(img.montagnes)) {
       const i = img.montagnes;
