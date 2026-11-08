@@ -10,20 +10,19 @@ import { Camera } from './camera.js';
 import { Sound } from './audio.js';
 import { setupFullscreen } from './fullscreen.js';
 import { inkSteps, buildInk } from './ink.js';
-import { drawTable, buildSunDisk, drawSun, drawForks, drawWindsocks } from './scenery.js';
+import { makePaper, drawTable, buildSunDisk, drawSun, drawForks, drawWindsocks } from './scenery.js';
 import { buildClouds, moveClouds, drawClouds, drawBirds } from './clouds.js';
 import { buildBallBody, drawBall } from './ballArt.js';
 import { Effects } from './effects.js';
 import { Bonuses, BONUS_INFO } from './bonus.js';
 import { Weather } from './weather.js';
-import { biomeAt, biomeOfSheet, biomeParams } from './biomes.js';
+import { biomeAt, biomeOfSheet } from './biomes.js';
 import { save } from './save.js';
 import { Menu, scoreTable } from './menu.js';
 import { Game, skinPhys, medalTimes } from './game.js';
 import { drawObstacles, drawPlanks, obstaclesOf } from './obstacles.js';
 import { Background } from './background.js';
 import { earthReady } from './earth.js';
-import { drawSky, drawGrass } from './style.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('jeu'), ctx = canvas.getContext('2d');
@@ -41,7 +40,7 @@ const weather = new Weather();
 const decor = new Background();
 const game = new Game();
 ball.setSkin(skinPhys(save.skin));
-
+const drawPaper = makePaper();
 const SUNS = [{ x: 1700, y: 238, r: 108 }, { x: 16 * SHEET + 1550, y: 330, r: 120 }];
 const FLICK_GAIN = 0.3, FLICK_MAX = 9000;
 const SLOW = 0.12;            // devant un aiguillage, le temps passe 8 fois moins vite : la boule avance encore un peu
@@ -523,7 +522,7 @@ function recordScore() {
 function render(dt) {
   const W = canvas.width, H = canvas.height, s = cam.scale, x0 = cam.x, x1 = cam.x + cam.viewW;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  drawSky(ctx, W, H, cam);
+  drawPaper(ctx, W, H, cam);
   // petit tremblement de caméra aux gros atterrissages
   cam.shake = Math.max(0, (cam.shake || 0) - dt * 3);
   const sh = (cam.shake || 0) * 10 * cam.dpr, ox = (Math.random() - 0.5) * sh, oy = (Math.random() - 0.5) * sh;
@@ -534,9 +533,8 @@ function render(dt) {
   ctx.clip();
   for (const sun of SUNS) if (sun.x + 400 > x0 && sun.x - 400 < x1) drawSun(ctx, art.sun, sun.x, sun.y, sun.r, time);
   drawBirds(ctx, time, dt, x0, x1);
-  drawClouds(ctx, cam, 0); // nuages au loin
   decor.draw(ctx, cam, track);
-  drawClouds(ctx, cam, 1); // gros nuages, devant
+  drawClouds(ctx, art.clouds, x0, x1);
   for (let k = Math.max(0, Math.floor(x0 / SHEET)); k <= Math.min(SHEETS - 1, Math.floor(x1 / SHEET)); k++) {
     ctx.drawImage(inkFor(k), k * SHEET, 0, SHEET, WORLD.h);
   }
@@ -553,7 +551,6 @@ function render(dt) {
   fx.drawSpeed(ctx, ball);
   drawBall(ctx, art.body, ball, track, time, save.skin);
   fx.draw(ctx);
-  drawGrass(ctx, cam, time, biomeParams(cam.x + cam.viewW / 2).wind * weather.wind());
   weather.draw(ctx);
   // ralenti : écran légèrement bleuté, bords assombris
   const k = Math.max(0, Math.min(1, (1 - timeScale) / (1 - SLOW)));

@@ -6,19 +6,16 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
 
 - **Été (niveaux 1 à 4)** : le dessin d'origine et sa suite : tremplin au-dessus d'une fosse,
   deux loopings à la suite, aiguillage entre un souterrain (grand looping) et une grande bosse
-  avec un pont. Herbe verte, buissons, arbres, fleurs. Derrière le niveau 1, un second dessin
+  avec un pont. Herbe verte, buissons, arbres, fleurs. Sous la route de tous les niveaux, la
+  terre brune hachurée et l'herbe du dessin du niveau 1 (premier plan opaque ; teinte plus chaude
+  en automne, plus sombre sous la pluie, couverte de neige en hiver). Aux aiguillages, le chemin
+  du haut passe sur une butte de terre pleine, et le chemin du bas la traverse dans une galerie
+  creusée qui suit tout le chemin, loopings compris. Derrière le niveau 1, un second dessin
   (montagnes, charrette de foin, arbre, moulin) fait l'arrière-plan : les pales tournent, l'arbre
-  et le foin bougent, des pailles s'envolent ; ses montagnes bleues courent sur les quatre niveaux.
-
-**Style de tous les niveaux** (d'après le dessin de référence aux crayons de couleur, découpé
-par `tools/decouper-style.py` dans `images/style/`) : ciel bleu hachuré, nuages au contour bleu
-sur deux plans (petits au loin qui défilent lentement, gros devant qui défilent plus vite), terre
-ocre opaque sous la route, route brun foncé, bande d'herbe au premier plan qui ondule au vent.
-Chaque saison l'adapte : ciel et terre plus roux en automne (herbe jaunie, vent plus fort dans
-l'herbe), neige et herbe givrée en hiver, ciel gris, nuages gris et terre sombre sous la pluie.
-Aux aiguillages, le chemin du haut passe sur une butte de terre pleine, et le chemin du bas la
-traverse dans une galerie creusée qui suit tout le chemin, loopings compris.
-
+  et le foin bougent, des pailles s'envolent. Les montagnes bleues du dessin (seules, sans les
+  objets) courent sur les quatre niveaux. Quand la caméra avance, les montagnes glissent moins vite
+  que le décor, qui glisse moins vite que la route (effet 2,5D). Tous les nuages viennent du
+  nuage modèle fourni (`images/nuage.webp`), en variantes de taille, de sens et d'étirement.
 - **Automne (5 à 8)** : feuilles mortes qui volent, vent en rafales qui gêne l'avancée.
 - **Hiver (9 à 12)** : neige, route glacée : la boule glisse, va plus vite, répond moins aux
   gestes, et revenir en arrière est difficile.
@@ -82,7 +79,7 @@ HTML + Canvas 2D + JavaScript en modules natifs, sans dépendance ni outil de co
 - `js/game.js` : étoiles, enchaînements, médailles, bilan, fantôme, boules à débloquer.
 - `js/obstacles.js` : obstacles à sauter (contacts et dessin).
 - `js/bonus.js` et `images/boule-*.png` : les boules bonus (la rouge vient du dessin, les autres sont recolorées).
-- `js/style.js` (ciel, herbe au vent, couleurs des saisons), `js/clouds.js` (nuages sur deux plans), `js/earth.js` (terre sous la route, peinte dans chaque feuille) et `images/style/` : le style aux crayons de couleur ; `tools/decouper-style.py` le refait à partir du dessin.
+- `js/earth.js`, `images/sol1.webp` et `images/terre-*.webp` : le premier plan (terre du dessin), peint dans chaque feuille ; `tools/decouper-sol1.py` et `tools/decouper-terre.py` le refont à partir du dessin.
 - `js/background.js` et `images/fond1/` : l'arrière-plan animé du niveau 1 (morceaux découpés dans le second dessin).
 - `js/ink.js` : le dessin fixe de chaque feuille, préparé petit à petit pendant le jeu.
 - `js/weather.js` : feuilles mortes, neige, pluie.
