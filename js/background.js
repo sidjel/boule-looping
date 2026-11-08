@@ -1,7 +1,10 @@
 /**
- * Arrière-plan : une chaîne de montagnes bleues lointaine sur les niveaux 1 à 4, et pour le
- * niveau 1 le second dessin (montagnes, charrette de foin, arbre, moulin). Posés derrière la
- * route, ils se décalent moins vite qu'elle quand la caméra avance (parallaxe) : effet 2,5D.
+ * Arrière-plan tiré du second dessin :
+ * - ses montagnes bleues, seules (objets retirés, crête raccordée derrière l'arbre et le
+ *   moulin), répétées à l'endroit puis en miroir sur les niveaux 1 à 4 ;
+ * - pour le niveau 1, la charrette de foin, l'arbre, le moulin et la ligne de sol.
+ * Posés derrière la route, ils se décalent moins vite qu'elle quand la caméra avance
+ * (parallaxe) ; les montagnes, plus loin, encore moins vite : effet 2,5D.
  * Animations : les pales du moulin tournent, le feuillage se balance, le foin ondule dans
  * la charrette et quelques fines pailles s'envolent.
  *
@@ -9,12 +12,12 @@
  */
 import { SHEET } from './levels.js';
 import { groundY } from './track.js';
-import { mountainBand, BAND } from './mountains.js';
 
 const DIR = 'images/fond1/';
 // boîtes des morceaux dans le repère du dessin (x0, y0, x1, y1)
 const PIECES = {
-  montagnes: [0, 440, 2000, 1110],
+  montagnes: [0, 600, 2000, 990],
+  sol: [0, 940, 2000, 1110],
   tronc: [875, 905, 1255, 1095],
   feuillage: [875, 585, 1255, 905],
   paille: [285, 812, 665, 935],
@@ -33,7 +36,7 @@ const PIVOT = [1000, 1030], ANCHOR = [960, 1080], SCALE = 0.84;
 // plus c'est loin, plus il suit la caméra, donc moins il glisse à l'écran
 const PAR_X = 0.18, PAR_Y = 0.12, REF = [1300, 716];
 // montagnes lointaines : jusqu'à la fin du niveau 4, effacées sur les derniers 700 px
-const FAR = { par: 0.36, parY: 0.2, ref: 1300, end: 4 * SHEET, fade: 700 };
+const FAR = { par: 0.32, parY: 0.2, end: 4 * SHEET, fade: 700 };
 const ALPHA = 0.88;
 const RES = 0.5; // résolution de l'image de travail (part de celle de l'écran)
 
@@ -46,17 +49,18 @@ for (const name of [...Object.keys(PIECES), 'pale']) {
 }
 const ready = (i) => i.complete && i.naturalWidth > 0;
 
-/** Les parties fixes (montagnes, tronc, charrette, moulin) réunies une fois en une seule image. */
+/** Les parties fixes du niveau 1 (sol, tronc, charrette, moulin) réunies une fois en une seule image. */
+const STILL = [0, 440, 2000, 1110];
 let still = null;
 function stillLayer() {
   if (still) return still;
-  if (!['montagnes', 'tronc', 'charrette', 'moulin'].every((n) => ready(img[n]))) return null;
-  const [X0, Y0, X1, Y1] = PIECES.montagnes;
+  if (!['sol', 'tronc', 'charrette', 'moulin'].every((n) => ready(img[n]))) return null;
+  const [X0, Y0, X1, Y1] = STILL;
   const c = document.createElement('canvas');
   c.width = X1 - X0; c.height = Y1 - Y0;
   const g = c.getContext('2d');
   g.translate(-X0, -Y0);
-  for (const n of ['montagnes', 'tronc', 'charrette', 'moulin']) piece(g, n);
+  for (const n of ['sol', 'tronc', 'charrette', 'moulin']) piece(g, n);
   still = c;
   return c;
 }
@@ -160,7 +164,7 @@ export class Background {
     const x0 = cam.x, x1 = cam.x + cam.viewW, y0 = cam.y, y1 = cam.y + cam.viewH;
     const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
     // montagnes lointaines (niveaux 1 à 4)
-    const fox = (cx - FAR.ref) * FAR.par, foy = (cy - REF[1]) * FAR.parY;
+    const fox = (cx - REF[0]) * FAR.par, foy = (cy - REF[1]) * FAR.parY;
     const farOn = x0 < FAR.end;
     // décor du niveau 1
     const ox = (cx - REF[0]) * PAR_X, oy = (cy - REF[1]) * PAR_Y;
@@ -171,7 +175,7 @@ export class Background {
     if (!farOn && !nearOn) return;
     // rectangle utile (monde), puis à l'écran
     const wa = x0, wb = Math.min(x1, Math.max(farOn ? FAR.end : -1e9, nearOn ? dr : -1e9));
-    const wt = Math.max(y0, Math.min(farOn ? BAND.y0 + foy : 1e9, nearOn ? dt : 1e9));
+    const wt = Math.max(y0, Math.min(farOn ? ANCHOR[1] + foy + (PIECES.montagnes[1] - PIVOT[1]) * SCALE : 1e9, nearOn ? dt : 1e9));
     // en bas, pas plus loin que le point le plus bas de la route à l'écran (dessous, tout est effacé)
     let low = 0;
     for (let x = wa; x <= wb; x += 32) low = Math.max(low, groundY(track, x));
@@ -190,11 +194,21 @@ export class Background {
     g.clearRect(0, 0, cw + 2, ch + 2);
     // repère du monde dans l'image de travail
     g.setTransform(m.a * k, 0, 0, m.d * k, (m.e - sx) * k, (m.f - sy) * k);
-    if (farOn) {
-      const b = mountainBand(), R = BAND.res;
-      const u0 = Math.max(BAND.u0, wa - fox), u1 = Math.min(BAND.u1, wb - fox);
-      if (u1 > u0) {
-        g.drawImage(b, (u0 - BAND.u0) * R, 0, (u1 - u0) * R, b.height, u0 + fox, BAND.y0 + foy, u1 - u0, b.height / R);
+    if (farOn && ready(img.montagnes)) {
+      // tuiles du dessin, à l'endroit puis en miroir : la crête se raccorde d'une tuile à l'autre
+      const [, MY0, MX1, MY1] = PIECES.montagnes, mi = img.montagnes;
+      const tw = MX1 * SCALE, th = (MY1 - MY0) * SCALE;
+      const left = ANCHOR[0] + fox - PIVOT[0] * SCALE, top = ANCHOR[1] + foy + (MY0 - PIVOT[1]) * SCALE;
+      for (let n = Math.floor((wa - left) / tw); left + n * tw < wb; n++) {
+        const x = left + n * tw;
+        if (n % 2 === 0) g.drawImage(mi, x, top, tw, th);
+        else {
+          g.save();
+          g.translate(x + tw, top);
+          g.scale(-1, 1);
+          g.drawImage(mi, 0, 0, tw, th);
+          g.restore();
+        }
       }
       // elles s'effacent à la fin de l'été
       const f0 = FAR.end - FAR.fade;
@@ -238,7 +252,7 @@ export class Background {
   paint(ctx, layer, x0, x1, cam, ox, oy) {
     const t = this.t;
     // parties fixes : seulement la bande visible de l'image
-    const [X0, Y0, X1, Y1] = PIECES.montagnes;
+    const [X0, Y0, X1, Y1] = STILL;
     const toPic = (wx) => (wx - ANCHOR[0] - ox) / SCALE + PIVOT[0];
     const a0 = Math.max(X0, Math.floor(toPic(x0)) - 2), a1 = Math.min(X1, Math.ceil(toPic(x1)) + 2);
     const b0 = Math.max(Y0, Math.floor((cam.y - ANCHOR[1] - oy) / SCALE + PIVOT[1]) - 2);
