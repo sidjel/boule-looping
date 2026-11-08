@@ -19,8 +19,10 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
 - **Niveau 0 (essai)** : depuis le menu, « Niveau 0 · essai ». Page à part (`niveau0.html`,
   `js/niveau0.js`) pour essayer les cinq plans de parallaxe aux crayons de couleur : l'herbe
   devant (elle ondule au vent), la butte et le looping (la route), le moulin et la charrette, les
-  gros nuages, le ciel et le soleil au fond. Le dessin de la butte, puis le même en miroir.
-  Images découpées par `tools/decouper-niveau0.py` dans `images/niveau0/`.
+  gros nuages, le ciel et le soleil au fond (le soleil brille, les ailes du moulin tournent, des
+  pailles s'envolent de la charrette). Une feuille, comme le niveau 1 : tout le niveau est visible
+  d'un coup ; la loupe suit la boule (parallaxe). Musique et bruitages du jeu.
+  Images : `tools/decouper-niveau0.py` puis `tools/animer-niveau0.py`, dans `images/niveau0/`.
 - **Automne (5 à 8)** : feuilles mortes qui volent, vent en rafales qui gêne l'avancée.
 - **Hiver (9 à 12)** : neige, route glacée : la boule glisse, va plus vite, répond moins aux
   gestes, et revenir en arrière est difficile.

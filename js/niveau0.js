@@ -12,6 +12,7 @@
  * décolle si elle va trop vite sur une bosse, retombe) ; au bout, elle revient au départ.
  */
 import { buildBallBody } from './ballArt.js';
+import { Sound } from './audio.js';
 
 const DIR = 'images/niveau0/';
 const G = 2400, R = 26, STEP = 3;
@@ -19,7 +20,7 @@ const geo = await (await fetch(DIR + 'geo.json')).json();
 const WW = geo.W, WH = geo.H;
 
 const img = {};
-await Promise.all(['plan5-ciel', 'plan4-nuages', 'plan3-moulin', 'plan2-butte', 'plan1-herbe'].map((n) => new Promise((ok) => {
+await Promise.all(['plan5-ciel', 'plan4-nuages', 'plan3-moulin', 'plan2-butte', 'plan1-herbe', 'aile', 'soleil'].map((n) => new Promise((ok) => {
   const i = new Image();
   i.onload = i.onerror = () => ok();
   i.src = `${DIR}${n}.webp`;
@@ -29,10 +30,10 @@ await Promise.all(['plan5-ciel', 'plan4-nuages', 'plan3-moulin', 'plan2-butte', 
 /* ---------- la route : sol du dessin, et le looping (ellipse) ---------- */
 
 /**
- * Le parcours : le dessin de la butte, puis le même en miroir (le bord droit du dessin se
- * raccorde à son reflet ; le niveau finit en haut du plateau, en miroir de celui du départ).
+ * Le parcours : le dessin de la butte, une feuille comme le niveau 1 ; au bout, la boule
+ * revient au départ.
  */
-const COPIES = 2;
+const COPIES = 1;
 const WORLD_W = WW * COPIES;
 
 function buildPath() {
@@ -79,7 +80,10 @@ function buildPath() {
   // points « en l'air » du looping : on ne s'y pose pas en tombant de l'extérieur
   const groundAt = (x) => { const c = Math.floor(x / WW), u = x - c * WW; return gnd0[Math.max(0, Math.min(WW - 1, Math.round(c % 2 ? WW - 1 - u : u)))]; };
   const loop = center.map(([x, y]) => y < groundAt(x) - R * 2 - 30);
-  return { line, c: center, t: t2, k: ks, loop, n: center.length, L: (center.length - 1) * STEP };
+  // le haut du looping (pour le son)
+  let top = -1;
+  loop.forEach((l, i) => { if (l && (top < 0 || center[i][1] < center[top][1])) top = i; });
+  return { line, c: center, t: t2, k: ks, loop, top, n: center.length, L: (center.length - 1) * STEP };
 }
 
 function resample(pts, step) {
@@ -125,7 +129,11 @@ function step(dt, push) {
     const p = at(ball.s);
     let a = G * p.ty * (5 / 7) - Math.sign(ball.v) * G * 0.012 - ball.v * Math.abs(ball.v) * 0.00004 + push;
     ball.v += a * dt;
+    const s0 = ball.s;
     ball.s += ball.v * dt;
+    // passage au sommet du looping, à l'endroit : petite clochette
+    const topS = path.top * STEP;
+    if (ball.v > 0 && s0 < topS && ball.s >= topS) sound.loop();
     if (ball.s < START - 10) { ball.s = START - 10; ball.v = Math.abs(ball.v) * 0.3; }
     if (ball.s > path.L - 6) { respawn(); return; }
     const q = at(ball.s);
@@ -168,6 +176,9 @@ function step(dt, push) {
         ball.on = true;
         ball.s = best * STEP;
         ball.v = ball.vx * t[0] + ball.vy * t[1];
+        // choc acier : la vitesse qui rentre dans la route
+        const hit = Math.abs(ball.vx * t[1] - ball.vy * t[0]);
+        if (hit > 150) sound.clink(hit * 1.5);
         const q = at(ball.s);
         ball.x = q.x; ball.y = q.y;
         return;
@@ -178,6 +189,17 @@ function step(dt, push) {
     if (ball.y > WH + 200 || ball.x < -200 || ball.x > WORLD_W + 200) respawn();
   }
 }
+
+/* ---------- son : la musique et les bruitages du jeu ---------- */
+
+const sound = new Sound();
+const musicBtn = document.getElementById('musique');
+const showMusic = () => { musicBtn.textContent = sound.musicOn ? '♪' : '♪̸'; musicBtn.style.opacity = sound.musicOn ? 1 : 0.55; };
+showMusic();
+musicBtn.onclick = (e) => { e.stopPropagation(); sound.unlock(); sound.toggleMusic(); showMusic(); };
+// le navigateur ne laisse jouer le son qu'après un geste
+addEventListener('pointerdown', () => sound.unlock(), { capture: true });
+addEventListener('keydown', () => sound.unlock(), { capture: true });
 
 /* ---------- entrées : glisser pour lancer, toucher bref pour sauter, doigt posé pour pousser ---------- */
 
@@ -220,6 +242,7 @@ function kick(v) {
 }
 function hop() {
   if (!ball.on) return;
+  sound.jump();
   const p = at(ball.s);
   ball.on = false;
   ball.leftS = ball.s;
@@ -243,7 +266,7 @@ function hideHelp() {
 
 /* ---------- caméra ---------- */
 
-const cam = { x: 0, y: 0, scale: 1, scaleCss: 1, zoomed: true };
+const cam = { x: 0, y: 0, scale: 1, scaleCss: 1, zoomed: false };
 let W = 0, H = 0, dpr = 1;
 function resize() {
   dpr = Math.min(2, devicePixelRatio || 1);
@@ -260,15 +283,18 @@ document.getElementById('plein').onclick = () => {
   else el.requestFullscreen?.().then(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {});
 };
 
+/**
+ * Vue d'ensemble (par défaut) : tout le niveau en largeur, d'un coup, sans bouger ;
+ * le bas de la feuille calé en bas de l'écran (sur un écran plus haut, on voit plus de ciel).
+ * Loupe : la caméra suit la boule de près, et les plans glissent en parallaxe.
+ */
 function updateCam(dt, snap) {
-  // la feuille calée en bas, comme les dessins ; zoomé : 1150 unités en hauteur, sinon tout
-  const viewH = cam.zoomed ? 1150 : WH;
-  const target = H / viewH;
+  const target = cam.zoomed ? H / 900 : W / WW;
   cam.scale += (target - cam.scale) * (snap ? 1 : 1 - Math.exp(-dt * 4));
   cam.scaleCss = cam.scale / dpr;
   const vw = W / cam.scale, vh = H / cam.scale;
   const lead = Math.max(-250, Math.min(250, (ball.on ? ball.v * at(ball.s).tx : ball.vx) * 0.18));
-  const tx = Math.max(0, Math.min(WORLD_W - vw, ball.x + lead - vw * 0.42));
+  const tx = cam.zoomed ? Math.max(0, Math.min(WORLD_W - vw, ball.x + lead - vw * 0.42)) : 0;
   const k = snap ? 1 : 1 - Math.exp(-dt * 3.5);
   cam.x += (tx - cam.x) * k;
   cam.y = WH - vh;
@@ -372,27 +398,122 @@ function drawBall() {
   ctx.restore();
 }
 
+/* ---------- plan 5 : ciel et soleil qui brille ---------- */
+
+function drawSky() {
+  const i = img['plan5-ciel'];
+  if (!ok(i)) return;
+  const s = cam.scale, f = 0.08;
+  // le ciel couvre tout l'écran, jusqu'en haut même sur un écran plus haut que la feuille
+  const top = Math.min(0, cam.y), hh = WH - top, ww = Math.max(WW, (hh * WW) / WH);
+  // sur un écran très large, le haut de la feuille est coupé : le ciel (très loin) descend
+  // un peu pour garder le soleil entier
+  const sx = (WW - ww) / 2 - cam.x * f, sy = top - cam.y + Math.max(0, cam.y) * 0.9, k = ww / WW;
+  ctx.drawImage(i, sx * s, sy * s, ww * s, hh * s);
+  // le soleil : un halo qui respire, et le disque qui grossit à peine
+  const sun = img.soleil, g = geo.soleil;
+  const cx = (sx + g.cx * k) * s, cy = (sy + g.cy * (hh / WH)) * s;
+  const pulse = 0.5 + 0.5 * Math.sin(time * 1.6), R0 = 150 * k * s;
+  const halo = ctx.createRadialGradient(cx, cy, R0 * 0.6, cx, cy, R0 * (2.1 + 0.25 * pulse));
+  halo.addColorStop(0, `rgba(255,236,150,${0.35 + 0.15 * pulse})`);
+  halo.addColorStop(1, 'rgba(255,236,150,0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(cx - R0 * 3, cy - R0 * 3, R0 * 6, R0 * 6);
+  if (ok(sun)) {
+    const z = 1 + 0.035 * pulse + 0.01 * Math.sin(time * 4.3), w = (sun.naturalWidth / 0.5) * k * s * z, h = (sun.naturalHeight / 0.5) * k * s * z;
+    const ox = (g.x / (sun.naturalWidth / 0.5)) * w, oy = (g.y / (sun.naturalHeight / 0.5)) * h;
+    ctx.drawImage(sun, cx - ox, cy - oy, w, h);
+    // reflet qui scintille
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.12 + 0.12 * Math.max(0, Math.sin(time * 2.3));
+    ctx.drawImage(sun, cx - ox, cy - oy, w, h);
+    ctx.restore();
+  }
+}
+
+/* ---------- plan 3 : montagnes, champs, charrette, moulin qui tourne, pailles qui s'envolent ---------- */
+
+const M = geo.moulin, HUB = M.hub;
+const BLADES = [[2000, 270], [2520, 270], [2480, 840], [1980, 840]].map(([x, y]) => Math.atan2(y - HUB[1], x - HUB[0]));
+const straws = [];
+let spawn = 0;
+const rnd = (a, b) => a + Math.random() * (b - a);
+function stepStraws(dt) {
+  spawn -= dt;
+  if (spawn <= 0 && straws.length < 16) {
+    spawn = rnd(0.2, 0.7);
+    straws.push({ x: rnd(420, 720), y: rnd(820, 870), vx: rnd(30, 80), vy: rnd(-55, -20), a: rnd(0, Math.PI), va: rnd(-2.5, 2.5),
+      len: rnd(16, 30), life: 0, max: rnd(4, 7), ph: rnd(0, 6.3), col: Math.random() < 0.5 ? '#e3b544' : '#c99232' });
+  }
+  for (let i = straws.length - 1; i >= 0; i--) {
+    const p = straws[i];
+    p.life += dt;
+    if (p.life > p.max) { straws.splice(i, 1); continue; }
+    p.vx += (10 + 16 * Math.sin(time * 0.9 + p.ph)) * dt;
+    p.vy += (-5 + 26 * Math.sin(time * 1.7 + p.ph * 2)) * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt; p.a += p.va * dt;
+  }
+}
+
+function drawPlan3() {
+  const i = img['plan3-moulin'];
+  if (!ok(i)) return;
+  const s = cam.scale, f = 0.45, p3 = geo.plan3, k3 = WW / p3.w;
+  const y3 = WH + 80 - p3.h * k3;
+  ctx.save();
+  ctx.setTransform(s * k3, 0, 0, s * k3, -cam.x * f * s, (y3 - cam.y) * s);
+  ctx.drawImage(i, 0, p3.top, p3.w, p3.h - p3.top);
+  // les ailes du moulin tournent
+  const aile = img.aile;
+  if (ok(aile)) {
+    const L = aile.naturalWidth / 0.75, Hh = aile.naturalHeight / 0.75, turn = time * 0.55;
+    ctx.save();
+    ctx.translate(HUB[0], HUB[1]);
+    for (const a0 of BLADES) {
+      ctx.save();
+      ctx.rotate(a0 + turn);
+      ctx.drawImage(aile, 0, -Hh / 2, L, Hh);
+      ctx.restore();
+    }
+    ctx.fillStyle = '#5a3a28';
+    ctx.beginPath(); ctx.arc(0, 0, 22, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#8a6040';
+    ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+  // fines pailles qui s'envolent de la charrette
+  ctx.lineCap = 'round';
+  for (const p of straws) {
+    const a = Math.min(1, p.life / 0.6, (p.max - p.life) / 1.2), dx = (Math.cos(p.a) * p.len) / 2, dy = (Math.sin(p.a) * p.len) / 2;
+    ctx.globalAlpha = 0.95 * a;
+    ctx.strokeStyle = p.col;
+    ctx.lineWidth = 3.2;
+    ctx.beginPath();
+    ctx.moveTo(p.x - dx, p.y - dy);
+    ctx.quadraticCurveTo(p.x + dy * 0.25, p.y - dx * 0.25, p.x + dx, p.y + dy);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function render() {
-  const s = cam.scale, vh = H / s;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#a9cfee';
   ctx.fillRect(0, 0, W, H);
-  // plan 5 : ciel et soleil (demi-résolution), tout au fond
-  layer(img['plan5-ciel'], 0.08, 0, 0, WW, WH);
+  // plan 5 : ciel et soleil, tout au fond
+  drawSky();
   // plan 4 : les gros nuages, qui dérivent aussi doucement avec le vent
   const p4 = geo.plan4;
-  layer(img['plan4-nuages'], 0.25, 0, p4.y - 40, WW, p4.h, (time * 12) % (WW * 2));
-  // plan 3 : montagnes, champs, moulin
-  // plus petit que la butte : il est plus loin (bas caché derrière la butte)
-  const p3 = geo.plan3, k3 = (WW / p3.w) * 0.8;
-  layerBlend(img['plan3-moulin'], 0.45, 0, WH - p3.h * k3 + p3.top * k3 + 40, p3.w * k3, (p3.h - p3.top) * k3); // pas en miroir : un seul moulin à la fois
+  layer(img['plan4-nuages'], 0.25, 0, p4.y - 60, WW, p4.h, (time * 12) % (WW * 2));
+  // plan 3 : montagnes, champs, une seule charrette, moulin
+  drawPlan3();
   // plan 2 : la butte et le looping, puis la boule
   const p2 = geo.plan2;
   layer(img['plan2-butte'], 1, 0, p2.top, WW, WH - p2.top, 0, COPIES);
   drawBall();
   // plan 1 : l'herbe au premier plan
   drawGrass();
-  void vh;
 }
 
 let last = performance.now();
@@ -404,8 +525,10 @@ function frame(now) {
   const push = pushNow();
   for (let i = 0; i < 4; i++) step(dt / 4, push);
   updateCam(dt, false);
+  stepStraws(dt);
+  sound.update(Math.abs(ball.on ? ball.v : Math.hypot(ball.vx, ball.vy)), ball.on, {});
   render();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__n0 = { ball, cam, path, kick, hop };
+window.__n0 = { ball, cam, path, kick, hop, sound };
