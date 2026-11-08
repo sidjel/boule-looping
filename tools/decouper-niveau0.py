@@ -112,9 +112,21 @@ ly, lx = np.nonzero(dark & (yy < gs[None, :] - 35) & (xx > 700) & (xx < 1300))
 xa, xb = 790, 1215
 gs[xa:xb] = np.linspace(gs[xa], gs[xb], xb - xa)
 c, a = paper_alpha(im, 0.08, 0.25)
-earth = (yy >= gs[None, :] + 4)
+# la terre commence au premier crayon sous la ligne du sol (pas de liseré de papier)
+etop = gs.copy()
+for x in range(W):
+    y = int(gs[x]) - 6
+    while y < H - 40 and im[y:y + 3, x].sum(1).min() > 520: y += 1
+    etop[x] = max(gs[x] + 4, y + 1)
+etop = np.array([np.median(etop[max(0, x - 3):x + 4]) for x in range(W)])
+earth = (yy >= etop[None, :])
 a = np.maximum(a, earth.astype(np.float32))  # la terre : opaque, avec ses couleurs d'origine
 c = np.where(earth[..., None], im, c)
+# hors de la terre : seulement le trait du looping (pas les poussières du papier)
+spk = ((a > 0.08) & ~earth).astype(np.uint8)
+n2, lab2, st2, _ = cv2.connectedComponentsWithStats(spk)
+a[np.isin(lab2, [k for k in range(1, n2) if st2[k, cv2.CC_STAT_AREA] < 1500])] = 0
+# sous le looping (sol redressé entre ses deux pieds) : pas de bande de papier, de la terre
 t2 = 560
 save('plan2-butte.webp', c[t2:], a[t2:], q=80)
 # ---------- plan 1 : l'herbe (papier transparent)

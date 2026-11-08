@@ -46,62 +46,76 @@ aa = np.maximum(a, 1e-3)[..., None]
 col = np.clip((crop - (1 - aa) * pap) / aa, 0, 255)
 blade = np.dstack([col[..., ::-1], a * 255])
 blade = cv2.resize(blade, (round(blade.shape[1] * S3), round(blade.shape[0] * S3)), interpolation=cv2.INTER_AREA)
-save('aile.webp', blade)
-# plan 3 sans les ailes : retouche du dessin d'origine, puis même détourage que decouper-niveau0.py
-# l'ancien moulin entier est retiré (le nouveau, dessiné à part, se pose par-dessus : tour.webp)
+pass  # (ancienne aile découpée : remplacée par ailes.webp, moulin-niveau0.py)
+# plan 3 sans l'ancien moulin (le nouveau, dessiné à part, se pose par-dessus : tour.webp).
+# Le trou est rebouché par un morceau de paysage pris plus à gauche, fondu sans couture
+# (clonage de Poisson), choisi pour que la crête des montagnes se raccorde des deux côtés.
 OLD = np.int32([(2165, 600), (2290, 405), (2335, 430), (2425, 555), (2465, 620), (2475, 855), (2590, 875), (2590, 1020), (2125, 1020)])
 cv2.fillPoly(mask, [OLD], 1)
-tower = np.zeros((H0, W0), np.uint8)
-g0 = cv2.GaussianBlur(src, (0, 0), 2).mean(2) < 225
-line = np.array([np.argmax(g0[:, x] & (mask[:, x] == 0)) if (g0[:, x] & (mask[:, x] == 0)).any() else H0 for x in range(W0)])
-line = np.array([np.median(line[max(0, x - 25):x + 26]) for x in range(W0)])
-# derrière les ailes du bas, la ligne des montagnes est cachée : on la tend entre ses bords visibles
-for a0, a1 in ((1930, 2600),):
-    line[a0:a1] = np.linspace(line[a0], line[a1], a1 - a0)
+mask = cv2.dilate(mask, np.ones((15, 15), np.uint8))
+mask[1060:] = 0
 yy, xx = np.mgrid[0:H0, 0:W0]
-blade = mask > 0
-sky_hole = blade & (tower == 0) & (yy < line[None, :] + 4)
-fix = blade & ~sky_hole
-img2 = src.copy()
-# la tour : reflet de l'autre côté de son axe quand il n'est pas caché
-axis = 2300
-mx = np.clip(2 * axis - xx, 0, W0 - 1)
-mir = fix & (tower > 0) & ~blade[yy, mx]
-img2[mir] = src[yy, mx][mir]
-rest = fix & ~mir
-# hors de la tour (montagnes, arbres, champs) : on recopie le paysage voisin, à la même hauteur
-out_t = rest & (tower == 0)
-for dx in (300, -300, 420, -420, 540, -540):
-    srcx = np.clip(xx - dx, 0, W0 - 1)
-    inside = (xx - dx >= 0) & (xx - dx < W0)
-    okp = out_t & inside & ~blade[yy, srcx] & (tower[yy, srcx] == 0)
-    img2[okp] = src[yy, srcx][okp]
-    out_t &= ~okp
-soft = cv2.GaussianBlur((rest & (tower == 0)).astype(np.float32), (0, 0), 2)[..., None]
-img2 = img2 * 1.0
-rest = (rest & (tower > 0)) | out_t
-img2 = cv2.inpaint(img2.clip(0, 255).astype(np.uint8), rest.astype(np.uint8) * 255, 7, cv2.INPAINT_TELEA).astype(np.float32)
-img2[sky_hole] = np.median(src[40:200, 1700:2700].reshape(-1, 3), 0)  # papier : deviendra transparent
+
+def paper_d(img):
+    p = cv2.GaussianBlur(cv2.dilate(img, np.ones((31, 31), np.uint8)), (0, 0), 30)
+    return np.clip(1 - img / np.maximum(p, 1), 0, 1).max(2), p
+
+def ridge_of(img, skip=None):
+    """Haut du paysage (montagnes comprises), colonne par colonne."""
+    d, _ = paper_d(img)
+    db = cv2.GaussianBlur(d, (0, 0), 3)
+    on = db > 0.06
+    if skip is not None: on &= ~skip
+    r = np.full(W0, H0, np.float32)
+    for x in range(W0):
+        ys = np.nonzero(on[:, x])[0]
+        for y in ys:
+            if on[y:y + 60, x].mean() > 0.8: r[x] = y; break
+    return np.array([np.median(r[max(0, x - 12):x + 13]) for x in range(W0)])
+
+r0 = ridge_of(src, mask > 0)
+cols = np.nonzero(mask.any(0))[0]
+xl, xr = int(cols.min()), int(cols.max())
+best = None
+for dx in range(xr - xl + 40, 1500, 4):
+    if xl - dx < 0: break
+    e = abs(r0[xl - 2] - r0[xl - 2 - dx]) + abs(r0[min(W0 - 1, xr + 2)] - r0[xr + 2 - dx])
+    if best is None or e < best[0]: best = (e, dx)
+dx = best[1]
+shifted = np.roll(src, dx, axis=1)
+ys_, xs_ = np.nonzero(mask)
+center = (int((xs_.min() + xs_.max()) / 2), int((ys_.min() + ys_.max()) / 2))
+img2 = cv2.seamlessClone(shifted.astype(np.uint8), src.astype(np.uint8), (mask * 255).astype(np.uint8), center, cv2.NORMAL_CLONE).astype(np.float32)
+print('moulin retiré : morceau pris', dx, 'px plus à gauche, écart de crête', best[0])
+# bord droit du dessin, pâle : il est retiré (le jeu étire un peu le reste)
+CUT = 70
 cv2.imwrite('/tmp/moulin-sans-ailes.png', img2)
-# détourage (comme decouper-niveau0.py, plan 3)
-p = cv2.GaussianBlur(cv2.dilate(img2, np.ones((31, 31), np.uint8)), (0, 0), 30)
-d = np.clip(1 - img2 / np.maximum(p, 1), 0, 1).max(2)
+# détourage : au-dessus de la crête, le papier devient transparent ; dessous, tout est plein et
+# garde les couleurs du dessin (pas de « dé-mélange », qui faisait des piqûres claires et sombres)
+d, p = paper_d(img2)
 a = np.clip((d - 0.05) / 0.18, 0, 1)
 aa = np.maximum(a, 1e-3)[..., None]
 c = np.where(a[..., None] > 0.02, np.clip((img2 - (1 - aa) * p) / aa, 0, 255), img2)
-g3 = cv2.GaussianBlur(img2, (0, 0), 2).mean(2) < 225
-top3 = np.full(W0, H0)
-for x in range(W0):
-    for y in np.nonzero(g3[:, x])[0]:
-        if g3[y:y + 120, x].mean() > 0.97: top3[x] = y; break
-top3 = np.array([np.median(top3[max(0, x - 15):x + 16]) for x in range(W0)])
-a = np.maximum(a, cv2.GaussianBlur((yy >= top3[None, :] + 6).astype(np.float32), (0, 0), 1.5))
-a[sky_hole] = 0
-a = np.maximum(a, np.maximum(tower, rest).astype(np.float32))
-c = np.where(a[..., None] > 0.02, c, img2)
+r2 = ridge_of(img2)
+
+solid = (yy >= r2[None, :] + 5)
+a = np.maximum(a, cv2.GaussianBlur(solid.astype(np.float32), (0, 0), 1.2))
+c = np.where(solid[..., None], img2, c)
+# au-dessus de la crête : pas de poussières isolées
+spk = ((a > 0.1) & ~solid).astype(np.uint8)
+n, lab, st, _ = cv2.connectedComponentsWithStats(spk)
+small = np.isin(lab, [k for k in range(1, n) if st[k, cv2.CC_STAT_AREA] < 400])
+a[small] = 0
+# taches blanches (papier) à l'intérieur : remplacées par la couleur voisine
+white = solid & (img2.min(2) > 205) & ((img2.max(2) - img2.min(2)) < 30)
+n, lab, st, _ = cv2.connectedComponentsWithStats(white.astype(np.uint8))
+white = np.isin(lab, [k for k in range(1, n) if st[k, cv2.CC_STAT_AREA] < 250])  # seulement les petites taches
+white = cv2.dilate(white.astype(np.uint8), np.ones((3, 3), np.uint8))
+c = cv2.inpaint(c.clip(0, 255).astype(np.uint8), white * 255, 4, cv2.INPAINT_TELEA).astype(np.float32)
 top = geo['plan3']['top']
-out3 = np.dstack([c[top:, :, ::-1], a[top:] * 255])
-out3 = cv2.resize(out3, (round(W0 * S3), round((H0 - top) * S3)), interpolation=cv2.INTER_AREA)
+out3 = np.dstack([c[top:, :W0 - CUT, ::-1], a[top:, :W0 - CUT] * 255])
+out3 = cv2.resize(out3, (round((W0 - CUT) * S3), round((H0 - top) * S3)), interpolation=cv2.INTER_AREA)
+geo['plan3']['w'] = W0 - CUT
 save('plan3-moulin.webp', out3, q=80)
 
 # ---------- soleil (repère de l'image d'origine 2932 × 1440 ; plan5 est à 0,5)
