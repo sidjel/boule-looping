@@ -4,25 +4,16 @@ Mini-jeu pour navigateur (téléphone et PC), dessiné au crayon d'après un des
 une boule en métal roule sur une route pleine de loopings, de tremplins et d'aiguillages,
 à travers quatre saisons. Une partie dure une dizaine de minutes.
 
-- **Été (niveaux 1 à 4)** : le dessin d'origine et sa suite : tremplin au-dessus d'une fosse,
-  deux loopings à la suite, aiguillage entre un souterrain (grand looping) et une grande bosse
-  avec un pont. Herbe verte, buissons, arbres, fleurs. Sous la route de tous les niveaux, la
-  terre brune hachurée et l'herbe du dessin du niveau 1 (premier plan opaque ; teinte plus chaude
-  en automne, plus sombre sous la pluie, couverte de neige en hiver). Aux aiguillages, le chemin
-  du haut passe sur une butte de terre pleine, et le chemin du bas la traverse dans une galerie
-  creusée qui suit tout le chemin, loopings compris. Derrière le niveau 1, un second dessin
-  (montagnes, charrette de foin, arbre, moulin) fait l'arrière-plan : les pales tournent, l'arbre
-  et le foin bougent, des pailles s'envolent. Les montagnes bleues du dessin (seules, sans les
-  objets) courent sur les quatre niveaux. Quand la caméra avance, les montagnes glissent moins vite
-  que le décor, qui glisse moins vite que la route (effet 2,5D). Tous les nuages viennent du
-  nuage modèle fourni (`images/nuage.webp`), en variantes de taille, de sens et d'étirement.
-- **Niveau 0 (essai)** : depuis le menu, « Niveau 0 · essai ». Page à part (`niveau0.html`,
-  `js/niveau0.js`) pour essayer les cinq plans de parallaxe aux crayons de couleur : l'herbe
-  devant (elle ondule au vent), la butte et le looping (la route), le moulin et la charrette, les
-  gros nuages, le ciel et le soleil au fond (le soleil brille, les ailes du moulin tournent, des
-  pailles s'envolent de la charrette). Une feuille, comme le niveau 1 : tout le niveau est visible
-  d'un coup ; la loupe suit la boule (parallaxe). Musique et bruitages du jeu.
-  Images : `tools/decouper-niveau0.py` puis `tools/animer-niveau0.py`, dans `images/niveau0/`.
+- **Été (niveaux 1 à 4)**
+  - Niveau 1 aux crayons de couleur, en cinq plans de parallaxe (`js/ete.js`) : l'herbe du premier
+    plan qui ondule au vent, la butte et son looping (la route est relevée sur le dessin :
+    `tools/route-niveau1.py` → `js/niveau1-route.js`), le moulin dont les ailes tournent et la
+    charrette dont les pailles s'envolent, les gros nuages, le ciel et le soleil qui brille
+    (`images/niveau0/`, découpés par `tools/decouper-niveau0.py`, `animer-niveau0.py`,
+    `moulin-niveau0.py`). Musique et bruitages du jeu, même physique que les autres niveaux.
+  - Niveaux 2 à 4, au crayon : tremplin au-dessus d'une fosse, deux loopings à la suite,
+    aiguillage entre un souterrain (grand looping) et une grande bosse (butte de terre pleine,
+    le chemin du bas la traverse en galerie). Herbe verte, buissons, arbres, fleurs.
 - **Automne (5 à 8)** : feuilles mortes qui volent, vent en rafales qui gêne l'avancée.
 - **Hiver (9 à 12)** : neige, route glacée : la boule glisse, va plus vite, répond moins aux
   gestes, et revenir en arrière est difficile.
@@ -87,7 +78,6 @@ HTML + Canvas 2D + JavaScript en modules natifs, sans dépendance ni outil de co
 - `js/obstacles.js` : obstacles à sauter (contacts et dessin).
 - `js/bonus.js` et `images/boule-*.png` : les boules bonus (la rouge vient du dessin, les autres sont recolorées).
 - `js/earth.js`, `images/sol1.webp` et `images/terre-*.webp` : le premier plan (terre du dessin), peint dans chaque feuille ; `tools/decouper-sol1.py` et `tools/decouper-terre.py` le refont à partir du dessin.
-- `js/background.js` et `images/fond1/` : l'arrière-plan animé du niveau 1 (morceaux découpés dans le second dessin).
 - `js/ink.js` : le dessin fixe de chaque feuille, préparé petit à petit pendant le jeu.
 - `js/weather.js` : feuilles mortes, neige, pluie.
 - `js/audio.js` : musique composée hors temps réel par morceaux puis rejouée en boucle, roulement, vent, tintements (Web Audio).

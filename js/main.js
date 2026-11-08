@@ -21,8 +21,8 @@ import { save } from './save.js';
 import { Menu, scoreTable } from './menu.js';
 import { Game, skinPhys, medalTimes } from './game.js';
 import { drawObstacles, drawPlanks, obstaclesOf } from './obstacles.js';
-import { Background } from './background.js';
 import { earthReady } from './earth.js';
+import { Summer } from './ete.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('jeu'), ctx = canvas.getContext('2d');
@@ -37,11 +37,11 @@ const cam = new Camera();
 const sound = new Sound();
 const bonuses = new Bonuses(track);
 const weather = new Weather();
-const decor = new Background();
+const summer = new Summer();
 const game = new Game();
 ball.setSkin(skinPhys(save.skin));
 const drawPaper = makePaper();
-const SUNS = [{ x: 1700, y: 238, r: 108 }, { x: 16 * SHEET + 1550, y: 330, r: 120 }];
+const SUNS = [{ x: 16 * SHEET + 1550, y: 330, r: 120 }]; // (niveaux 1 à 3 : le soleil dessiné, ete.js)
 const FLICK_GAIN = 0.3, FLICK_MAX = 9000;
 const SLOW = 0.12;            // devant un aiguillage, le temps passe 8 fois moins vite : la boule avance encore un peu
 const FORK_ZONE = 750;        // px avant l'embranchement où le temps ralentit
@@ -335,7 +335,7 @@ function update(realDt) {
   }
   if (!run.finished && ball.x > FINISH.x) arrive();
   moveClouds(dt);
-  decor.update(dt, cam.x);
+  summer.update(dt, cam);
   weather.update(dt, cam, ball.clock);
   fx.follow(ball, dt);
   fx.update(dt);
@@ -532,8 +532,8 @@ function render(dt) {
   ctx.rect(0, cam.y - 10, SHEET * SHEETS, cam.viewH + 20);
   ctx.clip();
   for (const sun of SUNS) if (sun.x + 400 > x0 && sun.x - 400 < x1) drawSun(ctx, art.sun, sun.x, sun.y, sun.r, time);
+  summer.drawFar(ctx, cam); // niveau 1 : ciel, soleil, nuages, moulin et charrette en couleurs
   drawBirds(ctx, time, dt, x0, x1);
-  decor.draw(ctx, cam, track);
   drawClouds(ctx, art.clouds, x0, x1);
   for (let k = Math.max(0, Math.floor(x0 / SHEET)); k <= Math.min(SHEETS - 1, Math.floor(x1 / SHEET)); k++) {
     ctx.drawImage(inkFor(k), k * SHEET, 0, SHEET, WORLD.h);
@@ -551,6 +551,7 @@ function render(dt) {
   fx.drawSpeed(ctx, ball);
   drawBall(ctx, art.body, ball, track, time, save.skin);
   fx.draw(ctx);
+  summer.drawFront(ctx, cam); // herbe fleurie du premier plan
   weather.draw(ctx);
   // ralenti : écran légèrement bleuté, bords assombris
   const k = Math.max(0, Math.min(1, (1 - timeScale) / (1 - SLOW)));
@@ -675,4 +676,4 @@ applyOptions();
 resize();
 menu.open(false);
 requestAnimationFrame(frame);
-window.__boule = { ball, track, cam, sound, bonuses, weather, decor, restart, menu, run, pick };
+window.__boule = { ball, track, cam, sound, bonuses, weather, summer, restart, menu, run, pick };

@@ -5,6 +5,7 @@
  */
 import { WORLD, SHEET, SHEETS, groundY } from './track.js';
 import { biomeOfSheet } from './biomes.js';
+import { colourWeight } from './ete.js';
 import { rng, range, pencilLine, hatch, grain, noiseTile } from './pencil.js';
 
 const GRAPHITE = '#4b4b4f';
@@ -148,6 +149,7 @@ export function drawTable(ctx, cam) {
   for (let k = 1; k < SHEETS; k++) {
     const x = k * SHEET;
     if (x < left - 60 || x > right + 60) continue;
+    if (colourWeight(x) > 0) continue; // niveaux en couleurs : pas de feuilles de papier scotchées
     const seam = ctx.createLinearGradient(x - 14, 0, x + 2, 0);
     seam.addColorStop(0, 'rgba(70,64,55,0)');
     seam.addColorStop(1, 'rgba(70,64,55,0.22)');

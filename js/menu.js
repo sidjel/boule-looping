@@ -52,7 +52,6 @@ export class Menu {
         : p ? `<button data-do="continue" class="grand">Continuer <small>niveau ${p.level + 1} · ${clock(p.time)}</small></button>` : '';
       html = `<div class="carte accueil"><h1>La boule <br><span>et le looping</span></h1>${cont}
         <button data-do="new" class="${cont ? '' : 'grand'}">Nouvelle partie</button>
-        <button data-do="niveau0">Niveau 0 · essai</button>
         <button data-go="aide">Comment jouer</button>
         <button data-go="boules">Boules</button>
         <button data-go="scores">Scores</button>
@@ -109,7 +108,6 @@ export class Menu {
     if (what === 'resume') { this.close(); this.actions.resume(); }
     if (what === 'continue') { this.close(); this.actions.continueSaved(); }
     if (what === 'new') { this.close(); this.actions.newGame(); }
-    if (what === 'niveau0') location.href = 'niveau0.html';
     if (what === 'clear') { save.clearScores(); this.show('scores'); }
     if (t.dataset.skin) { this.actions.skin(t.dataset.skin); this.show('boules'); }
   }
