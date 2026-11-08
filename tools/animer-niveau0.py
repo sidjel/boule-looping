@@ -48,13 +48,15 @@ blade = np.dstack([col[..., ::-1], a * 255])
 blade = cv2.resize(blade, (round(blade.shape[1] * S3), round(blade.shape[0] * S3)), interpolation=cv2.INTER_AREA)
 save('aile.webp', blade)
 # plan 3 sans les ailes : retouche du dessin d'origine, puis même détourage que decouper-niveau0.py
-TOWER = np.int32([(2180, 620), (2290, 420), (2320, 440), (2410, 550), (2450, 625), (2450, 1000), (2140, 1000)])
-tower = np.zeros((H0, W0), np.uint8); cv2.fillPoly(tower, [TOWER], 1)
+# l'ancien moulin entier est retiré (le nouveau, dessiné à part, se pose par-dessus : tour.webp)
+OLD = np.int32([(2165, 600), (2290, 405), (2335, 430), (2425, 555), (2465, 620), (2475, 855), (2590, 875), (2590, 1020), (2125, 1020)])
+cv2.fillPoly(mask, [OLD], 1)
+tower = np.zeros((H0, W0), np.uint8)
 g0 = cv2.GaussianBlur(src, (0, 0), 2).mean(2) < 225
 line = np.array([np.argmax(g0[:, x] & (mask[:, x] == 0)) if (g0[:, x] & (mask[:, x] == 0)).any() else H0 for x in range(W0)])
 line = np.array([np.median(line[max(0, x - 25):x + 26]) for x in range(W0)])
 # derrière les ailes du bas, la ligne des montagnes est cachée : on la tend entre ses bords visibles
-for a0, a1 in ((1930, 2175), (2440, 2570)):
+for a0, a1 in ((1930, 2600),):
     line[a0:a1] = np.linspace(line[a0], line[a1], a1 - a0)
 yy, xx = np.mgrid[0:H0, 0:W0]
 blade = mask > 0

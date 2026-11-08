@@ -15,12 +15,20 @@ import { buildBallBody } from './ballArt.js';
 import { Sound } from './audio.js';
 
 const DIR = 'images/niveau0/';
-const G = 2400, R = 26, STEP = 3;
+const STEP = 3;
 const geo = await (await fetch(DIR + 'geo.json')).json();
 const WW = geo.W, WH = geo.H;
+/**
+ * Même physique que le jeu, à l'échelle : une feuille du jeu fait 2000 de large, celle-ci WW.
+ * Tout ce qui est une longueur ou une vitesse est multiplié par K (gravité, boule, élans).
+ */
+const K = WW / 2000;
+const G = 2400 * K, R = 30 * K, V_MAX = 4200 * K, AIR = 0.00009 / K;
+const HOP = 1050 * K, HOP_FORWARD = 260 * K, PUSH = 1500 * K;
+const FLICK_GAIN = 0.3, FLICK_MAX = 9000;
 
 const img = {};
-await Promise.all(['plan5-ciel', 'plan4-nuages', 'plan3-moulin', 'plan2-butte', 'plan1-herbe', 'aile', 'soleil'].map((n) => new Promise((ok) => {
+await Promise.all(['plan5-ciel', 'plan4-nuages', 'plan3-moulin', 'plan2-butte', 'plan1-herbe', 'tour', 'ailes', 'soleil'].map((n) => new Promise((ok) => {
   const i = new Image();
   i.onload = i.onerror = () => ok();
   i.src = `${DIR}${n}.webp`;
@@ -127,8 +135,10 @@ respawn();
 function step(dt, push) {
   if (ball.on) {
     const p = at(ball.s);
-    let a = G * p.ty * (5 / 7) - Math.sign(ball.v) * G * 0.012 - ball.v * Math.abs(ball.v) * 0.00004 + push;
-    ball.v += a * dt;
+    // pente, roulement (comme l'été du jeu : 5/7 · 0,018 de l'appui), air, poussée du doigt
+    const Np = Math.max(0, ball.v * ball.v * p.k + G * p.tx);
+    let a = G * p.ty * (5 / 7) - Math.sign(ball.v) * (5 / 7) * 0.018 * Np - AIR * ball.v * Math.abs(ball.v) + push * p.tx;
+    ball.v = Math.max(-V_MAX, Math.min(V_MAX, ball.v + a * dt));
     const s0 = ball.s;
     ball.s += ball.v * dt;
     // passage au sommet du looping, à l'endroit : petite clochette
@@ -151,7 +161,7 @@ function step(dt, push) {
   } else {
     ball.air += dt;
     ball.vy += G * dt;
-    ball.vx += push * 0.3 * dt;
+    ball.vx += push * 0.15 * dt;
     const nx = ball.x + ball.vx * dt, ny = ball.y + ball.vy * dt;
     // atterrissage : le point du chemin le plus proche, s'il est franchi
     if (ball.air > 0.05) {
@@ -221,24 +231,30 @@ const end = (e) => {
   if (dt < 0.25 && Math.abs(dx) < 12) hop();
   else {
     const [ax, at0] = touch.pts[0], vx = (e.clientX - ax) / Math.max(0.016, (e.timeStamp - at0) / 1000);
-    if (Math.abs(vx) > 300) kick(Math.max(-2600, Math.min(2600, vx * 1.4 / cam.scaleCss)));
+    // comme le jeu : même geste, même élan (vitesse du doigt ramenée au cadrage « suivre »)
+    const fs = Math.min(Math.max(W / 2000, H / 1433), W / 1000);
+    let wx = (vx * dpr) / fs;
+    if (Math.abs(wx) > 120) kick(Math.max(-FLICK_MAX, Math.min(FLICK_MAX, wx)) * FLICK_GAIN * K);
   }
   touch = null;
   hideHelp();
 };
 canvas.addEventListener('pointerup', end);
 canvas.addEventListener('pointercancel', () => (touch = null));
+const keys = new Set();
+addEventListener('keyup', (e) => keys.delete(e.key));
 addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowRight') kick(900);
-  if (e.key === 'ArrowLeft') kick(-900);
-  if (e.key === ' ' || e.key === 'ArrowUp') hop();
+  keys.add(e.key);
+  if (e.key === ' ' && !e.repeat) kick(2600 * FLICK_GAIN * K); // comme le jeu : espace = un lancer
+  if (e.key === 'ArrowUp') hop();
 });
 function kick(v) {
   hideHelp();
   if (ball.on) {
-    const p = at(ball.s), along = v * Math.sign(p.tx || 1);
-    ball.v += along;
-  } else ball.vx += v * 0.3;
+    // le geste est horizontal : projeté sur la route
+    const p = at(ball.s);
+    ball.v = Math.max(-V_MAX, Math.min(V_MAX, ball.v + v * p.tx));
+  }
 }
 function hop() {
   if (!ball.on) return;
@@ -246,16 +262,19 @@ function hop() {
   const p = at(ball.s);
   ball.on = false;
   ball.leftS = ball.s;
-  ball.vx = p.tx * ball.v + p.ty * 650; // normale (ty, -tx)
-  ball.vy = p.ty * ball.v - p.tx * 650;
+  const dir = ball.v >= 0 ? 1 : -1;
+  ball.vx = p.tx * ball.v + p.ty * HOP + p.tx * dir * HOP_FORWARD; // normale (ty, -tx)
+  ball.vy = p.ty * ball.v - p.tx * HOP + p.ty * dir * HOP_FORWARD;
   ball.air = 0;
 }
 function pushNow() {
+  const kd = (keys.has('ArrowRight') ? 1 : 0) - (keys.has('ArrowLeft') ? 1 : 0);
+  if (kd) return kd * PUSH;
   if (!touch || performance.now() - touch.t0 < 250 && Math.abs(touch.x - touch.x0) < 12) return 0;
   const bx = (ball.x - cam.x) * cam.scaleCss;
   const d = touch.x - bx;
   if (Math.abs(touch.x - touch.x0) > 30) return 0; // c'est un glissé, pas une poussée
-  return Math.sign(d) * 900 * (ball.on ? Math.sign(at(ball.s).tx || 1) : 1);
+  return Math.sign(d) * PUSH; // horizontal, projeté sur la route dans step()
 }
 let helpHidden = false;
 function hideHelp() {
@@ -434,8 +453,6 @@ function drawSky() {
 
 /* ---------- plan 3 : montagnes, champs, charrette, moulin qui tourne, pailles qui s'envolent ---------- */
 
-const M = geo.moulin, HUB = M.hub;
-const BLADES = [[2000, 270], [2520, 270], [2480, 840], [1980, 840]].map(([x, y]) => Math.atan2(y - HUB[1], x - HUB[0]));
 const straws = [];
 let spawn = 0;
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -464,22 +481,14 @@ function drawPlan3() {
   ctx.save();
   ctx.setTransform(s * k3, 0, 0, s * k3, -cam.x * f * s, (y3 - cam.y) * s);
   ctx.drawImage(i, 0, p3.top, p3.w, p3.h - p3.top);
-  // les ailes du moulin tournent
-  const aile = img.aile;
-  if (ok(aile)) {
-    const L = aile.naturalWidth / 0.75, Hh = aile.naturalHeight / 0.75, turn = time * 0.55;
+  // le moulin, dessiné à part (même repère que le paysage) : la tour, puis les ailes qui tournent
+  const m2 = geo.moulin2, tour = img.tour, ailes = img.ailes;
+  if (ok(tour)) ctx.drawImage(tour, m2.tour[0], m2.tour[1], m2.tour[2], m2.tour[3]);
+  if (ok(ailes)) {
     ctx.save();
-    ctx.translate(HUB[0], HUB[1]);
-    for (const a0 of BLADES) {
-      ctx.save();
-      ctx.rotate(a0 + turn);
-      ctx.drawImage(aile, 0, -Hh / 2, L, Hh);
-      ctx.restore();
-    }
-    ctx.fillStyle = '#5a3a28';
-    ctx.beginPath(); ctx.arc(0, 0, 22, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#8a6040';
-    ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.translate(m2.moyeu[0], m2.moyeu[1]);
+    ctx.rotate(time * 0.55);
+    ctx.drawImage(ailes, -m2.ailes / 2, -m2.ailes / 2, m2.ailes, m2.ailes);
     ctx.restore();
   }
   // fines pailles qui s'envolent de la charrette
