@@ -8,7 +8,9 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
   deux loopings à la suite, aiguillage entre un souterrain (grand looping) et une grande bosse
   avec un pont. Herbe verte, buissons, arbres, fleurs. Sous la route de tous les niveaux, la
   terre brune hachurée et l'herbe du dessin du niveau 1 (premier plan opaque ; teinte plus chaude
-  en automne, plus sombre sous la pluie, couverte de neige en hiver). Derrière le niveau 1, un second dessin
+  en automne, plus sombre sous la pluie, couverte de neige en hiver). Aux aiguillages, le chemin
+  du haut passe sur une butte de terre pleine, et le chemin du bas la traverse dans une galerie
+  creusée ; ses loopings sont dessinés devant la butte. Derrière le niveau 1, un second dessin
   (montagnes, charrette de foin, arbre, moulin) fait l'arrière-plan : les pales tournent, l'arbre
   et le foin bougent, des pailles s'envolent. Les montagnes bleues du dessin (seules, sans les
   objets) courent sur les quatre niveaux. Quand la caméra avance, les montagnes glissent moins vite

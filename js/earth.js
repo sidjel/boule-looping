@@ -10,7 +10,7 @@
  * Selon la saison, la terre prend une légère teinte (automne plus chaud, pluie plus sombre) ;
  * l'hiver la couvre de neige (ink.js).
  */
-import { WORLD, groundY } from './track.js';
+import { WORLD, surfaceY as groundY } from './track.js';
 import { biomeMix } from './biomes.js';
 
 const SOL1 = { x: -6, y: 489.8, w: 2014.2, h: 945.55 };

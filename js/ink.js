@@ -4,7 +4,7 @@
  * Le dessin est découpé en étapes (générateur) : on peut le préparer petit à petit pendant
  * le jeu, sans à-coup ; buildInk() fait tout d'un coup.
  */
-import { WORLD, SHEET, SHEETS, JUMPS, HILL, BRIDGE, BRIDGES, FINISH, BALL_R, groundY } from './track.js';
+import { WORLD, SHEET, SHEETS, JUMPS, HILL, BRIDGE, BRIDGES, FINISH, BALL_R, surfaceY } from './track.js';
 import { biomeOfSheet, biomeMix, biomeParams } from './biomes.js';
 import { rng, range, pencilLine, hatch, grain } from './pencil.js';
 import { paintEarth, groundPath } from './earth.js';
@@ -37,11 +37,7 @@ export function* inkSteps(track, q, sheet) {
   yield;
   drawDecor(g, track, sheet);
   drawPits(g, track, x0, x1, bio);
-  if (x1 > HILL.x0 && x0 < HILL.flank + 600) {
-    drawTunnel(g, track);
-    drawBridge4(g, track);
-  }
-  for (const name of BRIDGES) drawBridge(g, track, track.byName[name], x0, x1);
+  drawTunnels(g, track, x0, x1);
   if (sheet === SHEETS - 1) drawFinish(g, track);
   yield;
   drawRoad(g, track, x0, x1, bio);
@@ -75,7 +71,7 @@ function* drawGround(g, track, x0, x1, bio) {
     const snow = biomeParams(x).snow;
     if (snow <= 0.02) continue;
     g.fillStyle = `rgba(252,253,255,${0.9 * snow})`;
-    const y = groundY(track, x) - 2;
+    const y = surfaceY(track, x) - 2;
     g.fillRect(x, y, 6.5, WORLD.h + 40 - y);
   }
   g.restore();
@@ -86,7 +82,7 @@ function* drawGround(g, track, x0, x1, bio) {
     if (x > x0 && x < x1 && biomeParams(x).snow > 0.5) {
       // près d'une jonction, les couleurs des deux saisons se mélangent peu à peu
       const m = biomeMix(x), b = r() < m.t ? m.b : m.a, cols = b.grass;
-      const top = groundY(track, x) + range(r, 4, 22);
+      const top = surfaceY(track, x) + range(r, 4, 22);
       const lean = range(r, 18, 55);
       const col = cols[Math.floor(r() * cols.length)];
       const bottom = WORLD.h + 30 - (r() < 0.15 ? range(r, 40, 160) : 0);
@@ -114,15 +110,10 @@ function drawUnderline(g, track, x0, x1, bio) {
       const prev = under[under.length - 1], c = biomeParams(px).snow > 0.5 ? '#9fb7c9' : BROWN;
       if ((prev && Math.hypot(prev[0] - px, prev[1] - 6 - py) > 8) || c !== color) flush();
       color = c;
-      if (Math.abs(groundY(track, px) - py) < 2) under.push([px, py + 6]);
+      if (Math.abs(surfaceY(track, px) - py) < 2) under.push([px, py + 6]);
       else flush();
     }
     flush();
-  }
-  if (x0 < HILL.flank && x1 > HILL.x1) {
-    const flank = [];
-    for (let x = HILL.x1; x <= HILL.flank; x += 3) flank.push([x, groundY(track, x)]);
-    pencilLine(g, flank, rand, { color: GRAPHITE, width: 3.5, alpha: 0.45, passes: 3, wobble: 1.4 });
   }
 }
 
@@ -154,7 +145,7 @@ function drawPits(g, track, x0, x1, bio) {
     const rand = rng(404 + z);
     if (biomeParams(a).rain > 0.5) {
       const level = J.bottom - 60, pts = [];
-      for (let x = a; x <= b; x += 4) if (groundY(track, x) > level) pts.push([x, groundY(track, x)]);
+      for (let x = a; x <= b; x += 4) if (surfaceY(track, x) > level) pts.push([x, surfaceY(track, x)]);
       if (pts.length < 3) return;
       g.save();
       g.fillStyle = 'rgba(110,150,185,0.45)';
@@ -173,7 +164,7 @@ function drawPits(g, track, x0, x1, bio) {
       return;
     }
     for (let i = 0; i < 9; i++) {
-      const x = range(rand, a + 60, b - 60), y = groundY(track, x) + range(rand, 10, 40);
+      const x = range(rand, a + 60, b - 60), y = surfaceY(track, x) + range(rand, 10, 40);
       const rx = range(rand, 8, 18), ry = rx * range(rand, 0.5, 0.75), pts = [];
       for (let t = 0; t <= Math.PI * 2.1; t += 0.35) pts.push([x + Math.cos(t) * rx, y + Math.sin(t) * ry]);
       pencilLine(g, pts, rand, { color: '#6b6b70', width: 2, alpha: 0.5, passes: 2, wobble: 0.8 });
@@ -220,30 +211,6 @@ function roadY(pc, x, yRef) {
   return best ? best[1] : yRef;
 }
 
-/** Ponts des aiguillages : tablier sous le chemin du haut, piliers jusqu'au sol. */
-function drawBridge(g, track, pc, x0, x1) {
-  if (!pc) return;
-  const rand = rng(700 + Math.round(pc.line[0][0]));
-  const high = pc.line.filter(([x, y]) => x > x0 && x < x1 && groundY(track, x) - y > 45);
-  if (high.length < 3) return;
-  pencilLine(g, high.map(([x, y]) => [x, y + 16]), rand, { color: GRAPHITE, width: 3, alpha: 0.5, passes: 2, wobble: 1 });
-  for (let i = 0; i < high.length; i += 12) {
-    const [x, y] = high[i];
-    hatch(g, rand, x, y + 4, x + 14, y + 14, { color: GREY, width: 1.6, alpha: 0.4, passes: 1, wobble: 0.4 });
-  }
-  let last = -1e9;
-  for (const [x, y] of high) {
-    if (x - last < 260 || groundY(track, x) - y < 90) continue;
-    last = x;
-    const top = y + 14, bottom = groundY(track, x) + 6;
-    for (const dx of [-9, 9]) pencilLine(g, [[x + dx, top], [x + dx * 1.3, bottom]], rand, { color: GRAPHITE, width: 3, alpha: 0.5, passes: 2, wobble: 0.8 });
-    for (let yy = top + 30; yy < bottom - 20; yy += 46) {
-      hatch(g, rand, x - 9, yy, x + 9, yy + 30, { color: GREY, width: 1.6, alpha: 0.45, passes: 1, wobble: 0.4 });
-      hatch(g, rand, x + 9, yy, x - 9, yy + 30, { color: GREY, width: 1.6, alpha: 0.45, passes: 1, wobble: 0.4 });
-    }
-  }
-}
-
 /** Ne pas planter un arbre au milieu d'un looping, d'un pont ou d'une fosse. */
 function freeSpot(track, x) {
   for (const pc of track.pieces) {
@@ -264,7 +231,7 @@ function drawDecor(g, track, sheet) {
   for (let i = 0; i < count; i++) {
     const x = sheet * SHEET + range(r, 140, 1860);
     if (!freeSpot(track, x)) continue;
-    const y = groundY(track, x) + 6, kind = r(), m = biomeMix(x), here = r() < m.t ? m.b : m.a;
+    const y = surfaceY(track, x) + 6, kind = r(), m = biomeMix(x), here = r() < m.t ? m.b : m.a;
     if (here.snow) pine(g, r, x, y, range(r, 120, 230));
     else if (here.rain) reeds(g, r, x, y);
     else if (here.wind) tree(g, r, x, y, range(r, 150, 260), ['#c9772d', '#b5502a', '#d9a23a']);
@@ -275,7 +242,7 @@ function drawDecor(g, track, sheet) {
   if (b.wind) {
     // feuilles mortes tombées au sol
     for (let i = 0; i < 40; i++) {
-      const x = sheet * SHEET + range(r, 0, SHEET), y = groundY(track, x) + range(r, 6, 40);
+      const x = sheet * SHEET + range(r, 0, SHEET), y = surfaceY(track, x) + range(r, 6, 40);
       hatch(g, r, x, y, x + range(r, 8, 14), y + range(r, -3, 3), { color: ['#c9772d', '#b5502a', '#d9a23a'][i % 3], width: 4, alpha: 0.55, passes: 1, wobble: 0.3 });
     }
   }
@@ -335,7 +302,7 @@ function reeds(g, r, x, y) {
 
 /** Arrivée : arc-en-ciel et banderole à damier sur deux poteaux. */
 function drawFinish(g, track) {
-  const x = FINISH.x, y = groundY(track, x), r = rng(1717);
+  const x = FINISH.x, y = surfaceY(track, x), r = rng(1717);
   const cols = ['#e5534b', '#f0a03c', '#f2d24a', '#7fbf4d', '#5b9bd5', '#7b6cc4'];
   cols.forEach((c, i) => {
     const pts = [];
@@ -357,70 +324,51 @@ function drawFinish(g, track) {
 }
 
 /**
- * Souterrain : le chemin du bas traverse la colline. On creuse un tube dans l'herbe
- * (plafond à une boule et demie au-dessus de la route), terre hachurée autour.
+ * Chemins du bas qui passent sous une butte : une galerie creusée dans la terre (plus
+ * sombre), avec son plafond au crayon. Les loopings du chemin du bas restent dessinés
+ * par-dessus la terre, devant la butte.
  */
-function drawTunnel(g, track) {
-  const pc = track.byName.under, floor = [], ceil = [];
-  const h = BALL_R * 2 + 18;
-  for (let i = 0; i < pc.line.length; i += 2) {
-    const [x, y] = pc.line[i];
-    if (x < HILL.x0 + 40 || x > HILL.flank + 10) continue;
-    const j = Math.min(pc.line.length - 1, i + 2), [bx, by] = pc.line[j];
-    const l = Math.hypot(bx - x, by - y) || 1, nx = (by - y) / l, ny = -(bx - x) / l;
-    floor.push([x, y]);
-    ceil.push([x + nx * h, y + ny * h]);
-  }
-  if (floor.length < 3) return;
-  const tube = [...floor, ...ceil.slice().reverse()];
-  g.save();
-  // seulement sous la surface de la colline : l'entrée devient une ouverture dans la pente
-  g.beginPath();
-  g.moveTo(HILL.x0, WORLD.h + 50);
-  for (let x = HILL.x0; x <= HILL.flank + 40; x += 4) g.lineTo(x, groundY(track, x) + 3);
-  g.lineTo(HILL.flank + 40, WORLD.h + 50);
-  g.closePath();
-  g.clip();
-  g.globalCompositeOperation = 'destination-out';
-  g.beginPath();
-  tube.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
-  g.closePath();
-  g.fill();
-  g.globalCompositeOperation = 'source-over';
-  g.fillStyle = 'rgba(120,104,88,0.16)';
-  g.fill();
-  g.restore();
-  const rand = rng(606);
-  // terre hachurée au-dessus du plafond, ombre au fond du tube
-  for (let i = 0; i < ceil.length; i += 3) {
-    const [x, y] = ceil[i];
-    if (y < groundY(track, x) + 8) continue;
-    hatch(g, rand, x - 8, y - range(rand, 4, 26), x + 10, y - 2, { color: BROWN, width: 2, alpha: 0.32, passes: 1, wobble: 0.6 });
-  }
-  const inside = ceil.filter(([x, y]) => y > groundY(track, x) + 4);
-  if (inside.length > 2) pencilLine(g, inside, rand, { color: '#5b4f45', width: 3, alpha: 0.5, passes: 3, wobble: 1.2 });
-}
-
-/** Pont du niveau 4, au-dessus du grand looping : tablier et piliers. */
-function drawBridge4(g, track) {
-  const pc = track.byName.hill, rand = rng(707);
-  const yAt = (x) => {
-    let best = pc.line[0];
-    for (const p of pc.line) if (p[0] >= BRIDGE.x0 - 60 && Math.abs(p[0] - x) < Math.abs(best[0] - x)) best = p;
-    return best[1];
-  };
-  const deck = pc.line.filter(([x]) => x >= BRIDGE.x0 && x <= BRIDGE.x1).map(([x, y]) => [x, y + 16]);
-  pencilLine(g, deck, rand, { color: GRAPHITE, width: 3, alpha: 0.5, passes: 2, wobble: 1 });
-  for (let x = BRIDGE.x0 + 20; x < BRIDGE.x1; x += 34) {
-    hatch(g, rand, x, yAt(x) + 4, x + 14, yAt(x) + 14, { color: GREY, width: 1.6, alpha: 0.4, passes: 1, wobble: 0.4 });
-  }
-  for (const px of BRIDGE.pillars) {
-    const top = yAt(px) + 14, bottom = groundY(track, px) + 6;
-    for (const dx of [-9, 9]) pencilLine(g, [[px + dx, top], [px + dx * 1.3, bottom]], rand, { color: GRAPHITE, width: 3, alpha: 0.5, passes: 2, wobble: 0.8 });
-    for (let y = top + 30; y < bottom - 20; y += 46) {
-      hatch(g, rand, px - 9, y, px + 9, y + 30, { color: GREY, width: 1.6, alpha: 0.45, passes: 1, wobble: 0.4 });
-      hatch(g, rand, px + 9, y, px - 9, y + 30, { color: GREY, width: 1.6, alpha: 0.45, passes: 1, wobble: 0.4 });
+function drawTunnels(g, track, x0, x1) {
+  const h = BALL_R * 2 + 18, rand = rng(606);
+  for (const f of track.forks) {
+    const line = f.A.line;
+    if (line[line.length - 1][0] < x0 || line[0][0] > x1) continue;
+    // le plancher : le point le plus bas du chemin à chaque x (les loopings n'y sont pas)
+    const floor = new Map();
+    for (const [x, y] of line) {
+      const k = Math.round(x / 4);
+      if (!floor.has(k) || y > floor.get(k)) floor.set(k, y);
     }
+    const keys = [...floor.keys()].sort((a, b) => a - b);
+    const pts = keys.map((k) => [k * 4, floor.get(k)]);
+    // seulement là où la terre recouvre le chemin
+    const covered = pts.filter(([x, y]) => surfaceY(track, x) < y - 8);
+    if (covered.length < 3) continue;
+    const xa = covered[0][0] - 40, xb = covered[covered.length - 1][0] + 40;
+    const run = pts.filter(([x]) => x >= xa && x <= xb);
+    g.save();
+    earthClip(g, track, xa - 20, xb + 20);
+    g.beginPath();
+    run.forEach(([x, y], i) => (i ? g.lineTo(x, y + 4) : g.moveTo(x, y + 4)));
+    for (let i = run.length - 1; i >= 0; i--) g.lineTo(run[i][0], run[i][1] - h);
+    g.closePath();
+    g.fillStyle = 'rgba(78,54,38,0.38)';
+    g.fill();
+    // ombre au fond de la galerie, plus sombre sous le plafond
+    g.fillStyle = 'rgba(60,40,28,0.18)';
+    g.beginPath();
+    run.forEach(([x, y], i) => (i ? g.lineTo(x, y - h + 18) : g.moveTo(x, y - h + 18)));
+    for (let i = run.length - 1; i >= 0; i--) g.lineTo(run[i][0], run[i][1] - h);
+    g.closePath();
+    g.fill();
+    const ceil = run.filter(([x, y]) => surfaceY(track, x) < y - h - 4).map(([x, y]) => [x, y - h]);
+    if (ceil.length > 2) pencilLine(g, ceil, rand, { color: '#4b3a2e', width: 3, alpha: 0.55, passes: 2, wobble: 1.2 });
+    g.restore();
   }
 }
 
+/** Ne dessine que dans la terre (sous la surface). */
+function earthClip(g, track, x0, x1) {
+  groundPath(g, track, x0, x1);
+  g.clip();
+}

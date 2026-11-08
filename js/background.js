@@ -11,7 +11,7 @@
  * Les images sont dans le repère du dessin (2000 de large) ; place() les pose dans le monde.
  */
 import { SHEET } from './levels.js';
-import { groundY } from './track.js';
+import { surfaceY as groundY } from './track.js';
 
 const DIR = 'images/fond1/';
 // boîtes des morceaux dans le repère du dessin (x0, y0, x1, y1)

@@ -136,6 +136,7 @@ export function buildTrack() {
       return { pc, s, x: pc.x[Math.round(s / STEP)] };
     })].sort((a, b) => a.x - b.x);
   track.ground = groundProfile(p);
+  track.surface = surfaceProfile(track);
   track.grid = buildGrid(track.pieces);
   return track;
 }
@@ -177,6 +178,25 @@ function groundProfile(p) {
   let last = g.find((v) => !Number.isNaN(v));
   for (let i = 0; i <= WORLD.w; i++) if (Number.isNaN(g[i])) g[i] = last; else last = g[i];
   return g;
+}
+
+/**
+ * La surface de la terre : le sol, ou le dessus d'une butte là où un chemin du haut passe
+ * au-dessus (la grande bosse du niveau 4, le chemin du haut de chaque aiguillage). Sous la
+ * butte, tout est de la terre ; le chemin du bas y passe en souterrain.
+ */
+function surfaceProfile(track) {
+  const s = Float32Array.from(track.ground);
+  for (const f of track.forks) {
+    const deck = new Float32Array(WORLD.w + 1).fill(NaN);
+    rasterize(deck, f.B.line, Math.max); // le tablier, sans les loopings posés dessus
+    for (let x = 0; x <= WORLD.w; x++) if (deck[x] < s[x]) s[x] = deck[x];
+  }
+  return s;
+}
+
+export function surfaceY(track, px) {
+  return track.surface[Math.max(0, Math.min(WORLD.w, Math.round(px)))];
 }
 
 export function groundY(track, px) {

@@ -3,7 +3,7 @@
  * comme sur une vraie bille polie), rayures gravées qui tournent avec elle pour
  * qu'on la voie rouler, ombre portée sur la route.
  */
-import { BALL_R, groundY } from './track.js';
+import { BALL_R, groundY, surfaceY } from './track.js';
 import { rng, range, pencilLine } from './pencil.js';
 
 const R = BALL_R;
@@ -165,7 +165,8 @@ function drawShadow(ctx, ball, track) {
     angle = Math.atan2(f.ty, f.tx);
     alpha = 0.32;
   } else {
-    const gy = groundY(track, ball.x);
+    // sur la butte si la boule est au-dessus, sinon sur le sol du chemin du bas
+    const sy = surfaceY(track, ball.x), gy = sy > ball.y ? sy : groundY(track, ball.x);
     const h = gy - ball.y;
     if (h < 0) return;
     x = ball.x;
