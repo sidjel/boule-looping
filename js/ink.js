@@ -7,6 +7,7 @@
 import { WORLD, SHEET, SHEETS, JUMPS, HILL, BRIDGE, BRIDGES, FINISH, BALL_R, groundY } from './track.js';
 import { biomeOfSheet, biomeMix, biomeParams } from './biomes.js';
 import { rng, range, pencilLine, hatch, grain } from './pencil.js';
+import { EARTH_END } from './earth.js';
 
 const GRAPHITE = '#4b4b4f';
 const GREY = '#8a8a8e';
@@ -69,7 +70,7 @@ function* drawGround(g, track, x0, x1, bio) {
   let x = -20, i = 0, n = 0;
   while (x < WORLD.w + 40) {
     const r = rng(5000 + i++);
-    if (x > x0 && x < x1) {
+    if (x > x0 && x < x1 && x > EARTH_END) {
       // près d'une jonction, les couleurs des deux saisons se mélangent peu à peu
       const m = biomeMix(x), b = r() < m.t ? m.b : m.a, cols = b.grass;
       const top = groundY(track, x) + range(r, 4, 22);
@@ -118,7 +119,7 @@ function drawUnderline(g, track, x0, x1, bio) {
       const a = k * SHEET + range(r, 100, 1700), w = range(r, 150, 260), depth = range(r, 26, 60);
       for (let i = 0; i < w / 9; i++) {
         const x = range(r, a, a + w), len = range(r, 40, 120);
-        if (x + len < x0 || x > x1) continue;
+        if (x + len < x0 || x > x1 || x < EARTH_END) continue;
         const y0 = groundY(track, x) + range(r, 4, depth), y1 = groundY(track, x + len) + range(r, 4, depth);
         hatch(g, r, x, y0, x + len, y1, { color: r() < 0.7 ? BROWN : '#b4786a', width: 2, alpha: 0.28, passes: 1, wobble: 1 });
       }
