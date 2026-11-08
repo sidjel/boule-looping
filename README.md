@@ -23,6 +23,11 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
   pailles s'envolent de la charrette). Une feuille, comme le niveau 1 : tout le niveau est visible
   d'un coup ; la loupe suit la boule (parallaxe). Musique et bruitages du jeu.
   Images : `tools/decouper-niveau0.py` puis `tools/animer-niveau0.py`, dans `images/niveau0/`.
+- **Niveaux 2 et 3 en couleurs** (`js/ete.js`, `images/ete/`, découpés par `tools/decouper-ete.py`) :
+  le style du niveau 0 sur les parcours existants. Ciel au crayon bleu et soleil qui brille,
+  gros nuages sur deux rangs, montagnes enneigées, la ferme (niveau 2) avec un cochon qui se
+  promène, la forêt (niveau 3), terre de la butte du niveau 0, route brune, herbe fleurie qui
+  ondule au vent. Chaque plan glisse d'autant moins vite qu'il est loin.
 - **Automne (5 à 8)** : feuilles mortes qui volent, vent en rafales qui gêne l'avancée.
 - **Hiver (9 à 12)** : neige, route glacée : la boule glisse, va plus vite, répond moins aux
   gestes, et revenir en arrière est difficile.

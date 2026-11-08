@@ -17,7 +17,12 @@ const SOL1 = { x: -6, y: 489.8, w: 2014.2, h: 945.55 };
 /** La terre du dessin du niveau 1 s'efface entre ce x et 2000 (fondu sur la terre répétée). */
 export const EARTH_END = 1780;
 
-const NAMES = ['sol1', 'terre-bande', 'terre-fond', 'terre-herbe'];
+const NAMES = ['sol1', 'terre-bande', 'terre-fond', 'terre-herbe', 'ete/terre-bande', 'ete/terre-fond'];
+/** Jeux de textures : le crayon d'origine, ou la terre du niveau 0 (été en couleurs, niveaux 2 et 3). */
+const SETS = {
+  crayon: { fond: 'terre-fond', bande: 'terre-bande', herbe: 'terre-herbe', tint: true },
+  ete: { fond: 'ete/terre-fond', bande: 'ete/terre-bande', herbe: null, tint: false },
+};
 const img = {};
 export const earthReady = Promise.all(NAMES.map((n) => new Promise((ok) => {
   const i = new Image();
@@ -74,47 +79,50 @@ export function groundPath(g, track, x0, x1) {
  * Peint la terre sous la route, entre x0 et x1 (repère du monde). Générateur : rend la main
  * de temps en temps, pour préparer la feuille sans à-coup.
  */
-export function* paintEarth(g, track, x0, x1) {
+export function* paintEarth(g, track, x0, x1, style = 'crayon') {
   if (!ready()) return;
+  const T = SETS[style];
   x0 = Math.max(-10, Math.floor(x0)); x1 = Math.min(WORLD.w + 10, Math.ceil(x1));
   const bottom = WORLD.h + 40;
   g.save();
   groundPath(g, track, x0, x1);
   g.clip();
   // fond hachuré, répété en miroir en largeur et en hauteur, calé sur le bas du monde
-  const fh = img['terre-fond'].naturalHeight;
+  const fh = img[T.fond].naturalHeight;
   let top = bottom, row = 0;
   let minY = Infinity;
   for (let x = x0; x <= x1; x += 16) minY = Math.min(minY, groundY(track, x));
   while (top > minY - fh) {
     top -= fh;
-    if (row++ % 2 === 0) strip(g, 'terre-fond', x0, x1, top, fh);
+    if (row++ % 2 === 0) strip(g, T.fond, x0, x1, top, fh);
     else {
       g.save();
       g.translate(0, top + fh);
       g.scale(1, -1);
-      strip(g, 'terre-fond', x0, x1, 0, fh);
+      strip(g, T.fond, x0, x1, 0, fh);
       g.restore();
     }
     yield;
   }
   // touffes d'herbe au pied de la feuille
-  const hh = img['terre-herbe'].naturalHeight;
-  strip(g, 'terre-herbe', x0, x1, WORLD.h + 12 - hh, hh);
-  yield;
+  if (T.herbe) {
+    const hh = img[T.herbe].naturalHeight;
+    strip(g, T.herbe, x0, x1, WORLD.h + 12 - hh, hh);
+    yield;
+  }
   // bande brune qui suit la route : tranches de 3 px décalées à la hauteur de la route
-  const bh = img['terre-bande'].naturalHeight;
+  const bh = img[T.bande].naturalHeight;
   let n = 0;
   for (let x = x0; x < x1; x += 3) {
-    const { src, u } = tileAt('terre-bande', x);
+    const { src, u } = tileAt(T.bande, x);
     const sw = Math.min(3, src.width - u);
     g.drawImage(src, u, 0, sw, bh, x, groundY(track, x) - 1, sw + 0.6, bh);
     if (++n % 120 === 0) yield;
   }
   // niveau 1 : le dessin lui-même, par-dessus (il s'efface tout seul vers sa fin)
-  if (x0 < SOL1.x + SOL1.w) { g.drawImage(img.sol1, SOL1.x, SOL1.y, SOL1.w, SOL1.h); yield; }
+  if (style === 'crayon' && x0 < SOL1.x + SOL1.w) { g.drawImage(img.sol1, SOL1.x, SOL1.y, SOL1.w, SOL1.h); yield; }
   // teinte de saison, en fondu près des jonctions
-  for (let x = x0; x < x1; x += 20) {
+  for (let x = x0; x < x1 && T.tint; x += 20) {
     const m = biomeMix(x + 10);
     for (const [b, k] of [[m.a, 1 - m.t], [m.b, m.t]]) {
       const t = tintOf(b);

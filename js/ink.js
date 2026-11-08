@@ -8,6 +8,7 @@ import { WORLD, SHEET, SHEETS, JUMPS, HILL, BRIDGE, BRIDGES, FINISH, BALL_R, sur
 import { biomeOfSheet, biomeMix, biomeParams } from './biomes.js';
 import { rng, range, pencilLine, hatch, grain } from './pencil.js';
 import { paintEarth, groundPath } from './earth.js';
+import { STYLE_SHEETS } from './ete.js';
 
 const GRAPHITE = '#4b4b4f';
 const GREY = '#8a8a8e';
@@ -31,16 +32,17 @@ export function* inkSteps(track, q, sheet) {
   g.translate(-sheet * SHEET, 0);
   const x0 = sheet * SHEET - 120, x1 = (sheet + 1) * SHEET + 120, bio = (x) => biomeOfSheet(Math.floor(x / SHEET));
   // la terre du premier plan, tout en dessous
-  yield* paintEarth(g, track, x0, x1);
+  const colour = STYLE_SHEETS.has(sheet); // été aux crayons de couleur (niveaux 2 et 3)
+  yield* paintEarth(g, track, x0, x1, colour ? 'ete' : 'crayon');
   yield* drawGround(g, track, x0, x1, bio);
   drawUnderline(g, track, x0, x1, bio);
   yield;
-  drawDecor(g, track, sheet);
+  if (!colour) drawDecor(g, track, sheet); // en couleurs, le décor vient des dessins (ete.js)
   drawPits(g, track, x0, x1, bio);
   drawTunnels(g, track, x0, x1);
   if (sheet === SHEETS - 1) drawFinish(g, track);
   yield;
-  drawRoad(g, track, x0, x1, bio);
+  drawRoad(g, track, x0, x1, bio, colour);
   drawPuddles(g, track, x0, x1);
   g.font = `600 44px ${HAND}`;
   g.fillStyle = 'rgba(70,70,76,0.55)';
@@ -118,7 +120,7 @@ function drawUnderline(g, track, x0, x1, bio) {
 }
 
 /** La route au graphite ; en hiver, une couche de glace bleutée avec des reflets blancs. */
-function drawRoad(g, track, x0, x1, bio) {
+function drawRoad(g, track, x0, x1, bio, colour = false) {
   track.pieces.forEach((pc, i) => {
     const pts = pc.line.filter(([x]) => x > x0 - 30 && x < x1 + 30);
     if (pts.length < 2) return;
@@ -132,8 +134,8 @@ function drawRoad(g, track, x0, x1, bio) {
         pencilLine(g, [[ax, ay - 3], [bx, by - 3]], r, { color: '#ffffff', width: 2.2, alpha: 0.8, passes: 1, wobble: 0.3 });
       }
     }
-    pencilLine(g, pc.line, rng(77 + i * 10), { color: GRAPHITE, width: 5.5, alpha: 0.55, passes: 4, wobble: 1.8 });
-    pencilLine(g, pc.line, rng(78 + i * 10), { color: '#2f2f33', width: 2.2, alpha: 0.45, passes: 2, wobble: 1 });
+    pencilLine(g, pc.line, rng(77 + i * 10), { color: colour ? '#4a3426' : GRAPHITE, width: 5.5, alpha: 0.55, passes: 4, wobble: 1.8 });
+    pencilLine(g, pc.line, rng(78 + i * 10), { color: colour ? '#2a1d15' : '#2f2f33', width: 2.2, alpha: 0.45, passes: 2, wobble: 1 });
   });
 }
 

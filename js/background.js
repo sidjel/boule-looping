@@ -36,7 +36,7 @@ const PIVOT = [1000, 1030], ANCHOR = [960, 1080], SCALE = 0.84;
 // plus c'est loin, plus il suit la caméra, donc moins il glisse à l'écran
 const PAR_X = 0.18, PAR_Y = 0.12, REF = [1300, 716];
 // montagnes lointaines : jusqu'à la fin du niveau 4, effacées sur les derniers 700 px
-const FAR = { par: 0.32, parY: 0.2, end: 4 * SHEET, fade: 700 };
+const FAR = { par: 0.32, parY: 0.2, end: SHEET, fade: 450 }; // jusqu'à la fin du niveau 1 (ensuite : ete.js)
 const ALPHA = 0.88;
 const RES = 0.5; // résolution de l'image de travail (part de celle de l'écran)
 

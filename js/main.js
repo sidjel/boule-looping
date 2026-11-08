@@ -23,6 +23,7 @@ import { Game, skinPhys, medalTimes } from './game.js';
 import { drawObstacles, drawPlanks, obstaclesOf } from './obstacles.js';
 import { Background } from './background.js';
 import { earthReady } from './earth.js';
+import { Summer } from './ete.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('jeu'), ctx = canvas.getContext('2d');
@@ -38,6 +39,7 @@ const sound = new Sound();
 const bonuses = new Bonuses(track);
 const weather = new Weather();
 const decor = new Background();
+const summer = new Summer();
 const game = new Game();
 ball.setSkin(skinPhys(save.skin));
 const drawPaper = makePaper();
@@ -336,6 +338,7 @@ function update(realDt) {
   if (!run.finished && ball.x > FINISH.x) arrive();
   moveClouds(dt);
   decor.update(dt, cam.x);
+  summer.update(dt, cam);
   weather.update(dt, cam, ball.clock);
   fx.follow(ball, dt);
   fx.update(dt);
@@ -535,6 +538,7 @@ function render(dt) {
   drawBirds(ctx, time, dt, x0, x1);
   decor.draw(ctx, cam, track);
   drawClouds(ctx, art.clouds, x0, x1);
+  summer.drawFar(ctx, cam); // niveaux 2 et 3 : ciel, nuages, montagnes, ferme et forêt en couleurs
   for (let k = Math.max(0, Math.floor(x0 / SHEET)); k <= Math.min(SHEETS - 1, Math.floor(x1 / SHEET)); k++) {
     ctx.drawImage(inkFor(k), k * SHEET, 0, SHEET, WORLD.h);
   }
@@ -551,6 +555,7 @@ function render(dt) {
   fx.drawSpeed(ctx, ball);
   drawBall(ctx, art.body, ball, track, time, save.skin);
   fx.draw(ctx);
+  summer.drawFront(ctx, cam); // herbe fleurie du premier plan
   weather.draw(ctx);
   // ralenti : écran légèrement bleuté, bords assombris
   const k = Math.max(0, Math.min(1, (1 - timeScale) / (1 - SLOW)));
@@ -675,4 +680,4 @@ applyOptions();
 resize();
 menu.open(false);
 requestAnimationFrame(frame);
-window.__boule = { ball, track, cam, sound, bonuses, weather, decor, restart, menu, run, pick };
+window.__boule = { ball, track, cam, sound, bonuses, weather, decor, summer, restart, menu, run, pick };
