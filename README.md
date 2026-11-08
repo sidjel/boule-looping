@@ -10,8 +10,8 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
   (montagnes, charrette de foin, arbre, moulin) fait l'arrière-plan : les pales tournent, l'arbre
   et le foin bougent, des pailles s'envolent. Les montagnes bleues du dessin (seules, sans les
   objets) courent sur les quatre niveaux. Quand la caméra avance, les montagnes glissent moins vite
-  que le décor, qui glisse moins vite que la route (effet 2,5D). Nuages au contour net, blancs
-  dessus et bleutés dessous, d'après les modèles fournis.
+  que le décor, qui glisse moins vite que la route (effet 2,5D). Tous les nuages viennent du
+  nuage modèle fourni (`images/nuage.webp`), en variantes de taille, de sens et d'étirement.
 - **Automne (5 à 8)** : feuilles mortes qui volent, vent en rafales qui gêne l'avancée.
 - **Hiver (9 à 12)** : neige, route glacée : la boule glisse, va plus vite, répond moins aux
   gestes, et revenir en arrière est difficile.
