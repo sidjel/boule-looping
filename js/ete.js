@@ -8,8 +8,8 @@
  *      niveaux 2 et 3 : montagnes enneigées ; niveau 2 : la ferme et ses cochons ; niveau 3 : la forêt ;
  *   2. la terre et la route (peintes dans les feuilles : earth.js, ink.js) ;
  *   1. l'herbe du premier plan, qui ondule au vent (celle du niveau 1, puis l'herbe fleurie).
- * Chaque niveau a son décor ; d'un niveau à l'autre, le suivant recouvre le précédent en fondu,
- * et après le niveau 3 tout s'efface vers le niveau 4, resté au crayon.
+ * Chaque niveau a son décor ; quand la caméra passe au niveau suivant, son décor apparaît en
+ * fondu, et après le niveau 3 tout s'efface vers le niveau 4, resté au crayon.
  * Images : images/niveau0/ (tools/decouper-niveau0.py, animer-niveau0.py, moulin-niveau0.py) et
  * images/ete/ (tools/decouper-ete.py).
  */
@@ -18,7 +18,7 @@ import { DESSIN1 } from './niveau1-route.js';
 
 /** Feuilles en couleurs (niveaux 1 à 3). */
 export const STYLE_SHEETS = new Set([0, 1, 2]);
-const Z1 = 3 * SHEET, RAMP = 450, B = 300; // fin de la zone ; fondu vers le niveau 4 ; demi-largeur des fondus
+const Z1 = 3 * SHEET, RAMP = 450; // fin de la zone ; fondu (terre) vers le niveau 4
 const K = DESSIN1.K, OY = DESSIN1.offY; // dessin du niveau 1 → monde
 
 const img = {};
@@ -75,53 +75,28 @@ function skyPattern(g) {
   return g.createPattern(skyTile, 'repeat');
 }
 
-/* ---------- masques : fondus d'un niveau à l'autre ---------- */
+/* ---------- d'un niveau à l'autre : fondu selon la position de la caméra ---------- */
 
-// Un masque : liste de [x du monde, opacité], interpolée entre les points, constante au-delà.
-const fadeIn = (b) => [[b - B, 0], [b + B, 1]];
-const fadeOutLate = (b) => [[b, 1], [b + B, 0]]; // le décor d'avant s'efface pendant que le suivant le recouvre
-const END = [[Z1, 1], [Z1 + RAMP, 0]];
-function maskAt(stops, x) {
-  if (x <= stops[0][0]) return stops[0][1];
-  for (let i = 1; i < stops.length; i++) {
-    if (x <= stops[i][0]) {
-      const [x0, a0] = stops[i - 1], [x1, a1] = stops[i];
-      return a0 + ((a1 - a0) * (x - x0)) / (x1 - x0);
-    }
-  }
-  return stops[stops.length - 1][1];
+// Chaque niveau a son décor ; quand le centre de la caméra passe d'une feuille à la suivante,
+// le décor suivant apparaît pendant que l'autre s'efface (sans image intermédiaire : rapide).
+const SWAP = 500;
+const rise = (b, cx) => Math.max(0, Math.min(1, (cx - b - 50) / SWAP));
+function scenes(cx) {
+  const a = rise(SHEET, cx), b = rise(2 * SHEET, cx), end = 1 - rise(Z1, cx);
+  // le décor qui arrive passe devant, à pleine opacité dès la moitié du fondu
+  return {
+    s1: Math.min(1, 2 * (1 - a)) * end,
+    s2: Math.min(1, 2 * a) * Math.min(1, 2 * (1 - b)) * end,
+    s3: Math.min(1, 2 * b) * end,
+    s23: Math.min(1, 2 * a) * end,
+    all: end,
+  };
 }
-let tmp = null, tg = null;
-const RES = 0.5;
-/**
- * Dessine fn(g) avec le masque : directement si le masque vaut 1 partout à l'écran, rien s'il vaut
- * 0 partout, sinon dans une image de travail (demi-résolution) effacée selon le masque.
- */
-function masked(ctx, cam, stops, fn) {
-  const xs = [cam.x, cam.x + cam.viewW, ...stops.map((s) => s[0]).filter((x) => x > cam.x && x < cam.x + cam.viewW)];
-  const vals = xs.map((x) => maskAt(stops, x));
-  if (vals.every((v) => v <= 0.001)) return;
-  if (vals.every((v) => v >= 0.999)) { fn(ctx); return; }
-  const W = Math.ceil(ctx.canvas.width * RES), H = Math.ceil(ctx.canvas.height * RES);
-  if (!tmp) { tmp = document.createElement('canvas'); tg = tmp.getContext('2d'); }
-  if (tmp.width !== W || tmp.height !== H) { tmp.width = W; tmp.height = H; }
-  tg.setTransform(1, 0, 0, 1, 0, 0);
-  tg.globalAlpha = 1;
-  tg.globalCompositeOperation = 'source-over';
-  tg.clearRect(0, 0, W, H);
-  const m = ctx.getTransform();
-  tg.setTransform(m.a * RES, 0, 0, m.d * RES, m.e * RES, m.f * RES);
-  fn(tg);
-  tg.globalAlpha = 1;
-  tg.globalCompositeOperation = 'destination-in';
-  const a = stops[0][0], b = stops[stops.length - 1][0], grad = tg.createLinearGradient(a, 0, b, 0);
-  for (const [x, v] of stops) grad.addColorStop((x - a) / (b - a), `rgba(0,0,0,${v})`);
-  tg.fillStyle = grad;
-  tg.fillRect(cam.x - 10, cam.y - 10, cam.viewW + 20, cam.viewH + 20);
-  tg.globalCompositeOperation = 'source-over';
+function layer(ctx, alpha, fn) {
+  if (alpha <= 0.002) return;
   ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.drawImage(tmp, 0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.globalAlpha = alpha;
+  fn(ctx, alpha);
   ctx.restore();
 }
 
@@ -176,7 +151,57 @@ function stepStraws(dt, t) {
   }
 }
 
-const visible = (cam) => cam.x < Z1 + RAMP && cam.x + cam.viewW > 0;
+/** La forêt : largeur, chevauchement des raccords ; mirrored : en miroir ; fade : bord gauche en fondu. */
+const FW = 2350, FOV = 220;
+let FH = 900;
+function forest(g, x, y, mirrored, fade = false) {
+  const i = img.foret;
+  if (!ok(i)) return;
+  FH = (i.naturalHeight * FW) / i.naturalWidth;
+  const src = mirrored ? mirror(i) : i;
+  g.drawImage(fade ? soft(src, FOV / FW) : src, x, y, FW, FH);
+}
+/** Copie de l'image dont le bord gauche (part de la largeur) s'efface. */
+const softs = new Map();
+function soft(src, part) {
+  const key = src;
+  if (!softs.has(key)) {
+    const w = src.naturalWidth || src.width, h = src.naturalHeight || src.height, c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const g = c.getContext('2d');
+    g.drawImage(src, 0, 0);
+    g.globalCompositeOperation = 'destination-in';
+    const grad = g.createLinearGradient(0, 0, w * part, 0);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, 'rgba(0,0,0,1)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, w, h);
+    softs.set(key, c);
+  }
+  return softs.get(key);
+}
+
+/** Le paysage du niveau 1 en miroir, sans la charrette : gardé sur 60 %, effacé jusqu'à 70 %. */
+let side = null;
+function sideCopy(i) {
+  if (!side) {
+    const c = document.createElement('canvas');
+    c.width = i.naturalWidth; c.height = i.naturalHeight;
+    const g = c.getContext('2d');
+    g.drawImage(mirror(i), 0, 0);
+    g.globalCompositeOperation = 'destination-in';
+    const grad = g.createLinearGradient(0, 0, c.width, 0);
+    grad.addColorStop(0, 'rgba(0,0,0,1)');
+    grad.addColorStop(0.6, 'rgba(0,0,0,1)');
+    grad.addColorStop(0.7, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, c.width, c.height);
+    side = c;
+  }
+  return side;
+}
+
+const visible = (cam) => scenes(cam.x + cam.viewW / 2).all > 0.002;
 
 export class Summer {
   constructor() { this.t = 0; }
@@ -191,12 +216,12 @@ export class Summer {
   /** Plans 5, 4 et 3 : derrière la terre et la route. */
   drawFar(ctx, cam) {
     if (!visible(cam)) return;
-    const t = this.t, cx = cam.x + cam.viewW / 2, cy = cam.y + cam.viewH / 2;
+    const t = this.t, cx = cam.x + cam.viewW / 2, cy = cam.y + cam.viewH / 2, S = scenes(cx);
     // décalage d'un plan qui suit la part q du mouvement de la caméra autour de l'ancre ax
     const sx = (q, ax) => q * (cx - ax), sy = (q) => q * 0.5 * (cy - 716);
 
     // 5 · ciel, puis soleil (presque immobile à l'écran : il est très loin)
-    masked(ctx, cam, END, (g) => {
+    layer(ctx, S.all, (g) => {
       const pat = skyPattern(g);
       if (pat) {
         const k = 1.36;
@@ -223,7 +248,7 @@ export class Summer {
     });
 
     // 4 · niveau 1 : les trois gros nuages du dessin, qui dérivent
-    if (geo) masked(ctx, cam, fadeOutLate(SHEET), (g) => {
+    if (geo) layer(ctx, S.s1, (g) => {
       const i = img['plan4-nuages'];
       if (!ok(i)) return;
       const p4 = geo.plan4, w = 2000, h = p4.h * K, y = (p4.y - 60) * K + OY + sy(0.75);
@@ -231,7 +256,7 @@ export class Summer {
       for (let k = Math.floor((cam.x - ox) / w) - 1; ox + k * w < cam.x + cam.viewW; k++) g.drawImage(k % 2 ? mirror(i) : i, ox + k * w, y, w + 1, h);
     });
     // 4 · niveaux 2 et 3 : gros nuages sur deux rangs (le plus loin d'abord)
-    masked(ctx, cam, [...fadeIn(SHEET), ...END], (g) => {
+    layer(ctx, S.s23, (g) => {
       const span = Z1 + 4000;
       for (const R of ROWS) {
         for (const c of R.clouds) {
@@ -247,14 +272,14 @@ export class Summer {
     });
 
     // 3 · niveaux 2 et 3 : montagnes enneigées, en bande (à l'endroit puis en miroir)
-    masked(ctx, cam, [...fadeIn(SHEET), ...END], (g) => {
+    layer(ctx, S.s23, (g) => {
       const i = img.montagnes;
       if (!ok(i)) return;
       const w = 1750, h = (i.naturalHeight * w) / i.naturalWidth, ox = sx(0.6, 4000), y = 870 - h + sy(0.6);
       for (let k = Math.floor((cam.x - ox) / w) - 1; ox + k * w < cam.x + cam.viewW; k++) g.drawImage(k % 2 ? mirror(i) : i, ox + k * w, y, w + 1, h);
     });
     // 3 · niveau 1 : montagnes, champs, charrette, moulin (ailes qui tournent), pailles
-    if (geo) masked(ctx, cam, fadeOutLate(SHEET), (g) => {
+    if (geo) layer(ctx, S.s1, (g, A) => {
       const i = img['plan3-moulin'];
       if (!ok(i)) return;
       const p3 = geo.plan3, k = 2000 / p3.w; // repère du dessin du moulin → monde
@@ -263,13 +288,13 @@ export class Summer {
       g.transform(k, 0, 0, k, x0, y0);
       // le paysage, et son reflet de chaque côté (sans le moulin, dessiné à part) : pas de bord visible
       g.drawImage(i, 0, p3.top, p3.w, p3.h - p3.top);
-      for (const side of [-1, 1]) {
-        g.save();
-        g.translate(side < 0 ? 0 : 2 * p3.w, 0);
-        g.scale(-1, 1);
-        g.drawImage(mirror(i), 0, 0, i.naturalWidth, i.naturalHeight, 0, p3.top, p3.w, p3.h - p3.top);
-        g.restore();
-      }
+      // reflets de chaque côté, sans la charrette : seulement des champs, effacés en douceur
+      g.drawImage(sideCopy(i), p3.w, p3.top, p3.w, p3.h - p3.top);
+      g.save();
+      g.translate(0, 0);
+      g.scale(-1, 1);
+      g.drawImage(sideCopy(i), 0, p3.top, p3.w, p3.h - p3.top);
+      g.restore();
       const m2 = geo.moulin2;
       if (m2 && ok(img.tour)) g.drawImage(img.tour, m2.tour[0], m2.tour[1], m2.tour[2], m2.tour[3]);
       if (m2 && ok(img.ailes)) {
@@ -282,7 +307,7 @@ export class Summer {
       g.lineCap = 'round';
       for (const p of straws) {
         const a = Math.min(1, p.life / 0.6, (p.max - p.life) / 1.2), dx = (Math.cos(p.a) * p.len) / 2, dy = (Math.sin(p.a) * p.len) / 2;
-        g.globalAlpha = 0.95 * a;
+        g.globalAlpha = 0.95 * a * A;
         g.strokeStyle = p.col;
         g.lineWidth = 3.2;
         g.beginPath();
@@ -290,15 +315,17 @@ export class Summer {
         g.quadraticCurveTo(p.x + dy * 0.25, p.y - dx * 0.25, p.x + dx, p.y + dy);
         g.stroke();
       }
-      g.globalAlpha = 1;
       g.restore();
     });
     // 3 · niveau 2 : la ferme et ses cochons
-    masked(ctx, cam, [...fadeIn(SHEET), ...fadeOutLate(2 * SHEET)], (g) => {
+    layer(ctx, S.s2, (g) => {
       const i = img.ferme;
       if (!ok(i)) return;
       const w = 2350, h = (i.naturalHeight * w) / i.naturalWidth, x = 3000 - w / 2 + sx(0.15, 3000), y = WORLD.h + 40 - h + sy(0.15);
-      g.drawImage(i, x, y, w, h);
+      // de part et d'autre, la forêt (en miroir à gauche), raccordée en fondu : pas de bord droit
+      forest(g, x - FW + FOV, y + h - FH, true);
+      g.drawImage(soft(i, 0.12), x, y, w, h);
+      forest(g, x + w - FOV, y + h - FH, false, true);
       if (!ok(img.cochon)) return;
       const pig = img.cochon;
       for (const p of PIGS) {
@@ -312,12 +339,13 @@ export class Summer {
         g.restore();
       }
     });
-    // 3 · niveau 3 : la forêt
-    masked(ctx, cam, [...fadeIn(2 * SHEET), ...END], (g) => {
-      const i = img.foret;
-      if (!ok(i)) return;
-      const w = 2350, h = (i.naturalHeight * w) / i.naturalWidth;
-      g.drawImage(i, 5000 - w / 2 + sx(0.15, 5000), WORLD.h + 40 - h + sy(0.15), w, h);
+    // 3 · niveau 3 : la forêt, prolongée en miroir de chaque côté
+    layer(ctx, S.s3, (g) => {
+      if (!ok(img.foret)) return;
+      const x = 5000 - FW / 2 + sx(0.15, 5000), y = WORLD.h + 40 - FH + sy(0.15);
+      forest(g, x - FW + FOV, y, true);
+      forest(g, x + FW - FOV, y, true, true);
+      forest(g, x, y, false, true);
     });
   }
 
@@ -327,12 +355,12 @@ export class Summer {
    */
   drawFront(ctx, cam) {
     if (!visible(cam)) return;
-    const t = this.t, cx = cam.x + cam.viewW / 2;
+    const t = this.t, cx = cam.x + cam.viewW / 2, S = scenes(cx);
     const gust = 0.09 * Math.sin(t * 1.3) + 0.04 * Math.sin(t * 2.7 + 1) + 0.02 * Math.sin(t * 5.1) + 0.03;
     const grass = (g, i, w, base, ax) => {
       if (!ok(i)) return;
       const h = (i.naturalHeight * w) / i.naturalWidth, top = base - h, ox = -0.3 * (cx - ax);
-      const ROW = 4, sc = i.naturalHeight / h;
+      const ROW = 8, sc = i.naturalHeight / h;
       const k0 = Math.floor((cam.x - ox) / w) - 1, k1 = Math.ceil((cam.x + cam.viewW - ox) / w);
       for (let y = 0; y < h; y += ROW) {
         const lift = (h - y) / h, dx = gust * h * lift * lift, rh = Math.min(ROW, h - y);
@@ -340,11 +368,11 @@ export class Summer {
       }
     };
     // niveau 1 : l'herbe du dessin
-    masked(ctx, cam, fadeOutLate(SHEET), (g) => {
+    layer(ctx, S.s1, (g) => {
       const i = img['plan1-herbe'];
       if (ok(i)) grass(g, i, (i.naturalWidth / 0.8) * (2932 / 2932) * K, WORLD.h + 50, 1000);
     });
     // niveaux 2 et 3 : l'herbe fleurie
-    masked(ctx, cam, [...fadeIn(SHEET), ...END], (g) => grass(g, img.herbe, 1500, WORLD.h + 60, 4000));
+    layer(ctx, S.s23, (g) => grass(g, img.herbe, 1500, WORLD.h + 60, 4000));
   }
 }
