@@ -7,7 +7,7 @@
 import { WORLD, SHEET, SHEETS, JUMPS, HILL, BRIDGE, BRIDGES, FINISH, BALL_R, surfaceY } from './track.js';
 import { biomeOfSheet, biomeMix, biomeParams } from './biomes.js';
 import { rng, range, pencilLine, hatch, grain } from './pencil.js';
-import { paintEarth, groundPath } from './earth.js';
+import { groundPath } from './earth.js';
 import { STYLE_SHEETS, earthPattern } from './balade.js';
 
 const GRAPHITE = '#4b4b4f';
@@ -31,44 +31,34 @@ export function* inkSteps(track, q, sheet) {
   g.scale(q, q);
   g.translate(-sheet * SHEET, 0);
   const x0 = sheet * SHEET - 120, x1 = (sheet + 1) * SHEET + 120, bio = (x) => biomeOfSheet(Math.floor(x / SHEET));
-  // la balade en couleurs : la terre (texture) et la route, d'un seul tenant d'une feuille à l'autre
-  if (STYLE_SHEETS.has(sheet)) {
-    yield* paintBalade(g, track, x0, x1);
-    return c;
+  // Tous les niveaux ont la même terre (texture en coordonnées du monde) et la même route, tracées
+  // d'un seul tenant : rien ne change d'une feuille à l'autre. Les feuilles au crayon ajoutent par-
+  // dessus leur décor (arbres, neige, fosses) ; la balade en couleurs a le sien (balade.js).
+  const pencil = !STYLE_SHEETS.has(sheet);
+  if (pencil) {
+    // 1. le décor au crayon (neige, arbres, fosses, arrivée, nom du niveau), avec le grain du papier
+    yield* drawGround(g, track, x0, x1, bio);
+    yield;
+    drawDecor(g, track, sheet);
+    drawPits(g, track, x0, x1, bio);
+    if (sheet === SHEETS - 1) drawFinish(g, track);
+    g.font = `600 44px ${HAND}`;
+    g.fillStyle = 'rgba(70,70,76,0.55)';
+    const b = biomeOfSheet(sheet);
+    g.fillText(sheet === SHEETS - 1 ? 'arrivée' : `niveau ${sheet + 1} · ${b.name.toLowerCase()}`, sheet * SHEET + (sheet ? 110 : 60), 86);
+    yield;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    grain(g, c.width, c.height, 0.5);
+    g.setTransform(q, 0, 0, q, -sheet * SHEET * q, 0);
+    yield;
   }
-  // la terre du premier plan, tout en dessous
-  const colour = false;
-  yield* paintEarth(g, track, x0, x1, 'crayon');
-  yield* drawGround(g, track, x0, x1, bio);
-  drawUnderline(g, track, x0, x1, bio);
-  yield;
-  if (!colour) drawDecor(g, track, sheet); // (la balade en couleurs a son propre décor : balade.js)
-  drawPits(g, track, x0, x1, bio);
-  drawTunnels(g, track, x0, x1);
-  if (sheet === SHEETS - 1) drawFinish(g, track);
-  yield;
-  drawRoad(g, track, x0, x1, bio, colour);
-  drawPuddles(g, track, x0, x1);
-  g.font = `600 44px ${HAND}`;
-  g.fillStyle = 'rgba(70,70,76,0.55)';
-  const b = biomeOfSheet(sheet);
-  if (!colour) g.fillText(sheet === SHEETS - 1 ? 'arrivée' : `niveau ${sheet + 1} · ${b.name.toLowerCase()}`, sheet * SHEET + (sheet ? 110 : 60), 86);
-  yield;
-  g.setTransform(1, 0, 0, 1, 0, 0);
-  grain(g, c.width, c.height, 0.5);
-  // le grain a piqué la terre : on rebouche par-dessous avec la couleur du papier du dessin,
-  // pour qu'elle reste opaque (rien de l'arrière-plan ne passe à travers)
-  g.setTransform(q, 0, 0, q, -sheet * SHEET * q, 0);
-  g.globalCompositeOperation = 'destination-over';
-  g.fillStyle = '#e4ddd3';
-  groundPath(g, track, x0, x1);
-  g.fill();
-  g.globalCompositeOperation = 'source-over';
+  // 2. la terre, dessous (sans grain : identique partout), puis les galeries, la route, les flaques
+  yield* paintEarthAndRoad(g, track, x0, x1);
   return c;
 }
 
 /**
- * Le sol (la terre du dessin est peinte à part, earth.js) : en hiver, de la neige
+ * Le sol (la terre est peinte à part, paintEarthAndRoad) : en hiver, de la neige
  * par-dessus avec des hachures bleutées.
  */
 function* drawGround(g, track, x0, x1, bio) {
@@ -103,45 +93,17 @@ function* drawGround(g, track, x0, x1, bio) {
   }
 }
 
-/** Sous la route : ombre brune (glace bleutée en hiver). */
-function drawUnderline(g, track, x0, x1, bio) {
-  const under = [], rand = rng(99);
-  let color = BROWN;
-  const flush = () => {
-    if (under.length > 4) pencilLine(g, under, rand, { color, width: 7, alpha: 0.32, passes: 3, wobble: 2.4 });
-    under.length = 0;
-  };
-  for (const pc of track.pieces) {
-    for (const [px, py] of pc.line) {
-      if (px < x0 || px > x1) { flush(); continue; }
-      const prev = under[under.length - 1], c = biomeParams(px).snow > 0.5 ? '#9fb7c9' : BROWN;
-      if ((prev && Math.hypot(prev[0] - px, prev[1] - 6 - py) > 8) || c !== color) flush();
-      color = c;
-      if (Math.abs(surfaceY(track, px) - py) < 2) under.push([px, py + 6]);
-      else flush();
-    }
-    flush();
+/** En hiver : une couche de glace bleutée sur la route, avec des reflets blancs. */
+function icy(g, pc, i, x0, x1) {
+  const pts = pc.line.filter(([x]) => x > x0 - 30 && x < x1 + 30 && biomeParams(x).snow > 0.5);
+  if (pts.length < 3) return;
+  pencilLine(g, pts, rng(300 + i), { color: '#9cc3e0', width: 10, alpha: 0.5, passes: 2, wobble: 1.2 });
+  const r = rng(400 + i);
+  for (let j = 0; j < pts.length - 8; j += 14) {
+    if (r() < 0.5) continue;
+    const [ax, ay] = pts[j], [bx, by] = pts[j + 5];
+    pencilLine(g, [[ax, ay - 3], [bx, by - 3]], r, { color: '#ffffff', width: 2.2, alpha: 0.8, passes: 1, wobble: 0.3 });
   }
-}
-
-/** La route au graphite ; en hiver, une couche de glace bleutée avec des reflets blancs. */
-function drawRoad(g, track, x0, x1, bio, colour = false) {
-  track.pieces.forEach((pc, i) => {
-    const pts = pc.line.filter(([x]) => x > x0 - 30 && x < x1 + 30);
-    if (pts.length < 2) return;
-    const icy = pts.filter(([x]) => biomeParams(x).snow > 0.5);
-    if (icy.length > 2) {
-      pencilLine(g, icy, rng(300 + i), { color: '#9cc3e0', width: 10, alpha: 0.5, passes: 2, wobble: 1.2 });
-      const r = rng(400 + i);
-      for (let j = 0; j < icy.length - 8; j += 14) {
-        if (r() < 0.5) continue;
-        const [ax, ay] = icy[j], [bx, by] = icy[j + 5];
-        pencilLine(g, [[ax, ay - 3], [bx, by - 3]], r, { color: '#ffffff', width: 2.2, alpha: 0.8, passes: 1, wobble: 0.3 });
-      }
-    }
-    pencilLine(g, pc.line, rng(77 + i * 10), { color: colour ? '#4a3426' : GRAPHITE, width: 5.5, alpha: 0.55, passes: 4, wobble: 1.8 });
-    pencilLine(g, pc.line, rng(78 + i * 10), { color: colour ? '#2a1d15' : '#2f2f33', width: 2.2, alpha: 0.45, passes: 2, wobble: 1 });
-  });
 }
 
 /** Fosses des tremplins : cailloux au fond, ou eau quand il pleut. */
@@ -394,22 +356,22 @@ function earthClip(g, track, x0, x1) {
 }
 
 /**
- * La balade en couleurs : sous la route, la texture de terre (motif en coordonnées du monde : aucun
- * raccord entre deux feuilles), assombrie juste sous la route ; puis la route, un trait de crayon
- * brun foncé. Tout est tracé d'un seul tenant (même hasard pour tout le tronçon), donc identique
- * des deux côtés d'un bord de feuille.
+ * La terre de tous les niveaux : la texture fournie (motif en coordonnées du monde : aucun raccord
+ * entre deux feuilles), assombrie juste sous la route, posée SOUS ce qui est déjà dessiné (neige,
+ * décor) ; puis les galeries, la route (un trait de crayon brun foncé ; en hiver, de la glace
+ * dessus) et les flaques. Tout est tracé d'un seul tenant (même hasard pour tout le tronçon),
+ * donc identique des deux côtés d'un bord de feuille.
  */
-function* paintBalade(g, track, x0, x1) {
+function* paintEarthAndRoad(g, track, x0, x1) {
   const pat = earthPattern(g);
   g.save();
   groundPath(g, track, x0, x1);
   g.clip();
-  g.fillStyle = pat || '#c08a55';
-  g.fillRect(x0, 0, x1 - x0, WORLD.h + 60);
-  // ombre douce sous la route (comme sur le dessin de la butte)
+  g.globalCompositeOperation = 'destination-over';
+  // ombre douce sous la route (d'abord : sous « destination-over », ce qui vient d'abord est dessus)
   g.lineJoin = 'round';
   g.lineCap = 'round';
-  for (const [w, a] of [[70, 0.1], [40, 0.12], [18, 0.14]]) {
+  for (const [w, a] of [[18, 0.14], [40, 0.12], [70, 0.1]]) {
     g.strokeStyle = `rgba(92,52,24,${a})`;
     g.lineWidth = w;
     for (const pc of track.pieces) {
@@ -419,11 +381,14 @@ function* paintBalade(g, track, x0, x1) {
       g.stroke();
     }
   }
+  g.fillStyle = pat || '#c08a55';
+  g.fillRect(x0, 0, x1 - x0, WORLD.h + 60);
   g.restore();
   yield;
   drawTunnels(g, track, x0, x1);
   track.pieces.forEach((pc, i) => {
     if (pc.line[pc.line.length - 1][0] < x0 - 60 || pc.line[0][0] > x1 + 60) return;
+    icy(g, pc, i, x0, x1);
     pencilLine(g, pc.line, rng(77 + i * 10), { color: '#3a2a1f', width: 6.5, alpha: 0.6, passes: 4, wobble: 1.4 });
     pencilLine(g, pc.line, rng(78 + i * 10), { color: '#1d140e', width: 2.6, alpha: 0.5, passes: 2, wobble: 0.9 });
   });

@@ -17,6 +17,10 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
     (grand looping) et une grande bosse (butte de terre pleine, galerie dessous).
   Images : `images/niveau0/` (dessins du niveau 1) et `images/balade/` (`tools/decouper-balade.py` :
   terre, ciel, montagnes et champs du niveau 1 ; ferme, cochon, nuages).
+- **Terre de tous les niveaux** : la même texture de terre aux crayons de couleur, posée selon la
+  position dans le paysage (aucun raccord entre deux niveaux), et la même route, un trait brun
+  foncé tracé d'un seul tenant. Les saisons ajoutent par-dessus leur décor (neige, glace sur la
+  route, flaques, arbres).
 - **Automne (5 à 8)** : feuilles mortes qui volent, vent en rafales qui gêne l'avancée.
 - **Hiver (9 à 12)** : neige, route glacée : la boule glisse, va plus vite, répond moins aux
   gestes, et revenir en arrière est difficile.

@@ -21,7 +21,6 @@ import { save } from './save.js';
 import { Menu, scoreTable } from './menu.js';
 import { Game, skinPhys, medalTimes } from './game.js';
 import { drawObstacles, drawPlanks, obstaclesOf } from './obstacles.js';
-import { earthReady } from './earth.js';
 import { Balade, baladeLoaded } from './balade.js';
 
 const $ = (id) => document.getElementById(id);
@@ -77,7 +76,6 @@ const visible = (k) => cam.x < (k + 1) * SHEET && cam.x + cam.viewW > k * SHEET;
 
 // la terre du premier plan est peinte dans les feuilles : une fois ses images chargées,
 // on redessine les feuilles préparées sans elle
-earthReady.then(() => { if (art) { art.ink.clear(); art.pending.clear(); } });
 baladeLoaded.then(() => { if (art) { art.ink.clear(); art.pending.clear(); } });
 
 function inkFor(k) {
