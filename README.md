@@ -50,11 +50,11 @@ looping, saut, obstacle franchi, bonus, étoile ou atterrissage parfait (×2, ×
 s'affiche à chaque niveau ; la boule grise est ton meilleur passage. Les étoiles débloquent des
 boules : verre (légère), pétanque (lourde, traverse les tas), balle rebondissante, crayons de couleur.
 
-**Obstacles** : rochers et troncs bas, gros tas de feuilles (automne) ou de neige (hiver),
-escaliers de deux marches, plateformes au-dessus d'une fosse, grandes flaques. Un saut les passe
+**Obstacles** (peu nombreux, pour que la balade reste fluide) : un gros tas de feuilles (automne)
+et un de neige (hiver), des plateformes au-dessus d'une fosse, une grande flaque. Un saut les passe
 toujours ; avec assez d'élan, la boule passe aussi d'elle-même ; les tas freinent sans arrêter.
-Une nouveauté à la fois : automne 5 = le vent, 6 = rocher et tronc (avec l'astuce « touche pour
-sauter »), 7 = tas de feuilles et aiguillage, 8 = escalier ; hiver et pluie de même.
+Une nouveauté à la fois : automne 5 = le vent, 6 = des bosses, 7 = tas de feuilles (avec l'astuce
+« touche pour sauter ») et aiguillage, 8 = deux loopings ; hiver et pluie de même.
 ↺ ramène juste avant le passage difficile raté.
 
 **Passages de saison en fondu** : herbe, neige, ciel, météo, vent et glace changent peu à peu.

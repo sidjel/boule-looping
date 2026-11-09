@@ -107,17 +107,17 @@ const end = (k) => {
 // Chaque niveau : trois étoiles, et une seule nouveauté à la fois. Aux aiguillages, un chemin
 // facile (une étoile) et un chemin risqué (deux étoiles).
 
-// Automne : 5 = le vent seul ; 6 = premiers obstacles (rocher bas, tronc) ; 7 = tas de feuilles
-// et aiguillage ; 8 = escalier.
+// Automne : 5 = le vent seul ; 6 = des bosses ; 7 = tas de feuilles
+// et aiguillage ; 8 = deux loopings.
 start(4); b.valley(380, 150).hill(360, 150, true).bonus('red', 40).slope(160, 50).loop(0.82, true).flat(40).hill(300, 110, true); end(4);
-start(5); b.slope(100, 30).obstacle('rock', true).flat(60).obstacle('trunk', true).bonus('green', 10).hill(330, 130, true); end(5);
+start(5); b.slope(100, 30).flat(80).hill(300, 100, true).flat(60).hill(280, 90, true).bonus('green', 10).hill(330, 130, true); end(5);
 start(6); b.obstacle('leaves', true);
 b.fork(1200,
   (l) => l.slope(140, 80).bonus('red').slope(100, 10).loop(0.7, true).flat(30).slope(140, -90),
   (h) => h.slope(260, -400).bonus('yellow').flat(50).star(0, 160).flat(120).star(0, 150).flat(50).slope(260, 400),
   ['↘ En bas : looping', '↗ En haut : le pont']);
 end(6);
-start(7); b.slope(120, 40).stairs(2, 180, 45, true).bonus('red').loop(0.8, true).slope(60, 25).loop(0.7, true); end(7);
+start(7); b.slope(120, 40).flat(300).star(0, 170).flat(320).bonus('red').loop(0.8, true).slope(60, 25).loop(0.7, true); end(7);
 
 // Hiver : 9 = la glace seule ; 10 = tas de neige ; 11 = aiguillage ; 12 = trois loopings.
 start(8); b.slope(180, 150).hill(360, 150, true).hill(340, 140, true).slope(80, 30).loop(0.85, true); end(8);
@@ -130,9 +130,9 @@ b.fork(1180,
 end(10);
 start(11); b.slope(160, 80).bonus('red').loop(0.76, true).slope(50, 22).loop(0.7, true).slope(50, 22).loop(0.62, true).flat(30).valley(300, 100); end(11);
 
-// Pluie : 13 = flaques ; 14 = grande flaque et rocher ; 15 = aiguillage ; 16 = plateformes.
+// Pluie : 13 = flaques ; 14 = grande flaque ; 15 = aiguillage ; 16 = plateformes.
 start(12); b.slope(220, 120).puddle(160).slope(200, -120).hill(300, 110, true).bonus('red').slope(80, 20).loop(0.78, true).puddle(180).hill(260, 85, true); end(12);
-start(13); b.slope(100, 30).bigPuddle(300, true).obstacle('rock', true).hill(300, 110, true); end(13);
+start(13); b.slope(100, 30).bigPuddle(300, true).flat(80).hill(260, 80, true).hill(300, 110, true); end(13);
 start(14); b.hill(300, 110, true);
 b.fork(1250,
   (l) => l.slope(160, 90).puddle(150).bonus('red').loop(0.74, true).slope(140, -90),
