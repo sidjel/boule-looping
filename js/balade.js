@@ -1,14 +1,15 @@
 /**
- * La balade aux crayons de couleur (niveaux 1 et 2 pour l'instant) : un seul paysage continu,
+ * La balade aux crayons de couleur (niveaux 1 à 3) : un seul paysage continu,
  * sans raccord d'un niveau à l'autre. Chaque plan est une bande unique qui court sous tous les
  * niveaux en couleurs ; plus un plan est loin, plus il suit la caméra (q : part du mouvement de la
  * caméra qu'il suit), donc moins il glisse à l'écran.
  *   5. le ciel (texture fournie : bleu foncé en haut, presque blanc en bas ; bande qui se raccorde
  *      sur elle-même, sans miroir), sur les trois premiers niveaux ; le soleil qui brille, de petits nuages ;
  *   4. les nuages : nuages.js, sur tout le parcours ;
- *   3. les montagnes du niveau 1 (bande répétée en miroir) ;
+ *   3. les montagnes : montagnes.js, sur tout le parcours ;
  *   3. une seule bande de champs : ceux du niveau 1 (charrette, pailles, moulin aux ailes qui
- *      tournent), puis la ferme du niveau 2 et ses cochons ;
+ *      tournent), puis la ferme du niveau 2 et ses cochons, puis la bande du niveau 3 (ferme, lac,
+ *      château), raccordée à la ferme par une couture qui suit le dessin (tools/decouper-niveau3.py) ;
  *   2. la terre (texture) et la route, peintes dans les feuilles (ink.js : paintBalade) ;
  *   1. l'herbe du premier plan : herbe.js, sur tout le parcours.
  * Images : images/niveau0/ (niveau 1) et images/balade/ (tools/decouper-balade.py).
@@ -17,8 +18,8 @@ import { SHEET, WORLD } from './track.js';
 import { DESSIN1 } from './niveau1-route.js';
 
 /** Feuilles de la balade en couleurs. */
-export const STYLE_SHEETS = new Set([0, 1]);
-const Z1 = 2 * SHEET; // fin de la balade (le niveau 3 est encore au crayon)
+export const STYLE_SHEETS = new Set([0, 1, 2]);
+const Z1 = 3 * SHEET; // fin de la balade en couleurs (niveaux 1 à 3)
 const K = DESSIN1.K, OY = DESSIN1.offY;
 
 const img = {};
@@ -29,9 +30,11 @@ function load(key, src) {
   img[key] = i;
 }
 for (const n of ['terre', 'champs', 'ferme', 'cochon']) load(n, `images/balade/${n}.webp`);
+load('bande3', 'images/niveau3/bande.webp');
 for (const n of ['soleil', 'tour', 'ailes']) load(n, `images/niveau0/${n}.webp`);
 const ok = (i) => i && i.complete && i.naturalWidth > 0;
-let geo = null, meta = null;
+let geo = null, meta = null, n3 = null;
+fetch('images/niveau3/niveau3.json').then((r) => r.json()).then((g) => (n3 = g)).catch(() => {});
 fetch('images/niveau0/geo.json').then((r) => r.json()).then((g) => (geo = g)).catch(() => {});
 fetch('images/balade/balade.json').then((r) => r.json()).then((g) => (meta = g)).catch(() => {});
 /** Résolu quand la texture de terre est chargée (les feuilles sont alors redessinées avec elle). */
@@ -159,8 +162,6 @@ const FARM = { f: 1.05, horizon: 322, x: 1500, blend: 260 }; // les champs du ni
 const Q = { ciel: 0.9, soleil: 0.92, petits: 0.85, nuages: 0.75, montagnes: 0.3, champs: 0.12, herbe: -0.3 };
 const ANCHOR = 1200;
 
-/** Fondu temporaire vers le niveau 3, encore au crayon (selon le centre de la caméra). */
-const fadeTo3 = (cx) => 1 - Math.max(0, Math.min(1, (cx - Z1 - 50) / 500));
 /** Le ciel va jusqu'au bout du niveau 3, puis laisse place au papier du niveau 4. */
 const SKY_END = 3 * SHEET;
 const skyAlpha = (cx) => 1 - Math.max(0, Math.min(1, (cx - SKY_END - 50) / 500));
@@ -177,16 +178,18 @@ export class Balade {
 
   /** Plans 5, 4 et 3 : derrière la terre et la route. */
   drawFar(ctx, cam) {
-    const t = this.t, cx = cam.x + cam.viewW / 2, cy = cam.y + cam.viewH / 2, A = fadeTo3(cx), AS = skyAlpha(cx);
-    if (AS <= 0.002) return;
+    const t = this.t, cx = cam.x + cam.viewW / 2, cy = cam.y + cam.viewH / 2, A = 1, AS = skyAlpha(cx);
     const sx = (q) => q * (cx - ANCHOR), sy = (q) => q * 0.5 * (cy - 716);
     const x0 = cam.x - 4, x1 = cam.x + cam.viewW + 4;
+    // le plan des champs s'arrête au bout de la bande du niveau 3 (cachée par la grande bosse du niveau 4)
+    const fieldsEnd = sx(Q.champs) + (n3 ? n3.fin : 6600);
+    if (AS <= 0.002 && x0 > fieldsEnd) return;
     ctx.save();
     ctx.globalAlpha = AS;
     const g = ctx;
     // (5 · le ciel, commun à tous les niveaux : ciel.js)
-    // soleil qui brille
-    if (ok(img.soleil)) {
+    // soleil qui brille (jusqu'au niveau 3)
+    if (ok(img.soleil) && AS > 0.002) {
       const i = img.soleil, x = 900 + sx(Q.soleil), y = 330 + sy(Q.soleil), R = 125;
       const pulse = 0.5 + 0.5 * Math.sin(t * 1.6);
       const halo = g.createRadialGradient(x, y, R * 0.9, x, y, R * (1.7 + 0.2 * pulse));
@@ -202,8 +205,7 @@ export class Balade {
       g.drawImage(i, x - w / 2, y - h / 2, w, h);
       g.restore();
     }
-    if (A <= 0.002) { ctx.restore(); return; }
-    ctx.globalAlpha = A;
+    ctx.globalAlpha = 1;
     // petits nuages au loin, puis 4 · les gros nuages devant ; ils dérivent lentement
     // (les nuages, communs à tous les niveaux : nuages.js)
     // (3 · les montagnes, communes à tous les niveaux : montagnes.js)
@@ -225,15 +227,11 @@ export class Balade {
       if (ok(f)) {
         const fw = f.naturalWidth * FARM.f, fh = f.naturalHeight * FARM.f;
         const fx = ox + FARM.x, fy = yc + (meta.ligne_haies - meta.champs.top) * PX - FARM.horizon * FARM.f;
-        if (fx < x1 && fx + fw > x0) {
+        if (fx < x1 && fieldsEnd > x0) {
           g.drawImage(softLeft(f, FARM.blend / fw), fx, fy, fw, fh);
-          // après la ferme, les champs continuent (ceux du niveau 1 en miroir, sans la charrette),
-          // raccordés en douceur sur le bord droit de la ferme
-          const ex = fx + fw - FARM.blend;
-          g.save();
-          g.beginPath(); g.rect(ex, yc - 400, w * 0.55, h + 800); g.clip();
-          g.drawImage(softLeft(mirror(i), FARM.blend / w), ex, yc, w + 1, h);
-          g.restore();
+          // niveau 3 : la bande (ferme, lac, château) prend la suite, raccordée au bord droit de la ferme
+          // par une couture qui suit le dessin (tools/decouper-niveau3.py) ; même plan que les champs
+          if (n3 && ok(img.bande3)) g.drawImage(img.bande3, ox + n3.u0, y0 - p3y() + n3.y0, n3.w, n3.h);
           if (ok(img.cochon)) {
             const pig = img.cochon;
             for (const p of PIGS) {
