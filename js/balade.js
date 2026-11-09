@@ -3,8 +3,8 @@
  * sans raccord d'un niveau à l'autre. Chaque plan est une bande unique qui court sous tous les
  * niveaux en couleurs ; plus un plan est loin, plus il suit la caméra (q : part du mouvement de la
  * caméra qu'il suit), donc moins il glisse à l'écran.
- *   5. le ciel au crayon bleu en dégradé (foncé en haut, clair en bas ; bande qui se raccorde sur
- *      elle-même, sans miroir), le soleil qui brille, de petits nuages ;
+ *   5. le ciel (texture fournie : bleu foncé en haut, presque blanc en bas ; bande qui se raccorde
+ *      sur elle-même, sans miroir), sur les trois premiers niveaux ; le soleil qui brille, de petits nuages ;
  *   4. les gros nuages, qui dérivent ; jamais deux nuages pareils côte à côte ;
  *   3. les montagnes du niveau 1 (bande répétée en miroir) ;
  *   3. une seule bande de champs : ceux du niveau 1 (charrette, pailles, moulin aux ailes qui
@@ -45,7 +45,7 @@ export const baladeLoaded = new Promise((done) => {
 
 /** Part de la balade en couleurs à l'abscisse x (pour les décors au crayon : feuilles, coutures). */
 export function colourWeight(x) {
-  return x >= 0 && x < Z1 ? 1 : 0;
+  return x >= 0 && x < 3 * SHEET ? 1 : 0; // le ciel couvre les trois premiers niveaux : pas de bord de feuille
 }
 
 /* ---------- outils ---------- */
@@ -203,30 +203,34 @@ const ANCHOR = 1200;
 
 /** Fondu temporaire vers le niveau 3, encore au crayon (selon le centre de la caméra). */
 const fadeTo3 = (cx) => 1 - Math.max(0, Math.min(1, (cx - Z1 - 50) / 500));
+/** Le ciel va jusqu'au bout du niveau 3, puis laisse place au papier du niveau 4. */
+const SKY_END = 3 * SHEET;
+const skyAlpha = (cx) => 1 - Math.max(0, Math.min(1, (cx - SKY_END - 50) / 500));
 
 export class Balade {
   constructor() { this.t = 0; }
 
   update(dt, cam) {
     this.t += dt;
-    if (fadeTo3(cam.x + cam.viewW / 2) <= 0) return;
+    if (skyAlpha(cam.x + cam.viewW / 2) <= 0) return;
     stepPigs(dt);
     stepStraws(dt, this.t);
   }
 
   /** Plans 5, 4 et 3 : derrière la terre et la route. */
   drawFar(ctx, cam) {
-    const t = this.t, cx = cam.x + cam.viewW / 2, cy = cam.y + cam.viewH / 2, A = fadeTo3(cx);
-    if (A <= 0.002) return;
+    const t = this.t, cx = cam.x + cam.viewW / 2, cy = cam.y + cam.viewH / 2, A = fadeTo3(cx), AS = skyAlpha(cx);
+    if (AS <= 0.002) return;
     const sx = (q) => q * (cx - ANCHOR), sy = (q) => q * 0.5 * (cy - 716);
     const x0 = cam.x - 4, x1 = cam.x + cam.viewW + 4;
     ctx.save();
-    ctx.globalAlpha = A;
+    ctx.globalAlpha = AS;
     const g = ctx;
     // 5 · ciel au crayon bleu : une bande en dégradé qui se raccorde sur elle-même en largeur ;
     // au-dessus, le bleu du haut, en dessous le bleu clair du bas
+    // (le ciel couvre les trois premiers niveaux ; le reste de la balade, les deux premiers)
     if (ok(img.ciel) && meta) {
-      const i = img.ciel, w = i.naturalWidth * 2, h = i.naturalHeight * 1.6, y = -150 + sy(Q.ciel), ox = sx(Q.ciel);
+      const i = img.ciel, w = i.naturalWidth * 1.7, h = i.naturalHeight * 1.25, y = -260 + sy(Q.ciel), ox = sx(Q.ciel);
       const [r0, g0, b0] = meta.ciel_haut, [r1, g1, b1] = meta.ciel_bas;
       g.fillStyle = `rgb(${r0},${g0},${b0})`;
       g.fillRect(x0, cam.y - 4, x1 - x0, Math.max(0, y - cam.y + 6));
@@ -247,10 +251,12 @@ export class Balade {
       g.drawImage(i, x - w / 2, y - h / 2, w, h);
       g.save();
       g.globalCompositeOperation = 'lighter';
-      g.globalAlpha = A * (0.12 + 0.12 * Math.max(0, Math.sin(t * 2.3)));
+      g.globalAlpha = AS * (0.12 + 0.12 * Math.max(0, Math.sin(t * 2.3)));
       g.drawImage(i, x - w / 2, y - h / 2, w, h);
       g.restore();
     }
+    if (A <= 0.002) { ctx.restore(); return; }
+    ctx.globalAlpha = A;
     // petits nuages au loin, puis 4 · les gros nuages devant ; ils dérivent lentement
     drawRow(g, SMALL, Q.petits, sx, sy, x0, x1, t);
     drawRow(g, BIG, Q.nuages, sx, sy, x0, x1, t);
