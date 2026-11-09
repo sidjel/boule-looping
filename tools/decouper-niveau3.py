@@ -22,6 +22,12 @@ FY = P3Y + 645 * PX - 322 * FF
 CH_END = FX + ferme.shape[1] * FF                                   # la bande se raccorde au bord droit de la ferme
 # ---- la bande
 im = np.array(Image.open(src).convert('RGB')).astype(np.float32)
+# la ferme de la bande ferait doublon avec celle du niveau 2 : la bande commence juste après elle
+# (à ses arbres) ; à droite, la forêt du bout est prolongée en miroir
+C0, TAIL, MORE = 690, 200, 900
+end = im[:, -TAIL:]
+tail = np.concatenate([end[:, ::-1], end] * 4, 1)[:, :MORE]          # va-et-vient sur la forêt du bout
+im = np.concatenate([im[:, C0:], tail], 1)
 H, W = im.shape[:2]
 r, g, b = im[..., 0], im[..., 1], im[..., 2]
 skyish = ((im.mean(2) > 222) & (b >= r - 4)).astype(np.uint8)
@@ -41,13 +47,14 @@ pp = np.concatenate([B[::-1], B] * 3, 0)[:EXT]                       # va-et-vie
 ext = np.concatenate([im, pp], 0)
 aext = np.concatenate([a, np.ones((EXT, W), np.float32)], 0)
 # ---- échelle et position : largeur ~2300 monde, la ligne d'horizon sur celle des champs
-S = 2880 / W                                                         # assez large pour que son bout reste
+S = 1.4                                                              # assez large pour que son bout reste
                                                                      # caché derrière la grande bosse du niveau 4
 top_b = np.array([np.argmax(aext[:, x] > 0.5) for x in range(W)])
-hz_b = float(np.median(top_b[int(W * 0.35):int(W * 0.6)]))           # collines lointaines, au milieu
+hz_b = float(np.median(top_b[720 - C0:1234 - C0]))                 # collines lointaines, avant le lac
 top_c = np.array([np.argmax(champs[:, x, 3] > 128) for x in range(champs.shape[1])])
 hz_c = P3Y + (CH_TOP + float(np.median(top_c))) * PX                 # monde
-U0 = CH_END - 320                                                    # la bande commence sous la fin des champs
+BARN = 2062                                                          # bord droit de la grange (image de la ferme)
+U0 = FX + (BARN - 22) * FF                                           # la bande commence juste avant ce bord
 Y0 = hz_c - hz_b * S
 print('horizon champs', round(hz_c), 'bande', hz_b, 'U0', round(U0), 'Y0', round(Y0))
 # ---- couture : dans le recouvrement [U0, CH_END], rendu des deux à l'échelle du monde (1 px = 1 unité)
@@ -65,8 +72,10 @@ diff = np.abs(band_w[..., :3] - ch_w[..., :3]).mean(2) * (np.minimum(band_w[...,
 diff += np.abs(band_w[..., 3] - ch_w[..., 3]) * 0.6
 diff = cv2.GaussianBlur(diff, (0, 0), 2)
 # pas trop près des bords du recouvrement
-edge = np.minimum(np.arange(OV), OV - 1 - np.arange(OV))[None, :]
-diff += np.where(edge < 30, 200.0, 0)
+# la couture passe à droite de la grange (dans les arbres et l'herbe), jamais dans les maisons
+barn_cols = (U0 + np.arange(OV) - FX) / FF < BARN + 4
+diff += np.where(barn_cols[None, :], 1e4, 0)
+diff += np.where((np.arange(OV) > OV - 6)[None, :], 1e4, 0)
 cost = diff.copy(); back = np.zeros(cost.shape, np.int32)
 for y in range(1, Hw):
     prev = cost[y - 1]

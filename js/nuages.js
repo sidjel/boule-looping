@@ -39,8 +39,8 @@ function row(seed, pool, win, gap, y, scale, v) {
 }
 // au loin, puis devant (q : part du mouvement de la caméra que le rang suit)
 const ROWS = [
-  { q: 0.85, list: row(7, ['b1', 'b2', 'b3', 'b4', 'b5'], 3, [560, 900], [60, 360], [0.26, 0.38], 5) },
-  { q: 0.75, list: row(11, ['g0', 'g1', 'g2', 'b0'], 2, [1150, 1600], [-40, 150], [0.7, 0.9], 9) },
+  { q: 0.6, list: row(7, ['b1', 'b2', 'b3', 'b4', 'b5'], 3, [560, 900], [60, 360], [0.26, 0.38], 5) },
+  { q: 0.45, list: row(11, ['g0', 'g1', 'g2', 'b0'], 2, [1150, 1600], [-20, 170], [0.45, 0.6], 9) },
 ];
 const ANCHOR = 1200;
 
