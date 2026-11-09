@@ -28,7 +28,7 @@ function load(key, src) {
   i.src = src;
   img[key] = i;
 }
-for (const n of ['terre', 'montagnes', 'champs', 'ferme', 'cochon']) load(n, `images/balade/${n}.webp`);
+for (const n of ['terre', 'champs', 'ferme', 'cochon']) load(n, `images/balade/${n}.webp`);
 for (let k = 0; k < 6; k++) load(`nuage${k}`, `images/balade/nuage-${k}.webp`);
 for (let k = 0; k < 3; k++) load(`gros${k}`, `images/balade/gros-nuage-${k}.webp`);
 for (const n of ['soleil', 'tour', 'ailes']) load(n, `images/niveau0/${n}.webp`);
@@ -249,11 +249,7 @@ export class Balade {
     // petits nuages au loin, puis 4 · les gros nuages devant ; ils dérivent lentement
     drawRow(g, SMALL, Q.petits, sx, sy, x0, x1, t);
     drawRow(g, BIG, Q.nuages, sx, sy, x0, x1, t);
-    // 3 · les montagnes, en bande continue
-    if (meta && ok(img.montagnes)) {
-      const i = img.montagnes;
-      band(g, i, sx(Q.montagnes), p3y() + sy(Q.montagnes), i.naturalWidth * PX, i.naturalHeight * PX, x0, x1);
-    }
+    // (3 · les montagnes, communes à tous les niveaux : montagnes.js)
     // 3 · les champs : niveau 1 (avec charrette et moulin), puis la ferme du niveau 2
     if (meta && ok(img.champs)) {
       const i = img.champs, ox = sx(Q.champs), y0 = p3y() + sy(Q.champs);

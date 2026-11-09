@@ -25,6 +25,11 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
   la texture de ciel au crayon, en dégradé ; bleu franc l'été, doré en bas en automne, pâle en
   hiver, gris sous la pluie, coucher de soleil à l'arrivée ; la couleur passe d'une saison à
   l'autre en fondu pendant qu'on avance, sans jonction.
+- **Montagnes de tous les niveaux** (`js/montagnes.js`, `images/montagnes/`, préparées par
+  `tools/decouper-montagnes.py`) : la bande de montagnes fournie, qui se raccorde sur elle-même,
+  loin derrière la route ; ensoleillées l'été, rousses en automne, enneigées l'hiver, grises sous la
+  pluie, roses à l'arrivée ; la couleur change peu à peu le long de la chaîne, sans jonction ; le pied
+  s'efface dans la brume de l'horizon.
 - **Herbe du premier plan, sur tout le parcours** (`js/herbe.js`, `images/herbe/`, découpée par
   `tools/decouper-herbe.py`) : la bande d'herbe fleurie, raccordée sur elle-même sans miroir, qui
   ondule au vent ; en fleurs l'été, fanée en automne, givrée et enneigée en hiver, mouillée sous la
