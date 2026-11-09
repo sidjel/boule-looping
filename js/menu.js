@@ -88,7 +88,7 @@ export class Menu {
         <label class="ligne">Musique <input type="range" min="0" max="1" step="0.05" value="${o.music}" data-opt="music"></label>
         <label class="ligne">Bruitages <input type="range" min="0" max="1" step="0.05" value="${o.sfx}" data-opt="sfx"></label>
         ${check('vibrate', 'Vibrations (téléphone)')}
-        ${check('autoFullscreen', 'Plein écran automatique au premier toucher')}
+        ${check('autoFullscreen', 'Proposer le plein écran au lancement')}
         ${check('wideLandscape', 'En paysage, commencer en vue d’ensemble')}
         ${check('labels', 'Écrire le nom des bonus au-dessus des boules')}`);
     } else if (screen === 'credits') {

@@ -1,12 +1,14 @@
 /**
  * Plein écran.
- * - Android et navigateurs qui le permettent : plein écran au premier geste sur le jeu
- *   (fin du premier toucher), puis bouton pour sortir ou revenir.
- * - iPhone : Safari n'a pas de plein écran pour les pages. On explique comment ajouter le jeu
+ * - Le bouton (en haut à droite) est visible tout le temps, même sur le menu d'accueil.
+ * - Au lancement, une petite fenêtre demande si l'on veut jouer en plein écran (si l'option
+ *   « Proposer le plein écran au lancement » est cochée). « Oui » passe en plein écran tout de suite
+ *   (le clic est un vrai geste du joueur, le navigateur l'accepte) et bloque l'écran à l'horizontale.
+ * - iPhone : Safari n'a pas de plein écran pour les pages. « Oui » explique comment ajouter le jeu
  *   à l'écran d'accueil : il s'ouvre alors en plein écran (manifest + balises Apple).
- * - Déjà lancé depuis l'écran d'accueil : bouton caché.
+ * - Déjà lancé depuis l'écran d'accueil, ou plein écran impossible ici : ni bouton ni question.
  */
-export function setupFullscreen(btn, tip, autoAllowed = () => true) {
+export function setupFullscreen(btn, tip, ask, askAllowed = () => true) {
   const root = document.documentElement;
   const request = root.requestFullscreen || root.webkitRequestFullscreen;
   const exitFs = document.exitFullscreen || document.webkitExitFullscreen;
@@ -15,12 +17,14 @@ export function setupFullscreen(btn, tip, autoAllowed = () => true) {
   const installed = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
   const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const touch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+  const iosTip = !enabled && ios && touch;
 
   if (installed) {
     btn.hidden = true;
     return { start() {} };
   }
 
+  let wanted = false; // le joueur a répondu « Oui » : on y revient à chaque nouvelle partie
   const enter = () => {
     try {
       const p = request.call(root, { navigationUI: 'hide' });
@@ -35,24 +39,31 @@ export function setupFullscreen(btn, tip, autoAllowed = () => true) {
 
   btn.addEventListener('pointerdown', (e) => e.stopPropagation());
   btn.addEventListener('click', () => {
+    closeAsk();
     if (!enabled) return showTip(tip, ios);
-    if (active()) exitFs?.call(document);
-    else enter();
+    if (active()) { wanted = false; exitFs?.call(document); } else { wanted = true; enter(); }
   });
 
-  if (enabled && touch) {
-    // Le navigateur n'accepte le plein écran qu'à la fin d'un toucher (pointerup).
-    const auto = (e) => {
-      if (btn.contains(e.target) || e.target.closest?.('button, #menu')) return;
-      removeEventListener('pointerup', auto, true);
-      if (!active() && autoAllowed()) enter();
-    };
-    addEventListener('pointerup', auto, true);
-  } else if (ios && touch) {
-    setTimeout(() => showTip(tip, true, 7000), 1800);
-  }
+  // la question, au lancement
+  function closeAsk() { ask.hidden = true; }
+  ask.addEventListener('pointerdown', (e) => e.stopPropagation());
+  ask.addEventListener('click', (e) => {
+    const r = e.target.closest?.('[data-plein]')?.dataset.plein;
+    if (!r) return;
+    closeAsk();
+    if (r !== 'oui') return;
+    wanted = true;
+    if (enabled) enter(); else showTip(tip, true);
+  });
+  if ((enabled || iosTip) && askAllowed() && !active()) ask.hidden = false;
+
   // appelé par les boutons « Nouvelle partie » et « Continuer » (un vrai geste du joueur)
-  return { start() { if (enabled && touch && autoAllowed() && !active()) enter(); } };
+  return {
+    start() {
+      closeAsk();
+      if (enabled && wanted && !active()) enter();
+    },
+  };
 }
 
 function showTip(tip, ios, autoHide = 0) {

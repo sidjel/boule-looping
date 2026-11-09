@@ -92,7 +92,8 @@ tout est fabriqué dans le navigateur (Web Audio), sans fichier son, donc sans d
 - **Loupe** (en bas à droite) : passe de la vue d'ensemble (tout le parcours) au zoom sur la boule.
   En paysage, la vue d'ensemble est le réglage de départ ; en portrait, c'est le zoom.
 - **↺** : recommencer le niveau en cours ; appui long : retour au niveau 1.
-- **Plein écran** (en haut à droite) : automatique au premier toucher sur Android ; sur iPhone,
+- **Plein écran** (en haut à droite, visible dès le menu) : au lancement, une fenêtre demande
+  « Jouer en plein écran ? » (Oui / Non merci ; option « Proposer le plein écran au lancement ») ; sur iPhone,
   ajouter le jeu à l'écran d'accueil (Partager → « Sur l'écran d'accueil »), il s'ouvre alors en plein écran.
 - **Note de musique** (en haut à droite) : couper ou remettre la musique.
 - **Aiguillage** : toucher le bouton posé au début du chemin voulu (en haut ou en bas).

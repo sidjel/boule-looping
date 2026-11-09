@@ -669,7 +669,7 @@ const firstSound = (e) => {
 };
 addEventListener('pointerup', firstSound, true);
 addEventListener('touchend', firstSound, true);
-const fullscreen = setupFullscreen($('plein-ecran'), $('astuce'), () => save.options.autoFullscreen);
+const fullscreen = setupFullscreen($('plein-ecran'), $('astuce'), $('demande-plein'), () => save.options.autoFullscreen);
 addEventListener('pagehide', saveProgress);
 
 let resizeTimer = 0;
