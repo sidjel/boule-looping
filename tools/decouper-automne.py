@@ -81,7 +81,8 @@ green, hay, water = hsv_masks(rgb)
 yy = np.arange(H)[:, None] / H
 noise = cv2.GaussianBlur(np.random.default_rng(5).random((H, W)).astype(np.float32), (0, 0), 18)
 noise = ((noise - noise.min()) / (noise.max() - noise.min()))[..., None]
-trees = (green[..., None] > 0.3) & (np.arange(H)[:, None, None] < 425)   # arbres et haies lointaines (en haut)
+trees = (green[..., None] > 0.3) & (np.arange(H)[:, None, None] < 425)
+trees_w = (green[..., None] > 0.3) & (np.arange(H)[:, None, None] < 445)   # en hiver, un peu plus bas   # arbres et haies lointaines (en haut)
 
 def autumn():
     rust = np.dstack([L_[..., 0] * 1.0 + 70, L_[..., 0] * 0.62 + 18, L_[..., 0] * 0.22]) * (1 - noise) \
@@ -94,10 +95,17 @@ def autumn():
     return out * (1 - w) + (rgb * 0.75 + L_ * 0.25 * np.array([0.8, 0.9, 1.0])) * w
 
 def winter():
-    snow = np.array([240, 245, 252], np.float32)
-    shade = (L_ / 255) ** 0.6
-    out = snow * (0.62 + 0.38 * shade)
-    out = np.where(trees, rgb * 0.35 + np.array([70, 80, 95]) * 0.65 * (L_ / 200), out)
+    # neige comme sur le dessin d'hiver (tools/decouper-hiver.py) : blanche, ombres et traits de crayon
+    # bleutés (le bleu reste fort, le rouge baisse) ; la lumière du dessin d'origine donne les ombres
+    lo, hi = np.percentile(L_[350:700], 4), np.percentile(L_[350:700], 97)
+    dark = np.clip((hi - L_) / (hi - lo), 0, 1) ** 0.85
+    out = np.array([254, 254, 254], np.float32) - dark * np.array([84, 50, 12], np.float32)
+    # arbres du fond : vert sombre bleuté comme les sapins du dessin, neige sur les parties claires
+    tl = L_ / 255
+    pine = np.array([38, 72, 70], np.float32) + tl * np.array([60, 70, 70], np.float32)
+    cover = np.clip((tl - 0.42) / 0.25, 0, 1)
+    tree_col = pine * (1 - cover) + np.array([236, 243, 252], np.float32) * cover
+    out = np.where(trees_w, tree_col, out)
     w = water[..., None]
     out = out * (1 - w) + (L_ * np.array([0.82, 0.9, 1.0]) + 45) * w
     wood = ((rgb[..., 0] > rgb[..., 2] + 30) & (green < 0.2) & (hay < 0.3))[..., None]

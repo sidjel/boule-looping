@@ -50,6 +50,10 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
   champs de foin prennent la suite de la bande du château (couture qui suit le dessin), puis les
   champs se répètent (raccordés sur eux-mêmes) jusqu'à l'arrivée, aux couleurs de chaque saison :
   roux et doré en automne, enneigés en hiver, sombres sous la pluie, dorés le soir à l'arrivée.
+- **Paysage d'hiver** (`images/hiver/`, `tools/decouper-hiver.py`) : pendant tout l'hiver, à la place
+  des champs, au pied des montagnes : sapins, collines enneigées, barrière, bonhomme de neige et igloo.
+  Il commence par une couture qui suit le dessin (champs déjà enneigés, même neige bleutée), se répète
+  en partie (sans le bonhomme ni l'igloo) et finit par ses grands sapins, juste avant la pluie.
 - **Automne (5 à 8)** : feuilles mortes qui volent, vent en rafales qui gêne l'avancée ; poussière et
   fins brins de foin emportés par le vent au-dessus des champs et tout près (`js/foin.js`).
 - **Hiver (9 à 12)** : neige, route glacée : la boule glisse, va plus vite, répond moins aux
