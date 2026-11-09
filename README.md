@@ -45,6 +45,10 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
   `tools/decouper-herbe.py`) : la bande d'herbe fleurie, raccordée sur elle-même sans miroir, qui
   ondule au vent ; en fleurs l'été, fanée en automne, givrée et enneigée en hiver, mouillée sous la
   pluie ; elle change peu à peu d'une saison à l'autre, sans jonction.
+- **Après le niveau 3** (`js/suite.js`, `images/automne/`, `tools/decouper-automne.py`) : le lac et les
+  champs de foin prennent la suite de la bande du château (couture qui suit le dessin), puis les
+  champs se répètent (raccordés sur eux-mêmes) jusqu'à l'arrivée, aux couleurs de chaque saison :
+  roux et doré en automne, enneigés en hiver, sombres sous la pluie, dorés le soir à l'arrivée.
 - **Automne (5 à 8)** : feuilles mortes qui volent, vent en rafales qui gêne l'avancée.
 - **Hiver (9 à 12)** : neige, route glacée : la boule glisse, va plus vite, répond moins aux
   gestes, et revenir en arrière est difficile.

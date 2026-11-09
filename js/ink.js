@@ -39,7 +39,7 @@ export function* inkSteps(track, q, sheet) {
     // 1. le décor au crayon (neige, arbres, fosses, arrivée, nom du niveau), avec le grain du papier
     yield* drawGround(g, track, x0, x1, bio);
     yield;
-    drawDecor(g, track, sheet);
+    // (plus d'arbres au crayon : le décor en couleurs court sur tout le parcours, suite.js)
     drawPits(g, track, x0, x1, bio);
     if (sheet === SHEETS - 1) drawFinish(g, track);
     g.font = `600 44px ${HAND}`;

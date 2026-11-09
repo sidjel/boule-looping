@@ -24,7 +24,7 @@ CH_END = FX + ferme.shape[1] * FF                                   # la bande s
 im = np.array(Image.open(src).convert('RGB')).astype(np.float32)
 # la ferme de la bande ferait doublon avec celle du niveau 2 : la bande commence juste après elle
 # (à ses arbres) ; à droite, la forêt du bout est prolongée en miroir
-C0, TAIL, MORE = 690, 200, 900
+C0, TAIL, MORE = 690, 200, 0   # (la suite : la bande des champs de foin, decouper-automne.py)
 end = im[:, -TAIL:]
 tail = np.concatenate([end[:, ::-1], end] * 4, 1)[:, :MORE]          # va-et-vient sur la forêt du bout
 im = np.concatenate([im[:, C0:], tail], 1)

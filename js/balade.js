@@ -16,6 +16,7 @@
  */
 import { SHEET, WORLD } from './track.js';
 import { DESSIN1 } from './niveau1-route.js';
+import { drawSuite } from './suite.js';
 
 /** Feuilles de la balade en couleurs. */
 export const STYLE_SHEETS = new Set([0, 1, 2]);
@@ -181,9 +182,7 @@ export class Balade {
     const t = this.t, cx = cam.x + cam.viewW / 2, cy = cam.y + cam.viewH / 2, A = 1, AS = skyAlpha(cx);
     const sx = (q) => q * (cx - ANCHOR), sy = (q) => q * 0.5 * (cy - 716);
     const x0 = cam.x - 4, x1 = cam.x + cam.viewW + 4;
-    // le plan des champs s'arrête au bout de la bande du niveau 3 (cachée par la grande bosse du niveau 4)
-    const fieldsEnd = sx(Q.champs) + (n3 ? n3.fin : 6600);
-    if (AS <= 0.002 && x0 > fieldsEnd) return;
+    const fieldsEnd = Infinity; // le plan des champs court jusqu'au bout du parcours (suite.js)
     ctx.save();
     ctx.globalAlpha = AS;
     const g = ctx;
@@ -216,6 +215,8 @@ export class Balade {
           // niveau 3 : la bande (ferme, lac, château) prend la suite, raccordée au bord droit de la ferme
           // par une couture qui suit le dessin (tools/decouper-niveau3.py) ; même plan que les champs
           if (n3 && ok(img.bande3)) g.drawImage(img.bande3, ox + n3.u0, y0 - p3y() + n3.y0, n3.w, n3.h);
+          // puis le lac et les champs de foin, jusqu'au bout du parcours (aux couleurs des saisons)
+          drawSuite(g, ox, y0 - p3y(), x0, x1, (u) => (u - Q.champs * ANCHOR) / (1 - Q.champs));
           if (ok(img.cochon)) {
             const pig = img.cochon;
             for (const p of PIGS) {
