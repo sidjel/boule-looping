@@ -9,7 +9,7 @@
  */
 import { biomeParams } from './biomes.js';
 
-const FAR = 170, NEAR = 30; // particules au plus, pour tout l'écran en automne
+const FAR = 360, NEAR = 64; // particules au plus, pour tout l'écran en automne
 // des pailles claires (presque crème) et quelques-unes plus foncées : elles se voient sur le jaune des champs
 const STRAW = ['#fbefc0', '#f6e09a', '#f2d47a', '#e2b552', '#c7932f'];
 const EDGE = 'rgba(105,72,28,0.55)'; // le trait de crayon autour
@@ -51,19 +51,20 @@ export class Hay {
   }
 
   spawn(list, target, cam, x0, x1, near) {
-    for (let n = 0; n < (near ? 2 : 6) && list.length < target; n++) {
+    for (let n = 0; n < (near ? 4 : 14) && list.length < target; n++) {
       const x = rand(x0, x1);
       if (Math.random() > biomeParams(x).wind) continue;
-      const dust = !near && Math.random() < 0.45;
+      const dust = !near && Math.random() < 0.38;
+      const fine = Math.random() < 0.55; // fine paille : longue et très mince
       // au loin : au-dessus des champs (milieu de l'écran) ; tout près : n'importe où
       const y = near ? rand(cam.y + cam.viewH * 0.1, cam.y + cam.viewH * 0.95) : rand(cam.y + cam.viewH * 0.22, cam.y + cam.viewH * 0.72);
       list.push({
         x, y, vx: 0, vy: 0, dust,
         drift: rand(-40, 40), lift: near ? rand(-30, 10) : rand(-26, -4),
         a: rand(0, Math.PI), va: rand(-4, 4), ph: rand(0, 6.3),
-        len: near ? rand(22, 40) : rand(9, 20), wid: near ? rand(2.4, 3.6) : rand(1.6, 2.6),
-        r: rand(1.8, 3.6), col: STRAW[Math.floor(Math.random() * STRAW.length)],
-        life: 0, max: near ? rand(2.5, 5) : rand(4, 8), alpha: near ? rand(0.65, 0.9) : rand(0.4, 0.8),
+        len: (near ? rand(22, 40) : rand(9, 20)) * (fine ? 1.3 : 1), wid: fine ? (near ? rand(1.3, 1.9) : rand(0.8, 1.2)) : near ? rand(2.4, 3.6) : rand(1.6, 2.6), fine,
+        r: rand(2.2, 4.2), col: STRAW[Math.floor(Math.random() * STRAW.length)],
+        life: 0, max: near ? rand(2.5, 5) : rand(4, 8), alpha: near ? rand(0.7, 0.95) : rand(0.55, 0.9),
       });
     }
   }
@@ -90,7 +91,7 @@ export class Hay {
       ctx.moveTo(p.x - c * l, p.y - s * l);
       ctx.quadraticCurveTo(p.x - s * l * 0.25, p.y + c * l * 0.25, p.x + c * l, p.y + s * l);
       ctx.strokeStyle = EDGE;
-      ctx.lineWidth = p.wid + 1.6;
+      ctx.lineWidth = p.wid + (p.fine ? 1 : 1.6);
       ctx.stroke();
       ctx.strokeStyle = p.col;
       ctx.lineWidth = p.wid;
