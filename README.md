@@ -21,6 +21,10 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
   position dans le paysage (aucun raccord entre deux niveaux), et la même route, un trait brun
   foncé tracé d'un seul tenant. Les saisons ajoutent par-dessus leur décor (neige, glace sur la
   route, flaques, arbres).
+- **Ciel de tous les niveaux** (`js/ciel.js`, `images/ciel/`, préparé par `tools/ciel-saisons.py`) :
+  la texture de ciel au crayon, en dégradé ; bleu franc l'été, doré en bas en automne, pâle en
+  hiver, gris sous la pluie, coucher de soleil à l'arrivée ; la couleur passe d'une saison à
+  l'autre en fondu pendant qu'on avance, sans jonction.
 - **Herbe du premier plan, sur tout le parcours** (`js/herbe.js`, `images/herbe/`, découpée par
   `tools/decouper-herbe.py`) : la bande d'herbe fleurie, raccordée sur elle-même sans miroir, qui
   ondule au vent ; en fleurs l'été, fanée en automne, givrée et enneigée en hiver, mouillée sous la

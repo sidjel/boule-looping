@@ -28,7 +28,7 @@ function load(key, src) {
   i.src = src;
   img[key] = i;
 }
-for (const n of ['terre', 'ciel', 'montagnes', 'champs', 'ferme', 'cochon']) load(n, `images/balade/${n}.webp`);
+for (const n of ['terre', 'montagnes', 'champs', 'ferme', 'cochon']) load(n, `images/balade/${n}.webp`);
 for (let k = 0; k < 6; k++) load(`nuage${k}`, `images/balade/nuage-${k}.webp`);
 for (let k = 0; k < 3; k++) load(`gros${k}`, `images/balade/gros-nuage-${k}.webp`);
 for (const n of ['soleil', 'tour', 'ailes']) load(n, `images/niveau0/${n}.webp`);
@@ -226,18 +226,7 @@ export class Balade {
     ctx.save();
     ctx.globalAlpha = AS;
     const g = ctx;
-    // 5 · ciel au crayon bleu : une bande en dégradé qui se raccorde sur elle-même en largeur ;
-    // au-dessus, le bleu du haut, en dessous le bleu clair du bas
-    // (le ciel couvre les trois premiers niveaux ; le reste de la balade, les deux premiers)
-    if (ok(img.ciel) && meta) {
-      const i = img.ciel, w = i.naturalWidth * 1.7, h = i.naturalHeight * 1.25, y = -260 + sy(Q.ciel), ox = sx(Q.ciel);
-      const [r0, g0, b0] = meta.ciel_haut, [r1, g1, b1] = meta.ciel_bas;
-      g.fillStyle = `rgb(${r0},${g0},${b0})`;
-      g.fillRect(x0, cam.y - 4, x1 - x0, Math.max(0, y - cam.y + 6));
-      g.fillStyle = `rgb(${r1},${g1},${b1})`;
-      g.fillRect(x0, y + h - 2, x1 - x0, Math.max(0, cam.y + cam.viewH - y - h + 6));
-      for (let k = Math.floor((x0 - ox) / w); ox + k * w < x1; k++) g.drawImage(i, ox + k * w, y, w + 1, h);
-    }
+    // (5 · le ciel, commun à tous les niveaux : ciel.js)
     // soleil qui brille
     if (ok(img.soleil)) {
       const i = img.soleil, x = 900 + sx(Q.soleil), y = 330 + sy(Q.soleil), R = 125;

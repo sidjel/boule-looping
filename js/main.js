@@ -23,6 +23,7 @@ import { Game, skinPhys, medalTimes } from './game.js';
 import { drawObstacles, drawPlanks, obstaclesOf } from './obstacles.js';
 import { Balade, baladeLoaded } from './balade.js';
 import { Grass } from './herbe.js';
+import { drawSky } from './ciel.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('jeu'), ctx = canvas.getContext('2d');
@@ -534,6 +535,7 @@ function render(dt) {
   ctx.rect(0, cam.y - 10, SHEET * SHEETS, cam.viewH + 20);
   ctx.clip();
   for (const sun of SUNS) if (sun.x + 400 > x0 && sun.x - 400 < x1) drawSun(ctx, art.sun, sun.x, sun.y, sun.r, time);
+  drawSky(ctx, cam); // le ciel de la saison, sur tous les niveaux
   summer.drawFar(ctx, cam); // la balade en couleurs : ciel, soleil, nuages, montagnes, champs, moulin, ferme
   drawBirds(ctx, time, dt, x0, x1);
   drawClouds(ctx, art.clouds, x0, x1);
