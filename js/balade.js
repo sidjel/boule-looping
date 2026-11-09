@@ -4,7 +4,7 @@
  * niveaux en couleurs ; plus un plan est loin, plus il suit la caméra (q : part du mouvement de la
  * caméra qu'il suit), donc moins il glisse à l'écran.
  *   5. le ciel (texture fournie : bleu foncé en haut, presque blanc en bas ; bande qui se raccorde
- *      sur elle-même, sans miroir), sur les trois premiers niveaux ; le soleil qui brille, de petits nuages ;
+ *      sur elle-même, sans miroir), sur tout le parcours (ciel.js) ; le soleil : soleil.js ;
  *   4. les nuages : nuages.js, sur tout le parcours ;
  *   3. les montagnes : montagnes.js, sur tout le parcours ;
  *   3. une seule bande de champs : ceux du niveau 1 (charrette, pailles, moulin aux ailes qui
@@ -31,7 +31,7 @@ function load(key, src) {
 }
 for (const n of ['terre', 'champs', 'ferme', 'cochon']) load(n, `images/balade/${n}.webp`);
 load('bande3', 'images/niveau3/bande.webp');
-for (const n of ['soleil', 'tour', 'ailes']) load(n, `images/niveau0/${n}.webp`);
+for (const n of ['tour', 'ailes']) load(n, `images/niveau0/${n}.webp`);
 const ok = (i) => i && i.complete && i.naturalWidth > 0;
 let geo = null, meta = null, n3 = null;
 fetch('images/niveau3/niveau3.json').then((r) => r.json()).then((g) => (n3 = g)).catch(() => {});
@@ -188,23 +188,7 @@ export class Balade {
     ctx.globalAlpha = AS;
     const g = ctx;
     // (5 · le ciel, commun à tous les niveaux : ciel.js)
-    // soleil qui brille (jusqu'au niveau 3)
-    if (ok(img.soleil) && AS > 0.002) {
-      const i = img.soleil, x = 900 + sx(Q.soleil), y = 330 + sy(Q.soleil), R = 125;
-      const pulse = 0.5 + 0.5 * Math.sin(t * 1.6);
-      const halo = g.createRadialGradient(x, y, R * 0.9, x, y, R * (1.7 + 0.2 * pulse));
-      halo.addColorStop(0, `rgba(255,214,90,${0.16 + 0.1 * pulse})`);
-      halo.addColorStop(1, 'rgba(255,214,90,0)');
-      g.fillStyle = halo;
-      g.fillRect(x - R * 2.2, y - R * 2.2, R * 4.4, R * 4.4);
-      const z = (1 + 0.035 * pulse) * 1.36, w = i.naturalWidth * z, h = i.naturalHeight * z;
-      g.drawImage(i, x - w / 2, y - h / 2, w, h);
-      g.save();
-      g.globalCompositeOperation = 'lighter';
-      g.globalAlpha = AS * (0.12 + 0.12 * Math.max(0, Math.sin(t * 2.3)));
-      g.drawImage(i, x - w / 2, y - h / 2, w, h);
-      g.restore();
-    }
+    // (le soleil, sur tout le parcours : soleil.js)
     ctx.globalAlpha = 1;
     // petits nuages au loin, puis 4 · les gros nuages devant ; ils dérivent lentement
     // (les nuages, communs à tous les niveaux : nuages.js)

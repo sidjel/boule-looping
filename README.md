@@ -32,6 +32,10 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
   loin derrière la route ; ensoleillées l'été, rousses en automne, enneigées l'hiver, grises sous la
   pluie, roses à l'arrivée ; la couleur change peu à peu le long de la chaîne, sans jonction ; le pied
   s'efface dans la brume de l'horizon.
+- **Soleil sur tout le parcours** (`js/soleil.js`) : presque immobile à l'écran pendant qu'on roule ;
+  au fil des saisons, il glisse vers la droite et descend vers les montagnes, jusqu'à se coucher
+  derrière elles à l'arrivée ; jaune vif l'été, doré en automne, pâle en hiver, voilé sous la pluie,
+  rouge-orangé au coucher.
 - **Nuages de tous les niveaux** (`js/nuages.js`, `images/nuages/`, préparés par
   `tools/decouper-nuages.py`) : deux rangs qui dérivent (petits au loin, gros devant), jamais deux
   pareils côte à côte ; blancs l'été, dorés en automne, blanc froid en hiver, gris sous la pluie,

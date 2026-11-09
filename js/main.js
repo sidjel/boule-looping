@@ -10,7 +10,7 @@ import { Camera } from './camera.js';
 import { Sound } from './audio.js';
 import { setupFullscreen } from './fullscreen.js';
 import { inkSteps, buildInk } from './ink.js';
-import { makePaper, drawTable, buildSunDisk, drawSun, drawForks, drawWindsocks } from './scenery.js';
+import { makePaper, drawTable, drawForks, drawWindsocks } from './scenery.js';
 import { drawBirds } from './clouds.js';
 import { buildBallBody, drawBall } from './ballArt.js';
 import { Effects } from './effects.js';
@@ -24,6 +24,7 @@ import { drawObstacles, drawPlanks, obstaclesOf } from './obstacles.js';
 import { Balade, baladeLoaded } from './balade.js';
 import { Grass } from './herbe.js';
 import { drawSky } from './ciel.js';
+import { drawSoleil } from './soleil.js';
 import { drawMountains } from './montagnes.js';
 import { moveNuages, drawNuages } from './nuages.js';
 
@@ -45,7 +46,6 @@ const grass = new Grass();
 const game = new Game();
 ball.setSkin(skinPhys(save.skin));
 const drawPaper = makePaper();
-const SUNS = [{ x: 16 * SHEET + 1550, y: 330, r: 120 }]; // (balade en couleurs : le soleil dessiné, balade.js)
 const FLICK_GAIN = 0.3, FLICK_MAX = 9000;
 const SLOW = 0.12;            // devant un aiguillage, le temps passe 8 fois moins vite : la boule avance encore un peu
 const FORK_ZONE = 750;        // px avant l'embranchement où le temps ralentit
@@ -66,7 +66,6 @@ function resize() {
   if (!art || Math.abs(art.q - q) > 0.05) {
     art = {
       q, ink: new Map(), pending: new Map(),
-      sun: buildSunDisk(108, q),
       body: buildBallBody(Math.min(cam.followScale * 1.5, 3), save.skin),
     };
   }
@@ -535,8 +534,8 @@ function render(dt) {
   ctx.beginPath();
   ctx.rect(0, cam.y - 10, SHEET * SHEETS, cam.viewH + 20);
   ctx.clip();
-  for (const sun of SUNS) if (sun.x + 400 > x0 && sun.x - 400 < x1) drawSun(ctx, art.sun, sun.x, sun.y, sun.r, time);
   drawSky(ctx, cam); // le ciel de la saison, sur tous les niveaux
+  drawSoleil(ctx, cam, time); // le soleil, qui descend vers les montagnes au fil des saisons
   drawMountains(ctx, cam); // les montagnes, de la couleur de la saison
   drawNuages(ctx, cam); // les nuages, deux rangs, de la couleur de la saison
   summer.drawFar(ctx, cam); // la balade en couleurs : ciel, soleil, nuages, montagnes, champs, moulin, ferme
