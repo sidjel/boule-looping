@@ -16,6 +16,7 @@ import { buildBallBody, drawBall } from './ballArt.js';
 import { Effects } from './effects.js';
 import { Bonuses, BONUS_INFO } from './bonus.js';
 import { Weather } from './weather.js';
+import { Hay } from './foin.js';
 import { biomeAt, biomeOfSheet } from './biomes.js';
 import { save } from './save.js';
 import { Menu, scoreTable } from './menu.js';
@@ -41,6 +42,7 @@ const cam = new Camera();
 const sound = new Sound();
 const bonuses = new Bonuses(track);
 const weather = new Weather();
+const hay = new Hay();
 const summer = new Balade();
 const grass = new Grass();
 const game = new Game();
@@ -340,6 +342,7 @@ function update(realDt) {
   summer.update(dt, cam);
   grass.update(dt);
   weather.update(dt, cam, ball.clock);
+  hay.update(dt, cam, weather.wind());
   fx.follow(ball, dt);
   fx.update(dt);
   cam.update(realDt, ball);
@@ -539,6 +542,7 @@ function render(dt) {
   drawMountains(ctx, cam); // les montagnes, de la couleur de la saison
   drawNuages(ctx, cam); // les nuages, deux rangs, de la couleur de la saison
   summer.drawFar(ctx, cam); // la balade en couleurs : ciel, soleil, nuages, montagnes, champs, moulin, ferme
+  hay.drawFar(ctx); // automne : poussière et brins de foin au-dessus des champs
   drawBirds(ctx, time, dt, x0, x1);
   for (let k = Math.max(0, Math.floor(x0 / SHEET)); k <= Math.min(SHEETS - 1, Math.floor(x1 / SHEET)); k++) {
     ctx.drawImage(inkFor(k), k * SHEET, 0, SHEET, WORLD.h);
@@ -556,6 +560,7 @@ function render(dt) {
   fx.drawSpeed(ctx, ball);
   drawBall(ctx, art.body, ball, track, time, save.skin);
   fx.draw(ctx);
+  hay.drawNear(ctx); // automne : brins de foin qui passent tout près
   grass.draw(ctx, cam); // l'herbe fleurie du premier plan, au vent, sur tout le parcours
   weather.draw(ctx);
   // ralenti : écran légèrement bleuté, bords assombris
@@ -681,4 +686,4 @@ applyOptions();
 resize();
 menu.open(false);
 requestAnimationFrame(frame);
-window.__boule = { ball, track, cam, sound, bonuses, weather, summer, restart, menu, run, pick };
+window.__boule = { ball, track, cam, sound, bonuses, weather, hay, summer, restart, menu, run, pick };

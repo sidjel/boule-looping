@@ -14,7 +14,8 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
     la charrette et ses pailles qui s'envolent, le moulin aux ailes qui tournent.
   - Niveau 2 : tremplin au-dessus d'une fosse et looping, devant la ferme et ses trois cochons.
   - Niveau 3 : deux loopings devant la bande du lac et du château (`images/niveau3/`, raccordée à la
-    ferme par `tools/decouper-niveau3.py`).
+    ferme par `tools/decouper-niveau3.py`). Les drapeaux du château flottent au vent et l'eau du lac
+    ondule doucement, avec des reflets de lumière (`js/chateau.js`, `tools/animer-niveau3.py`).
   - Niveaux 3 et 4, encore au crayon : deux loopings à la suite ; aiguillage entre un souterrain
     (grand looping) et une grande bosse (butte de terre pleine, galerie dessous).
   Images : `images/niveau0/` (dessins du niveau 1) et `images/balade/` (`tools/decouper-balade.py` :
@@ -49,7 +50,8 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
   champs de foin prennent la suite de la bande du château (couture qui suit le dessin), puis les
   champs se répètent (raccordés sur eux-mêmes) jusqu'à l'arrivée, aux couleurs de chaque saison :
   roux et doré en automne, enneigés en hiver, sombres sous la pluie, dorés le soir à l'arrivée.
-- **Automne (5 à 8)** : feuilles mortes qui volent, vent en rafales qui gêne l'avancée.
+- **Automne (5 à 8)** : feuilles mortes qui volent, vent en rafales qui gêne l'avancée ; poussière et
+  fins brins de foin emportés par le vent au-dessus des champs et tout près (`js/foin.js`).
 - **Hiver (9 à 12)** : neige, route glacée : la boule glisse, va plus vite, répond moins aux
   gestes, et revenir en arrière est difficile.
 - **Pluie (13 à 16)** : pluie, flaques qui freinent, fosses pleines d'eau.

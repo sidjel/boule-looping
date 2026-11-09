@@ -17,6 +17,7 @@
 import { SHEET, WORLD } from './track.js';
 import { DESSIN1 } from './niveau1-route.js';
 import { drawSuite } from './suite.js';
+import { drawBande3 } from './chateau.js';
 
 /** Feuilles de la balade en couleurs. */
 export const STYLE_SHEETS = new Set([0, 1, 2]);
@@ -31,7 +32,6 @@ function load(key, src) {
   img[key] = i;
 }
 for (const n of ['terre', 'champs', 'ferme', 'cochon']) load(n, `images/balade/${n}.webp`);
-load('bande3', 'images/niveau3/bande.webp');
 for (const n of ['tour', 'ailes']) load(n, `images/niveau0/${n}.webp`);
 const ok = (i) => i && i.complete && i.naturalWidth > 0;
 let geo = null, meta = null, n3 = null;
@@ -214,7 +214,8 @@ export class Balade {
           g.drawImage(softLeft(f, FARM.blend / fw), fx, fy, fw, fh);
           // niveau 3 : la bande (ferme, lac, château) prend la suite, raccordée au bord droit de la ferme
           // par une couture qui suit le dessin (tools/decouper-niveau3.py) ; même plan que les champs
-          if (n3 && ok(img.bande3)) g.drawImage(img.bande3, ox + n3.u0, y0 - p3y() + n3.y0, n3.w, n3.h);
+          // (drapeaux qui flottent, eau qui ondule : chateau.js)
+          if (n3) drawBande3(g, ox + n3.u0, y0 - p3y() + n3.y0, n3.w, n3.h, t, x0, x1);
           // puis le lac et les champs de foin, jusqu'au bout du parcours (aux couleurs des saisons)
           drawSuite(g, ox, y0 - p3y(), x0, x1, (u) => (u - Q.champs * ANCHOR) / (1 - Q.champs));
           if (ok(img.cochon)) {
