@@ -22,6 +22,7 @@ import { Menu, scoreTable } from './menu.js';
 import { Game, skinPhys, medalTimes } from './game.js';
 import { drawObstacles, drawPlanks, obstaclesOf } from './obstacles.js';
 import { Balade, baladeLoaded } from './balade.js';
+import { Grass } from './herbe.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('jeu'), ctx = canvas.getContext('2d');
@@ -37,6 +38,7 @@ const sound = new Sound();
 const bonuses = new Bonuses(track);
 const weather = new Weather();
 const summer = new Balade();
+const grass = new Grass();
 const game = new Game();
 ball.setSkin(skinPhys(save.skin));
 const drawPaper = makePaper();
@@ -335,6 +337,7 @@ function update(realDt) {
   if (!run.finished && ball.x > FINISH.x) arrive();
   moveClouds(dt);
   summer.update(dt, cam);
+  grass.update(dt);
   weather.update(dt, cam, ball.clock);
   fx.follow(ball, dt);
   fx.update(dt);
@@ -550,7 +553,7 @@ function render(dt) {
   fx.drawSpeed(ctx, ball);
   drawBall(ctx, art.body, ball, track, time, save.skin);
   fx.draw(ctx);
-  summer.drawFront(ctx, cam); // l'herbe du premier plan, au vent
+  grass.draw(ctx, cam); // l'herbe fleurie du premier plan, au vent, sur tout le parcours
   weather.draw(ctx);
   // ralenti : écran légèrement bleuté, bords assombris
   const k = Math.max(0, Math.min(1, (1 - timeScale) / (1 - SLOW)));

@@ -1,0 +1,85 @@
+/**
+ * L'herbe fleurie du premier plan, devant tout, sur tous les niveaux (tools/decouper-herbe.py) :
+ * une bande qui se raccorde sur elle-même (sans miroir ni couture), glisse un peu plus vite que la
+ * route (elle est plus près) et ondule au vent. Selon la saison : en fleurs l'été et à l'arrivée,
+ * fanée en automne, givrée et enneigée en hiver, mouillée sous la pluie ; d'une saison à l'autre,
+ * elle change peu à peu, sans jonction.
+ */
+import { WORLD } from './track.js';
+import { biomeMix } from './biomes.js';
+
+const KINDS = { 'Été': 'ete', Automne: 'automne', Hiver: 'hiver', Pluie: 'pluie', 'Arrivée': 'ete' };
+const img = {};
+for (const k of ['ete', 'automne', 'hiver', 'pluie']) {
+  const i = new Image();
+  i.decoding = 'async';
+  i.src = `images/herbe/${k}.webp`;
+  img[k] = i;
+}
+const ok = (i) => i && i.complete && i.naturalWidth > 0;
+
+const TW = 1400;      // largeur d'une bande (monde)
+const Q = 0.3;        // l'herbe glisse 30 % plus vite que la route
+const ANCHOR = 1000;  // là où l'herbe est à sa place
+
+/** Plan de l'herbe ↔ monde : la saison de l'herbe en u est celle du sol sous la caméra quand elle y passe. */
+const worldOf = (u) => (u + Q * ANCHOR) / (1 + Q); // l'herbe en u passe au centre de l'écran quand la caméra y est
+
+/** Les couleurs (saisons) de la bande n° k ; une bande à cheval sur deux saisons est préparée une fois. */
+const tiles = new Map();
+function tileImage(k) {
+  if (tiles.has(k)) return tiles.get(k);
+  const u0 = k * TW, mid = biomeMix(worldOf(u0 + TW / 2)), a = biomeMix(worldOf(u0)), b = biomeMix(worldOf(u0 + TW));
+  const pure = a.t === 0 && b.t === 0 && a.a === b.a;
+  const kind0 = KINDS[a.a.name], i0 = img[kind0];
+  if (!ok(i0)) return null;
+  if (pure && mid.t === 0) { tiles.set(k, i0); return i0; }
+  // bande de transition : on mélange les deux saisons colonne par colonne selon le mélange du sol
+  const kinds = new Set([KINDS[a.a.name], KINDS[a.b.name], KINDS[b.a.name], KINDS[b.b.name], KINDS[mid.a.name], KINDS[mid.b.name]]);
+  for (const kk of kinds) if (!ok(img[kk])) return null;
+  const W = i0.naturalWidth, H = i0.naturalHeight, c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  const STEP = 6;
+  for (let x = 0; x < W; x += STEP) {
+    const m = biomeMix(worldOf(u0 + ((x + STEP / 2) / W) * TW));
+    for (const [bio, w] of [[m.a, 1 - m.t], [m.b, m.t]]) {
+      if (w < 0.004) continue;
+      g.globalAlpha = w;
+      g.globalCompositeOperation = 'lighter'; // les deux saisons s'additionnent (poids 1 au total)
+      g.drawImage(img[KINDS[bio.name]], x, 0, STEP, H, x, 0, STEP, H);
+    }
+  }
+  tiles.set(k, c);
+  return c;
+}
+
+export class Grass {
+  constructor() { this.t = 0; }
+
+  update(dt) { this.t += dt; }
+
+  /** Dessine l'herbe devant tout (repère du monde déjà en place dans ctx). */
+  draw(ctx, cam) {
+    const i0 = img.ete;
+    if (!ok(i0)) return;
+    const t = this.t, cx = cam.x + cam.viewW / 2;
+    const w = TW, h = (i0.naturalHeight * w) / i0.naturalWidth, base = WORLD.h + 60, top = base - h;
+    if (cam.y + cam.viewH < top) return;
+    const ox = -Q * (cx - ANCHOR);
+    // un souffle doux, en rafales
+    const gust = 0.09 * Math.sin(t * 1.3) + 0.04 * Math.sin(t * 2.7 + 1) + 0.02 * Math.sin(t * 5.1) + 0.03;
+    const ROW = 8, k0 = Math.floor((cam.x - ox) / w) - 1, k1 = Math.ceil((cam.x + cam.viewW - ox) / w);
+    const y0 = Math.max(0, cam.y - top);
+    for (let k = k0; k <= k1; k++) {
+      const src = tileImage(k);
+      if (!src) continue;
+      const sc = src.height / h;
+      // fines bandes horizontales : le pied fixe, le haut penche (pas de coupure dans les brins)
+      for (let y = Math.floor(y0 / ROW) * ROW; y < h; y += ROW) {
+        const lift = (h - y) / h, dx = gust * h * lift * lift, rh = Math.min(ROW, h - y);
+        ctx.drawImage(src, 0, y * sc, src.width, rh * sc, ox + k * w + dx, top + y, w + 1, rh + 0.5);
+      }
+    }
+  }
+}

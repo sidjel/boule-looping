@@ -21,6 +21,10 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
   position dans le paysage (aucun raccord entre deux niveaux), et la même route, un trait brun
   foncé tracé d'un seul tenant. Les saisons ajoutent par-dessus leur décor (neige, glace sur la
   route, flaques, arbres).
+- **Herbe du premier plan, sur tout le parcours** (`js/herbe.js`, `images/herbe/`, découpée par
+  `tools/decouper-herbe.py`) : la bande d'herbe fleurie, raccordée sur elle-même sans miroir, qui
+  ondule au vent ; en fleurs l'été, fanée en automne, givrée et enneigée en hiver, mouillée sous la
+  pluie ; elle change peu à peu d'une saison à l'autre, sans jonction.
 - **Automne (5 à 8)** : feuilles mortes qui volent, vent en rafales qui gêne l'avancée.
 - **Hiver (9 à 12)** : neige, route glacée : la boule glisse, va plus vite, répond moins aux
   gestes, et revenir en arrière est difficile.

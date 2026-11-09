@@ -10,7 +10,7 @@
  *   3. une seule bande de champs : ceux du niveau 1 (charrette, pailles, moulin aux ailes qui
  *      tournent), puis la ferme du niveau 2 et ses cochons ;
  *   2. la terre (texture) et la route, peintes dans les feuilles (ink.js : paintBalade) ;
- *   1. l'herbe du premier plan, qui ondule au vent (bande répétée en miroir).
+ *   1. l'herbe du premier plan : herbe.js, sur tout le parcours.
  * Images : images/niveau0/ (niveau 1) et images/balade/ (tools/decouper-balade.py).
  */
 import { SHEET, WORLD } from './track.js';
@@ -31,7 +31,7 @@ function load(key, src) {
 for (const n of ['terre', 'ciel', 'montagnes', 'champs', 'ferme', 'cochon']) load(n, `images/balade/${n}.webp`);
 for (let k = 0; k < 6; k++) load(`nuage${k}`, `images/balade/nuage-${k}.webp`);
 for (let k = 0; k < 3; k++) load(`gros${k}`, `images/balade/gros-nuage-${k}.webp`);
-for (const n of ['soleil', 'plan1-herbe', 'tour', 'ailes']) load(n, `images/niveau0/${n}.webp`);
+for (const n of ['soleil', 'tour', 'ailes']) load(n, `images/niveau0/${n}.webp`);
 const ok = (i) => i && i.complete && i.naturalWidth > 0;
 let geo = null, meta = null;
 fetch('images/niveau0/geo.json').then((r) => r.json()).then((g) => (geo = g)).catch(() => {});
@@ -327,26 +327,6 @@ export class Balade {
         g.globalAlpha = A;
         g.restore();
       }
-    }
-    ctx.restore();
-  }
-
-  /**
-   * Plan 1 : l'herbe, devant tout, en bande continue. Elle glisse plus vite que la route et ondule
-   * au vent : fines bandes horizontales, le pied fixe, le haut penche (pas de coupure dans les brins).
-   */
-  drawFront(ctx, cam) {
-    const t = this.t, cx = cam.x + cam.viewW / 2, A = fadeTo3(cx), i = img['plan1-herbe'];
-    if (A <= 0.002 || !ok(i)) return;
-    const gust = 0.09 * Math.sin(t * 1.3) + 0.04 * Math.sin(t * 2.7 + 1) + 0.02 * Math.sin(t * 5.1) + 0.03;
-    const w = (i.naturalWidth / 0.8) * K, h = (i.naturalHeight * w) / i.naturalWidth, base = WORLD.h + 50, top = base - h;
-    const ox = Q.herbe * (cx - 1000), ROW = 8, sc = i.naturalHeight / h;
-    const k0 = Math.floor((cam.x - ox) / w) - 1, k1 = Math.ceil((cam.x + cam.viewW - ox) / w);
-    ctx.save();
-    ctx.globalAlpha = A;
-    for (let y = 0; y < h; y += ROW) {
-      const lift = (h - y) / h, dx = gust * h * lift * lift, rh = Math.min(ROW, h - y);
-      for (let k = k0; k <= k1; k++) ctx.drawImage(k % 2 ? mirror(i) : i, 0, y * sc, i.naturalWidth, rh * sc, ox + k * w + dx, top + y, w + 1, rh + 0.4);
     }
     ctx.restore();
   }
