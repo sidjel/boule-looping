@@ -1,13 +1,15 @@
 /**
  * Le soleil, sur tout le parcours (le dessin du niveau 1 : images/niveau0/soleil.webp).
- * Il est très loin : il reste presque immobile à l'écran pendant qu'on roule, et ne bouge qu'avec
- * l'avancée de la balade : au fil des saisons, il glisse doucement vers la droite et descend vers
- * les montagnes, jusqu'à se coucher derrière elles à l'arrivée.
+ * Plus artistique que réaliste : il raconte la journée, de midi au coucher. Il est placé par rapport
+ * à l'écran (toujours visible, en vue d'ensemble comme à la loupe) et ne bouge qu'avec l'avancée de
+ * la balade : au niveau 1, en haut, vers le quart gauche de l'écran ; puis il glisse vers la droite
+ * et descend, lentement au début et de plus en plus vite (demi-courbe), jusqu'à se coucher sur les
+ * montagnes, en partie caché derrière elles, vers les trois quarts droits de l'écran, à l'arrivée.
  * Sa couleur et son éclat suivent la saison : jaune vif l'été, doré-orangé en automne, pâle et
  * froid en hiver, voilé sous la pluie, rouge-orangé au coucher de l'arrivée ; d'une saison à
  * l'autre, il change peu à peu.
  */
-import { WORLD } from './track.js';
+import { FINISH } from './track.js';
 import { biomeMix } from './biomes.js';
 
 const KIND = { 'Été': 'ete', Automne: 'automne', Hiver: 'hiver', Pluie: 'pluie', 'Arrivée': 'arrivee' };
@@ -49,10 +51,13 @@ const lerp = (a, b, t) => a + (b - a) * t;
 /** Dessine le soleil (repère du monde en place dans ctx), entre le ciel et les montagnes. */
 export function drawSoleil(ctx, cam, time) {
   const cx = cam.x + cam.viewW / 2, cy = cam.y + cam.viewH / 2;
-  const p = Math.max(0, Math.min(1, cx / WORLD.w)); // avancée dans la balade
-  // position : presque fixe à l'écran ; glisse vers la droite et descend avec l'avancée
-  const x = cx + cam.viewW * (-0.13 + 0.36 * p);
-  const y = 330 + 300 * Math.pow(p, 1.15) + 0.9 * 0.5 * (cy - 716);
+  const p = Math.max(0, Math.min(1, cx / FINISH.x)); // avancée dans la balade (1 : la ligne d'arrivée)
+  // gauche → droite, régulièrement ; descente en demi-courbe : lente au début, rapide à la fin
+  const x = cam.x + cam.viewW * (0.25 + 0.5 * p);
+  const fall = 1 - Math.cos((p * Math.PI) / 2);
+  const high = cam.y + cam.viewH * 0.26;                        // midi : haut dans le ciel
+  const ridge = 560 + 0.3 * 0.5 * (cy - 716);                   // couchant : sur la crête des montagnes
+  const y = high + (ridge - high) * fall;
   const m = biomeMix(cx);
   const A = LOOK[KIND[m.a.name]], B = LOOK[KIND[m.b.name]], t = m.b === m.a ? 0 : m.t;
   const mix = (k) => lerp(A[k], B[k], t);
