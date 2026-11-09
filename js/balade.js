@@ -5,7 +5,7 @@
  * caméra qu'il suit), donc moins il glisse à l'écran.
  *   5. le ciel (texture fournie : bleu foncé en haut, presque blanc en bas ; bande qui se raccorde
  *      sur elle-même, sans miroir), sur les trois premiers niveaux ; le soleil qui brille, de petits nuages ;
- *   4. les gros nuages, qui dérivent ; jamais deux nuages pareils côte à côte ;
+ *   4. les nuages : nuages.js, sur tout le parcours ;
  *   3. les montagnes du niveau 1 (bande répétée en miroir) ;
  *   3. une seule bande de champs : ceux du niveau 1 (charrette, pailles, moulin aux ailes qui
  *      tournent), puis la ferme du niveau 2 et ses cochons ;
@@ -29,8 +29,6 @@ function load(key, src) {
   img[key] = i;
 }
 for (const n of ['terre', 'champs', 'ferme', 'cochon']) load(n, `images/balade/${n}.webp`);
-for (let k = 0; k < 6; k++) load(`nuage${k}`, `images/balade/nuage-${k}.webp`);
-for (let k = 0; k < 3; k++) load(`gros${k}`, `images/balade/gros-nuage-${k}.webp`);
 for (const n of ['soleil', 'tour', 'ailes']) load(n, `images/niveau0/${n}.webp`);
 const ok = (i) => i && i.complete && i.naturalWidth > 0;
 let geo = null, meta = null;
@@ -110,46 +108,6 @@ export function earthPattern(g) {
   const p = g.createPattern(img.terre, 'repeat');
   p.setTransform(new DOMMatrix([0.7, 0, 0, 0.7, 0, 0]));
   return p;
-}
-
-/* ---------- nuages : deux rangs, jamais deux nuages pareils côte à côte ---------- */
-
-const rnd = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-/**
- * Suite d'images pour un rang : chaque image diffère des `win` précédentes (et, au bout du rang,
- * des premières, puisque le rang revient au début en dérivant).
- */
-function sequence(pool, n, win, r) {
-  const out = [];
-  for (let i = 0; i < n; i++) {
-    const avoid = new Set(out.slice(Math.max(0, i - win)));
-    if (i >= n - win) for (let j = 0; j < win - (n - 1 - i); j++) avoid.add(out[j]);
-    const free = pool.filter((k) => !avoid.has(k));
-    const list = free.length ? free : pool.filter((k) => k !== out[i - 1]);
-    out.push(list[Math.floor(r() * list.length)]);
-  }
-  return out;
-}
-const SPAN = Z1 + 4000; // longueur d'un tour de dérive
-function row(seed, pool, win, gap, y, scale, v) {
-  const r = rnd(seed), us = [];
-  for (let u = 0; u < SPAN - gap[1]; u += gap[0] + r() * (gap[1] - gap[0])) us.push(u);
-  const ks = sequence(pool, us.length, win, r);
-  return us.map((u, i) => ({ u: u - 800, k: ks[i], y: y[0] + r() * (y[1] - y[0]), s: scale[0] + r() * (scale[1] - scale[0]), v, flip: r() < 0.35 }));
-}
-// au loin : les cinq petits nuages ; devant : les trois gros du niveau 1 et le plus grand des six
-const SMALL = row(7, ["nuage1", "nuage2", "nuage3", "nuage4", "nuage5"], 3, [560, 900], [60, 360], [0.26, 0.38], 5);
-const BIG = row(11, ["gros0", "gros1", "gros2", "nuage0"], 2, [1150, 1600], [-40, 150], [0.7, 0.9], 9);
-function drawRow(g, list, q, sx, sy, x0, x1, t) {
-  for (const c of list) {
-    const i = img[c.k];
-    if (!ok(i)) continue;
-    const k = c.k.startsWith('gros') ? c.s * 1.25 : c.s * 1.6;
-    const w = i.naturalWidth * k, h = i.naturalHeight * k;
-    const u = (((c.u + 800 + t * c.v) % SPAN) + SPAN) % SPAN - 800, x = u + sx(q), y = c.y + sy(q);
-    if (x + w < x0 || x > x1) continue;
-    g.drawImage(c.flip ? mirror(i) : i, x, y, w, h);
-  }
 }
 
 /* ---------- les cochons (position dans le dessin de la ferme : u en largeur, v en hauteur) ---------- */
@@ -247,8 +205,7 @@ export class Balade {
     if (A <= 0.002) { ctx.restore(); return; }
     ctx.globalAlpha = A;
     // petits nuages au loin, puis 4 · les gros nuages devant ; ils dérivent lentement
-    drawRow(g, SMALL, Q.petits, sx, sy, x0, x1, t);
-    drawRow(g, BIG, Q.nuages, sx, sy, x0, x1, t);
+    // (les nuages, communs à tous les niveaux : nuages.js)
     // (3 · les montagnes, communes à tous les niveaux : montagnes.js)
     // 3 · les champs : niveau 1 (avec charrette et moulin), puis la ferme du niveau 2
     if (meta && ok(img.champs)) {

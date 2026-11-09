@@ -11,7 +11,7 @@ import { Sound } from './audio.js';
 import { setupFullscreen } from './fullscreen.js';
 import { inkSteps, buildInk } from './ink.js';
 import { makePaper, drawTable, buildSunDisk, drawSun, drawForks, drawWindsocks } from './scenery.js';
-import { buildClouds, moveClouds, drawClouds, drawBirds } from './clouds.js';
+import { drawBirds } from './clouds.js';
 import { buildBallBody, drawBall } from './ballArt.js';
 import { Effects } from './effects.js';
 import { Bonuses, BONUS_INFO } from './bonus.js';
@@ -25,6 +25,7 @@ import { Balade, baladeLoaded } from './balade.js';
 import { Grass } from './herbe.js';
 import { drawSky } from './ciel.js';
 import { drawMountains } from './montagnes.js';
+import { moveNuages, drawNuages } from './nuages.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('jeu'), ctx = canvas.getContext('2d');
@@ -67,7 +68,6 @@ function resize() {
       q, ink: new Map(), pending: new Map(),
       sun: buildSunDisk(108, q),
       body: buildBallBody(Math.min(cam.followScale * 1.5, 3), save.skin),
-      clouds: buildClouds(q),
     };
   }
   cam.update(1, ball, true);
@@ -337,7 +337,7 @@ function update(realDt) {
     showInfo(hit.color);
   }
   if (!run.finished && ball.x > FINISH.x) arrive();
-  moveClouds(dt);
+  moveNuages(dt);
   summer.update(dt, cam);
   grass.update(dt);
   weather.update(dt, cam, ball.clock);
@@ -538,9 +538,9 @@ function render(dt) {
   for (const sun of SUNS) if (sun.x + 400 > x0 && sun.x - 400 < x1) drawSun(ctx, art.sun, sun.x, sun.y, sun.r, time);
   drawSky(ctx, cam); // le ciel de la saison, sur tous les niveaux
   drawMountains(ctx, cam); // les montagnes, de la couleur de la saison
+  drawNuages(ctx, cam); // les nuages, deux rangs, de la couleur de la saison
   summer.drawFar(ctx, cam); // la balade en couleurs : ciel, soleil, nuages, montagnes, champs, moulin, ferme
   drawBirds(ctx, time, dt, x0, x1);
-  drawClouds(ctx, art.clouds, x0, x1);
   for (let k = Math.max(0, Math.floor(x0 / SHEET)); k <= Math.min(SHEETS - 1, Math.floor(x1 / SHEET)); k++) {
     ctx.drawImage(inkFor(k), k * SHEET, 0, SHEET, WORLD.h);
   }

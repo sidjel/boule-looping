@@ -30,6 +30,10 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
   loin derrière la route ; ensoleillées l'été, rousses en automne, enneigées l'hiver, grises sous la
   pluie, roses à l'arrivée ; la couleur change peu à peu le long de la chaîne, sans jonction ; le pied
   s'efface dans la brume de l'horizon.
+- **Nuages de tous les niveaux** (`js/nuages.js`, `images/nuages/`, préparés par
+  `tools/decouper-nuages.py`) : deux rangs qui dérivent (petits au loin, gros devant), jamais deux
+  pareils côte à côte ; blancs l'été, dorés en automne, blanc froid en hiver, gris sous la pluie,
+  rosés à l'arrivée, avec un passage en douceur d'une saison à l'autre.
 - **Herbe du premier plan, sur tout le parcours** (`js/herbe.js`, `images/herbe/`, découpée par
   `tools/decouper-herbe.py`) : la bande d'herbe fleurie, raccordée sur elle-même sans miroir, qui
   ondule au vent ; en fleurs l'été, fanée en automne, givrée et enneigée en hiver, mouillée sous la
