@@ -71,18 +71,18 @@ meta['champs'] = {'size': save('champs.webp', ch[top:]), 'top': top, 'src': [W, 
 mo = a.copy()
 for x in range(W):
     y = int(line[x])
-    for d in range(0, 90):
+    for d in range(0, 260):
         if y + d < H and y - 3 - d >= 0: mo[y + d, x] = mo[y - 3 - d, x]
-mo[..., 3] = np.where(yy < line[None, :] + 90, mo[..., 3], 0)
+mo[..., 3] = np.where(yy < line[None, :] + 260, mo[..., 3], 0)
 # trous dans les montagnes (là où étaient les ailes de l'ancien moulin) : rebouchés
 solid = mo[..., 3] > 200
 mtop = np.array([np.argmax(solid[:, x]) if solid[:, x].any() else H for x in range(W)])
 mtop = np.array([np.median(mtop[max(0, x - 40):x + 41]) for x in range(W)])
-holes = (~solid) & (yy > mtop[None, :] + 4) & (yy < line[None, :] + 90)
+holes = (~solid) & (yy > mtop[None, :] + 4) & (yy < line[None, :] + 260)
 rgb = cv2.inpaint(mo[..., :3].clip(0, 255).astype(np.uint8), holes.astype(np.uint8) * 255, 9, cv2.INPAINT_TELEA).astype(np.float32)
 mo[..., :3] = np.where(holes[..., None], rgb, mo[..., :3])
 mo[..., 3] = np.where(holes, 255, mo[..., 3])
-bot = int(min(H, line.max() + 90))
+bot = int(min(H, line.max() + 260))
 meta['montagnes'] = {'size': save('montagnes.webp', mo[:bot]), 'line': float(np.median(line))}
 meta['ligne_haies'] = float(np.median(line))
 json.dump(meta, open(out + 'balade.json', 'w'))

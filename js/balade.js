@@ -84,7 +84,7 @@ const softs = new Map();
 function softLeft(i, part) {
   if (!softs.has(i)) {
     const c = document.createElement('canvas');
-    c.width = i.naturalWidth; c.height = i.naturalHeight;
+    c.width = i.naturalWidth || i.width; c.height = i.naturalHeight || i.height;
     const g = c.getContext('2d');
     g.drawImage(i, 0, 0);
     g.globalCompositeOperation = 'destination-in';
@@ -274,6 +274,13 @@ export class Balade {
         const fx = ox + FARM.x, fy = yc + (meta.ligne_haies - meta.champs.top) * PX - FARM.horizon * FARM.f;
         if (fx < x1 && fx + fw > x0) {
           g.drawImage(softLeft(f, FARM.blend / fw), fx, fy, fw, fh);
+          // après la ferme, les champs continuent (ceux du niveau 1 en miroir, sans la charrette),
+          // raccordés en douceur sur le bord droit de la ferme
+          const ex = fx + fw - FARM.blend;
+          g.save();
+          g.beginPath(); g.rect(ex, yc - 400, w * 0.55, h + 800); g.clip();
+          g.drawImage(softLeft(mirror(i), FARM.blend / w), ex, yc, w + 1, h);
+          g.restore();
           if (ok(img.cochon)) {
             const pig = img.cochon;
             for (const p of PIGS) {
