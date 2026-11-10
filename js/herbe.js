@@ -70,6 +70,14 @@ function tileImage(k) {
   return t;
 }
 
+/** Motif répété d'une image d'herbe (préparé une fois par image et par canevas de dessin). */
+const patterns = new WeakMap();
+function patternOf(ctx, src) {
+  let p = patterns.get(src);
+  if (!p || p.ctx !== ctx) { p = { ctx, pat: ctx.createPattern(src, 'repeat-x') }; patterns.set(src, p); }
+  return p.pat;
+}
+
 export class Grass {
   constructor() { this.t = 0; }
 
@@ -98,17 +106,40 @@ export class Grass {
       rows.push([y, rh, gust * h * lift * lift]);
       y += rh;
     }
+    // les morceaux voisins d'une même image (même saison) forment un groupe : chaque rangée y est
+    // remplie d'un seul coup avec un motif répété (un appel par rangée, pas un par rangée et par
+    // morceau) ; un morceau mélangé (passage de saison) est un groupe à lui seul
+    const groups = [];
     for (let k = k0; k <= k1; k++) {
       const t = tileImage(k), src = t && source(t);
       if (!src) { if (t && !t.canvas) tiles.delete(k); continue; } // saison libérée : à refaire
-      const sc = src.height / h, sw = src.width / w, tx = ox + k * w;
-      for (const [y, rh, dx] of rows) {
-        // la partie de la bande à l'écran seulement
-        const a = Math.max(vx0, tx + dx), b = Math.min(vx1, tx + dx + w);
-        if (b <= a) continue;
-        ctx.drawImage(src, (a - tx - dx) * sw, y * sc, (b - a) * sw, rh * sc, a, top + y, b - a + 1, rh + 0.5);
-      }
+      const g = groups[groups.length - 1];
+      if (g && g.src === src && g.k1 === k - 1) g.k1 = k;
+      else groups.push({ src, k0: k, k1: k });
     }
+    groups.forEach((g, gi) => {
+      const src = g.src, sc = src.height / h, sw = src.width / w, tx = ox + g.k0 * w, gw = (g.k1 - g.k0 + 1) * w;
+      const more = gi < groups.length - 1 ? 1 : 0; // 1 px de recouvrement avec le groupe suivant
+      if (g.k1 === g.k0) {
+        for (const [y, rh, dx] of rows) {
+          // la partie de la bande à l'écran seulement
+          const a = Math.max(vx0, tx + dx), b = Math.min(vx1, tx + dx + w);
+          if (b <= a) continue;
+          ctx.drawImage(src, (a - tx - dx) * sw, y * sc, (b - a) * sw, rh * sc, a, top + y, b - a + 1, rh + 0.5);
+        }
+        return;
+      }
+      const pat = patternOf(ctx, src);
+      ctx.fillStyle = pat;
+      for (const [y, rh, dx] of rows) {
+        const a = Math.max(vx0, tx + dx), b = Math.min(vx1, tx + dx + gw);
+        if (b <= a) continue;
+        // comme drawImage : la rangée (rh) étirée d'un demi-pixel vers le bas, pour couvrir la jointure
+        const k = (rh + 0.5) / rh;
+        pat.setTransform(new DOMMatrix([1 / sw, 0, 0, k / sc, tx + dx, top + y * (1 - k)]));
+        ctx.fillRect(a, top + y, b - a + more, rh + 0.5);
+      }
+    });
     ahead(() => tiles.has(k1 + 1), () => tileImage(k1 + 1)); // la bande suivante, à l'avance
     for (const key of tiles.keys()) if (key < k0 - 2 || key > k1 + 3) tiles.delete(key); // loin : oubliée
   }
