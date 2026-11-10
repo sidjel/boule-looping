@@ -192,7 +192,13 @@ par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même rob
   - menu ouvert, un tour d'essai dessine les trois premiers niveaux hors de l'écran (moulin, ferme,
     château déjà prêts) ;
   - les morceaux de paysage aux couleurs mêlées (passages de saison) sont préparés à l'avance, un par
-    image au plus (`js/avance.js`) ; le papier n'est pas dessiné sous le ciel ; l'herbe n'est dessinée
+    image au plus (`js/avance.js`), par deux dégradés (`js/melange.js` : 4 dessins au lieu d'un par
+    colonne), puis passent tout de suite par la carte graphique ; le ciel d'un passage est un seul ciel
+    déjà mélangé ;
+  - les images d'une saison se chargent quand elle approche du bord de l'écran (pas du centre) ;
+  - l'écran d'arrivée met le jeu en pause ; en pause, une image identique n'est pas redessinée ;
+  - les sauvegardes (et les fantômes) sont écrites au moment calme du navigateur, pas pendant le
+    passage d'un niveau à l'autre ; le papier n'est pas dessiné sous le ciel ; l'herbe n'est dessinée
     qu'à l'écran.
 - Le compteur affiche aussi le nombre de dessins par image et les étapes qui dessinent le plus
   (sur téléphone, c'est souvent ce nombre qui ralentit, pas le calcul).
