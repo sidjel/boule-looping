@@ -9,6 +9,7 @@
 import { biomeMix } from './biomes.js';
 import { ahead } from './avance.js';
 import { picture, ready, seasonNeed } from './ressources.js';
+import { mixTwo, junctionNear } from './melange.js';
 
 const KIND = { 'Été': 'ete', Automne: 'automne', Hiver: 'hiver', Pluie: 'pluie', 'Arrivée': 'arrivee' };
 // une version par saison, chargée seulement près de sa saison (ressources.js) ; toutes ont la même taille
@@ -32,7 +33,17 @@ function tileImage(k) {
   const kinds = new Set(marks.flatMap((m) => [KIND[m.a.name], KIND[m.b.name]]));
   for (const kk of kinds) if (!ready(pic[kk])) return null;
   if (kinds.size === 1) { const t = { kind: [...kinds][0] }; tiles.set(k, t); return t; }
-  const i0 = pic[[...kinds][0]], W = i0.w, H = i0.h, c = document.createElement('canvas');
+  const i0 = pic[[...kinds][0]], W = i0.w, H = i0.h;
+  const mid = marks.find((m) => m.t > 0 && m.t < 1);
+  if (kinds.size === 2 && mid) {
+    // deux saisons : deux dégradés (melange.js)
+    const xs = (x) => worldOf(u0 + (x / W) * TW);
+    const J = junctionNear(xs(W * (marks.indexOf(mid) / 10)));
+    const t = { canvas: mixTwo(pic[KIND[mid.a.name]].img, pic[KIND[mid.b.name]].img, 0, W, W, H, xs, J) };
+    tiles.set(k, t);
+    return t;
+  }
+  const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const g = c.getContext('2d');
   g.globalCompositeOperation = 'lighter';

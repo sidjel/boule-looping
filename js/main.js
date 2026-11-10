@@ -19,7 +19,7 @@ import { Weather } from './weather.js';
 import { Hay } from './foin.js';
 import { mark, profil, countDraws } from './profil.js';
 import { newFrame } from './avance.js';
-import { updateResources, readyAt, loadedMB } from './ressources.js';
+import { updateResources, readyAt, loadedMB, nextToWarm } from './ressources.js';
 import { biomeAt, biomeOfSheet, biomeMix } from './biomes.js';
 import { LOOP_ZONES } from './levels.js';
 import * as diag from './diagnostic.js';
@@ -89,6 +89,7 @@ function resize() {
   }
   cam.update(1, ball, true);
   refreshButtons();
+  redraw = true;
 }
 
 /* ---------- feuilles : dessinées à l'avance, petit à petit, quatre au plus en mémoire ---------- */
@@ -180,6 +181,7 @@ const wanted = () => wantedWithDistance().map(([k]) => k);
  * (render) : la carte graphique fait ce morceau tout de suite, au lieu de tout faire d'un coup quand la
  * feuille arrive à l'écran.
  */
+let lastView = '', redraw = true; // (redraw : redessiner même en pause, ex. après un réglage)
 let lastDt = 0, skipped = 0, toFlush = null, lastFrame = performance.now(), frameAvg = 1 / 60, stepsPerSheet = 14;
 function prepare() {
   frameAvg += (Math.min(0.1, lastDt || 1 / 60) - frameAvg) * 0.1;
@@ -384,11 +386,12 @@ function frame(now) {
   lastDt = (now - last) / 1000;
   last = now;
   time += dt;
-  const paused = menu.isOpen || portrait() || infoOpen;
+  // menu, écran d'arrivée, explication d'un bonus, téléphone en portrait : le jeu est en pause
+  const paused = menu.isOpen || portrait() || infoOpen || !finish.hidden;
   turn.hidden = !portrait();
   newFrame();
   mark('images (chargement)');
-  updateResources(cam.x + cam.viewW / 2, now); // images du décor : celles des saisons proches seulement
+  updateResources(cam.x + cam.viewW / 2, now, false, cam.viewW / 2); // images du décor : celles des saisons proches seulement
   mark('mise à jour');
   if (!paused) update(dt);
   else {
@@ -396,7 +399,12 @@ function frame(now) {
     // menu ouvert : on prépare d'avance les feuilles et le tour d'essai (pas pendant la partie)
     if (menu.isOpen) { prepare(); warmUp(); }
   }
-  render(paused ? 0 : dt * timeScale);
+  // en pause, une image identique à la précédente n'est pas redessinée (sous un fond flouté, le
+  // navigateur n'a alors pas à refaire le flou à chaque image)
+  const view = `${cam.x.toFixed(2)}|${cam.y.toFixed(2)}|${cam.scale.toFixed(4)}|${canvas.width}|${canvas.height}`;
+  if (!paused || view !== lastView || redraw) render(paused ? 0 : dt * timeScale);
+  lastView = view;
+  redraw = false;
   mark('boutons');
   placeForkButtons();
   updateRecap(paused ? 0 : dt);
@@ -753,6 +761,15 @@ function render(dt) {
   }
   ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
   fx.drawTrail(ctx, input.liveTrail(), input.holding() ? input.active.last : null);
+  // image du décor tout juste décodée : un pixel, à 1 % (invisible), pour que la carte graphique la
+  // reçoive maintenant, une à la fois, et non toutes ensemble à leur premier affichage
+  const w = !warming && nextToWarm();
+  if (w) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 0.01;
+    ctx.drawImage(w, 0, 0, 1, 1, 0, 0, 1, 1);
+    ctx.globalAlpha = 1;
+  }
   if (toFlush && !warming) {
     // feuille en préparation : un pixel, à 1 % (invisible), pour que la carte graphique la dessine
     // morceau par morceau (prepare)
@@ -879,7 +896,7 @@ function fadeJump(action) {
     cam.update(1, ball, true); // la caméra arrive directement au nouvel endroit
     // les images du nouvel endroit se chargent et les feuilles se préparent sous le voile (1,5 s au plus)
     const cx = cam.x + cam.viewW / 2, t0 = performance.now();
-    updateResources(cx, t0, true);
+    updateResources(cx, t0, true, cam.viewW / 2);
     const open = () => {
       if (!readyAt(cx) && performance.now() - t0 < 1500) return requestAnimationFrame(open);
       requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -913,6 +930,7 @@ const menu = new Menu($('menu'), {
     fadeJump(continueSaved);
   },
   options: (k) => {
+    redraw = true;
     applyOptions();
     if (k === 'wideLandscape') refreshButtons();
     if (k === 'quality') resize();
@@ -928,6 +946,7 @@ const menu = new Menu($('menu'), {
     return '';
   },
   skin: (id) => {
+    redraw = true;
     save.setSkin(id);
     ball.setSkin(skinPhys(id));
     art.body = buildBallBody(Math.min(cam.followScale * 1.5, 3), id);

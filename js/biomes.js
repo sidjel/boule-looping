@@ -55,7 +55,7 @@ export function windAt(t) {
 
 /* ---------- passages de saison en fondu ---------- */
 
-const BLEND = 450; // px de part et d'autre de la jonction entre deux saisons
+export const BLEND = 450; // px de part et d'autre de la jonction entre deux saisons
 
 /** Deux saisons et la part t de la seconde, en x (t = 0 loin des jonctions). */
 export function biomeMix(x) {

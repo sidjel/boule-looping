@@ -43,6 +43,7 @@ function load(p) {
     p.w = i.naturalWidth;
     p.h = i.naturalHeight;
     p.state = 'on';
+    warm.push(p); // à envoyer à la carte graphique, en avance (main.js : nextToWarm)
     note(`image prête ${name} ${p.w}×${p.h} (${((p.w * p.h * 4) / 1048576).toFixed(1)} Mo ; reçue ${Math.round(tl - t0)} ms, décodée ${Math.round(performance.now() - tl)} ms)`);
   };
   i.onload = () => { tl = performance.now(); if (i.decode) i.decode().then(done, done); else done(); };
@@ -59,12 +60,17 @@ function release(p) {
   if (i) { i.onload = i.onerror = null; i.removeAttribute('src'); } // le navigateur libère l'image décodée
 }
 
-let last = -1e9, lastT = 0;
-/** À chaque image (main.js) ; ne travaille que quatre fois par seconde, ou si la caméra a sauté. */
-export function updateResources(cx, now, force = false) {
-  if (!force && now - lastT < 250 && Math.abs(cx - last) < 1500) return;
+let last = -1e9, lastT = 0, half = 1000;
+/**
+ * À chaque image (main.js) ; ne travaille que quatre fois par seconde, ou si la caméra a sauté.
+ * cx : centre de la caméra ; halfW : demi-largeur de ce qu'elle montre (les distances se comptent
+ * depuis les bords de l'écran : en vue d'ensemble, le bord est bien plus loin que le centre).
+ */
+export function updateResources(cx, now, force = false, halfW = 1000) {
+  if (!force && now - lastT < 250 && Math.abs(cx - last) < 1500 && Math.abs(halfW - half) < 200) return;
   last = cx;
   lastT = now;
+  half = halfW;
   for (const p of all) {
     const n = p.need(cx);
     if (n >= 2 && p.state === 'off' && !p.failed) load(p);
@@ -77,31 +83,52 @@ export function readyAt(cx) {
   return all.every((p) => p.need(cx) < 2 || p.state === 'on' || p.failed);
 }
 
-/** Les saisons visibles depuis le centre cx, à r px près : noms ('Été', 'Automne'…). */
-export function seasonsAround(cx, r) {
+/** Les saisons vues entre les abscisses a et b : noms ('Été', 'Automne'…). */
+export function seasonsBetween(a, b) {
   const out = new Set();
-  for (let x = cx - r; x <= cx + r; x += 250) {
-    const xx = Math.max(0, Math.min(SHEET * SHEETS - 1, x));
+  for (let x = a; x <= b + 249; x += 250) {
+    const xx = Math.max(0, Math.min(SHEET * SHEETS - 1, Math.min(x, b)));
     const m = biomeMix(xx);
     out.add(m.a.name);
     if (m.t > 0) out.add(m.b.name);
   }
   return out;
 }
+/** (ancien nom) Les saisons visibles depuis le centre cx, à r px près. */
+export const seasonsAround = (cx, r) => seasonsBetween(cx - r, cx + r);
 
-/** need() d'une version de saison : sert si la saison est à moins de NEAR, gardée à moins de FAR. */
+// fenêtres autour de ce que montre la caméra : chargée (« sert ») de BEHIND px derrière l'écran à
+// NEAR px devant ; gardée jusqu'à FAR_BEHIND derrière et FAR devant
+const BEHIND = 800, FAR_BEHIND = 2500;
+const nearWin = (cx) => [cx - half - BEHIND, cx + half + NEAR];
+const farWin = (cx) => [cx - half - FAR_BEHIND, cx + half + FAR];
+
+/** need() d'une version de saison : sert si la saison est dans la fenêtre proche, gardée dans la lointaine. */
 export function seasonNeed(...names) {
   return (cx) => {
-    const near = seasonsAround(cx, NEAR);
+    const near = seasonsBetween(...nearWin(cx));
     if (names.some((n) => near.has(n))) return 2;
-    const far = seasonsAround(cx, FAR);
+    const far = seasonsBetween(...farWin(cx));
     return names.some((n) => far.has(n)) ? 1 : 0;
   };
 }
 
-/** need() d'une image qui sert entre les abscisses a et b (centre de la caméra). */
+/** need() d'une image qui sert quand la caméra montre une partie de [a, b] (centre de la caméra). */
 export function rangeNeed(a, b) {
-  return (cx) => (cx > a - NEAR && cx < b + NEAR ? 2 : cx > a - FAR && cx < b + FAR ? 1 : 0);
+  return (cx) => {
+    const [n0, n1] = nearWin(cx), [f0, f1] = farWin(cx);
+    return n1 > a && n0 < b ? 2 : f1 > a && f0 < b ? 1 : 0;
+  };
+}
+
+/** La prochaine image prête à envoyer à la carte graphique (une par image du jeu), ou null. */
+const warm = [];
+export function nextToWarm() {
+  while (warm.length) {
+    const p = warm.shift();
+    if (p.state === 'on' && p.img) return p.img;
+  }
+  return null;
 }
 
 /** Mémoire des images chargées (Mo, une fois décodées) : pour le compteur. */

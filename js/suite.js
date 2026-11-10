@@ -13,6 +13,7 @@
 import { biomeMix } from './biomes.js';
 import { ahead } from './avance.js';
 import { picture, ready, seasonNeed, rangeNeed } from './ressources.js';
+import { mixTwo, junctionNear } from './melange.js';
 
 const KIND = { 'Été': 'ete', Automne: 'automne', Hiver: 'hiver', Pluie: 'pluie', 'Arrivée': 'arrivee' };
 // les champs de foin : été, automne et hiver (le passage vers l'hiver) ; ils s'arrêtent au début de
@@ -55,7 +56,14 @@ function pieceImage(k, worldOf) {
   for (const kk of kinds) if (!ready(pic[kk])) return null;
   let out;
   if (kinds.size === 1) out = { kind: [...kinds][0], sx: p.c0 * R }; // l'image de la saison, prise au dessin
-  else {
+  else if (kinds.size === 2 && marks.some((m) => m.t > 0 && m.t < 1)) {
+    // deux saisons : deux dégradés (melange.js)
+    const mid = marks.find((m) => m.t > 0 && m.t < 1), H = pic[[...kinds][0]].h, w = Math.round((p.c1 - p.c0) * R);
+    const xs = (x) => worldOf(p.u + (x / R) * S);
+    const J = junctionNear(xs(w * (marks.indexOf(mid) / 10)));
+    out = { src: mixTwo(pic[KIND[mid.a.name]].img, pic[KIND[mid.b.name]].img, p.c0 * R, w, w, H, xs, J), sx: 0 };
+    if (cache.size > 6) cache.delete(cache.keys().next().value);
+  } else {
     const H = pic[[...kinds][0]].h, w = Math.round((p.c1 - p.c0) * R), c = document.createElement('canvas');
     c.width = w; c.height = H;
     const g = c.getContext('2d');
@@ -90,7 +98,13 @@ function rainImage(j, worldOf) {
   for (const k of kinds) if (!ready(RAIN[k])) return null;
   let out;
   if (kinds.size === 1) out = { kind: [...kinds][0] }; // l'image de la saison, prise au dessin
-  else {
+  else if (true) {
+    // pluie → arrivée : deux dégradés (melange.js) ; la jonction est le début de l'arrivée
+    const xs = (x) => worldOf(u + x * px);
+    let J = 0;
+    for (let x = 0; x <= W; x += W / 10) { const m = at(x); if (m.t > 0 && m.t < 1) { J = junctionNear(xs(x)); break; } }
+    out = { canvas: mixTwo(RAIN.pluie.img, RAIN.arrivee.img, 0, W, W, any.h, xs, J || junctionNear(xs(W / 2))) };
+  } else {
     const a = RAIN.pluie.img, b = RAIN.arrivee.img, c = document.createElement('canvas');
     c.width = W; c.height = any.h;
     const g = c.getContext('2d');

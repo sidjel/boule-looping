@@ -25,16 +25,11 @@ export function skyReady(cx) {
   return !!meta && ready(pic[KIND[m.a.name]]) && (m.t <= 0.002 || ready(pic[KIND[m.b.name]]));
 }
 
-function paint(g, cam, kind, alpha) {
-  const p = pic[kind];
-  if (!ready(p) || !meta || alpha <= 0.002) return;
-  const i = p.img;
+function paint(g, cam, i, haut, bas) {
   const cx = cam.x + cam.viewW / 2, cy = cam.y + cam.viewH / 2;
-  const w = i.naturalWidth * SCALE, h = i.naturalHeight * SCALE * 0.73;
+  const w = i.width * SCALE, h = i.height * SCALE * 0.73;
   const ox = Q * (cx - ANCHOR), y = TOP + Q * 0.5 * (cy - 716);
   const x0 = cam.x - 4, x1 = cam.x + cam.viewW + 4;
-  const { haut, bas } = meta[kind];
-  g.globalAlpha = alpha;
   g.fillStyle = `rgb(${haut})`;
   g.fillRect(x0, cam.y - 4, x1 - x0, Math.max(0, y - cam.y + 6));
   g.fillStyle = `rgb(${bas})`;
@@ -42,25 +37,38 @@ function paint(g, cam, kind, alpha) {
   for (let k = Math.floor((x0 - ox) / w); ox + k * w < x1; k++) g.drawImage(i, ox + k * w, y, w + 1, h);
 }
 
+/**
+ * Au passage d'une saison à l'autre, un seul ciel déjà mélangé (A × (1 − t) + B × t), refait
+ * seulement quand t change d'un quarantième : à l'écran, une seule couche de ciel, pas deux (à
+ * l'arrivée, en vue d'ensemble, la caméra reste dans ce passage jusqu'à la fin).
+ */
+let mix = null, mixKey = '';
+function mixedSky(a, b, t) {
+  const A = pic[a].img, B = pic[b].img, tq = Math.round(t * 40) / 40, key = `${a}|${b}|${tq}`;
+  if (key !== mixKey) {
+    if (!mix) mix = document.createElement('canvas');
+    if (mix.width !== A.naturalWidth || mix.height !== A.naturalHeight) { mix.width = A.naturalWidth; mix.height = A.naturalHeight; }
+    const g = mix.getContext('2d');
+    g.globalAlpha = 1;
+    g.drawImage(A, 0, 0);
+    g.globalAlpha = tq;
+    g.drawImage(B, 0, 0, mix.width, mix.height);
+    g.globalAlpha = 1;
+    mixKey = key;
+  }
+  return { img: mix, t: tq };
+}
+const lerp3 = (p, q, t) => p.map((v, k) => Math.round(v + (q[k] - v) * t)).join(',');
+
 /** Dessine le ciel (repère du monde en place dans ctx), sous tout le reste. */
-let tmp = null, tg = null;
 export function drawSky(ctx, cam) {
-  const m = biomeMix(cam.x + cam.viewW / 2);
+  if (!meta) return;
+  const m = biomeMix(cam.x + cam.viewW / 2), a = KIND[m.a.name], b = KIND[m.b.name];
+  if (!ready(pic[a])) return;
   ctx.save();
-  paint(ctx, cam, KIND[m.a.name], 1);
-  ctx.restore();
-  if (!(m.t > 0.002 && m.b !== m.a)) return;
-  // la saison suivante : peinte opaque à part (ses morceaux se chevauchent d'un pixel), puis posée
-  // d'un seul coup avec la part m.t : pas de liseré aux raccords
-  const W = Math.ceil(ctx.canvas.width / 2), H = Math.ceil(ctx.canvas.height / 2);
-  if (!tmp) { tmp = document.createElement('canvas'); tg = tmp.getContext('2d'); }
-  if (tmp.width !== W || tmp.height !== H) { tmp.width = W; tmp.height = H; }
-  const t = ctx.getTransform();
-  tg.setTransform(t.a / 2, 0, 0, t.d / 2, t.e / 2, t.f / 2);
-  paint(tg, cam, KIND[m.b.name], 1);
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.globalAlpha = m.t;
-  ctx.drawImage(tmp, 0, 0, ctx.canvas.width, ctx.canvas.height);
+  if (m.t > 0.002 && b !== a && ready(pic[b])) {
+    const { img, t } = mixedSky(a, b, m.t);
+    paint(ctx, cam, img, lerp3(meta[a].haut, meta[b].haut, t), lerp3(meta[a].bas, meta[b].bas, t));
+  } else paint(ctx, cam, pic[a].img, meta[a].haut, meta[a].bas);
   ctx.restore();
 }
