@@ -8,14 +8,10 @@
  */
 import { biomeMix } from './biomes.js';
 import { ahead } from './avance.js';
-import { picture, ready, seasonNeed } from './ressources.js';
-import { mixTwo, junctionNear } from './melange.js';
+import { picture, ready, warmed, viewHalf, NEAR, FAR, BEHIND, FAR_BEHIND } from './ressources.js';
+import { mixTwo, mixSteps, junctionNear } from './melange.js';
 
 const KIND = { 'Été': 'ete', Automne: 'automne', Hiver: 'hiver', Pluie: 'pluie', 'Arrivée': 'arrivee' };
-// une version par saison, chargée seulement près de sa saison (ressources.js) ; toutes ont la même taille
-const pic = {};
-for (const [name, k] of Object.entries(KIND)) pic[k] = picture(`images/montagnes/${k}.webp`, seasonNeed(name));
-const anyReady = () => Object.values(pic).find(ready);
 
 const Q = 0.3, ANCHOR = 1200;   // parallaxe : comme les montagnes du niveau 1
 const TW = 2400;                // largeur d'une bande dans le monde
@@ -23,25 +19,87 @@ const PEAKS = 500;              // haut de la bande (monde), quand la caméra es
 
 /** Plan des montagnes ↔ monde : la saison en u est celle du sol sous la caméra quand elles y passent. */
 const worldOf = (u) => (u - Q * ANCHOR) / (1 - Q);
+/** Les saisons d'un morceau (les mêmes que tileImage). */
+const marksOf = (k) => [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1].map((f) => biomeMix(worldOf(k * TW + f * TW)));
+function seasonsOfTiles(u0, u1) {
+  const out = new Set();
+  for (let k = Math.floor(u0 / TW); k <= Math.floor(u1 / TW); k++) for (const m of marksOf(k)) out.add(m.a.name).add(m.b.name);
+  return out;
+}
+/**
+ * need() d'une saison des montagnes (ressources.js). Elles glissent moins vite que le sol et se
+ * dessinent par morceaux entiers de TW : un morceau entre à l'écran bien avant la saison du sol qu'il
+ * annonce. Les fenêtres se comptent donc dans leur plan, en morceaux : la saison sert dès qu'un
+ * morceau proche (ou le suivant, préparé à l'avance) la montre.
+ */
+function mountainNeed(name) {
+  return (cx) => {
+    const h = viewHalf(), u = (1 - Q) * cx + Q * ANCHOR; // centre de l'écran, dans le plan des montagnes
+    if (seasonsOfTiles(u - h - (1 - Q) * BEHIND, u + h + (1 - Q) * NEAR + TW).has(name)) return 2;
+    return seasonsOfTiles(u - h - (1 - Q) * FAR_BEHIND, u + h + (1 - Q) * FAR + TW).has(name) ? 1 : 0;
+  };
+}
+// une version par saison, chargée seulement près de sa saison (ressources.js) ; toutes ont la même taille
+const pic = {};
+for (const [name, k] of Object.entries(KIND)) pic[k] = picture(`images/montagnes/${k}.webp`, mountainNeed(name));
+const anyReady = () => Object.values(pic).find(ready);
+// canevas de travail des mélanges par étapes (un seul à la fois : busy), créé au chargement, et non
+// en pleine partie (un grand canevas neuf coûte cher à son premier dessin sur téléphone)
+const work = document.createElement('canvas');
+work.width = 2150; work.height = 380; // taille des images de montagnes
+work.getContext('2d').fillRect(0, 0, 1, 1);
+let busy = false;
 
-/** Morceau n° k : { kind } (une seule saison : l'image de la saison) ou { canvas } (mélange, préparé une fois). */
+/**
+ * Morceau n° k : { kind } (une seule saison : l'image de la saison), { canvas } (mélange, préparé une
+ * fois) ou { job } (mélange en cours, melange.js : mixSteps).
+ * now : le morceau est à l'écran, il le faut tout de suite (mélange fini d'un coup s'il le faut).
+ * Sinon (préparation à l'avance) : une étape du mélange par appel, et seulement une fois les deux
+ * images passées par la carte graphique (avant : un mélange d'un coup juste après le décodage de
+ * l'image coûtait 37 à 43 ms au téléphone, rapport du 10 novembre).
+ */
 const tiles = new Map();
-function tileImage(k) {
-  if (tiles.has(k)) return tiles.get(k);
-  const u0 = k * TW;
-  const marks = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1].map((f) => biomeMix(worldOf(u0 + f * TW)));
+function plan(k) {
+  const marks = marksOf(k);
   const kinds = new Set(marks.flatMap((m) => [KIND[m.a.name], KIND[m.b.name]]));
-  for (const kk of kinds) if (!ready(pic[kk])) return null;
-  if (kinds.size === 1) { const t = { kind: [...kinds][0] }; tiles.set(k, t); return t; }
-  const i0 = pic[[...kinds][0]], W = i0.w, H = i0.h;
   const mid = marks.find((m) => m.t > 0 && m.t < 1);
-  if (kinds.size === 2 && mid) {
+  return { marks, kinds, mid, two: kinds.size === 2 && !!mid };
+}
+/** Le morceau k peut-il avancer sa préparation à l'avance maintenant ? */
+function canAdvance(k) {
+  const t = tiles.get(k);
+  if (t) return !!t.job;
+  const p = plan(k);
+  for (const kk of p.kinds) if (!ready(pic[kk])) return false;
+  return !p.two || [...p.kinds].every((kk) => warmed(pic[kk]));
+}
+function tileImage(k, now = true) {
+  let t = tiles.get(k);
+  if (t && !t.job) return t;
+  if (t) {
+    // mélange en cours : une étape (à l'avance), ou la fin d'un coup (à l'écran)
+    let r;
+    do r = t.job.next(); while (now && !r.done);
+    if (!r.done) return null;
+    busy = false;
+    t = { canvas: r.value };
+    tiles.set(k, t);
+    return t;
+  }
+  const u0 = k * TW;
+  const { marks, kinds, mid, two } = plan(k);
+  for (const kk of kinds) if (!ready(pic[kk])) return null;
+  if (kinds.size === 1) { t = { kind: [...kinds][0] }; tiles.set(k, t); return t; }
+  const i0 = pic[[...kinds][0]], W = i0.w, H = i0.h;
+  if (two) {
     // deux saisons : deux dégradés (melange.js)
     const xs = (x) => worldOf(u0 + (x / W) * TW);
     const J = junctionNear(xs(W * (marks.indexOf(mid) / 10)));
-    const t = { canvas: mixTwo(pic[KIND[mid.a.name]].img, pic[KIND[mid.b.name]].img, 0, W, W, H, xs, J) };
-    tiles.set(k, t);
-    return t;
+    const A = pic[KIND[mid.a.name]].img, B = pic[KIND[mid.b.name]].img;
+    if (now || busy) { t = { canvas: mixTwo(A, B, 0, W, W, H, xs, J) }; tiles.set(k, t); return t; }
+    busy = true;
+    tiles.set(k, { job: mixSteps(A, B, 0, W, W, H, xs, J, work) });
+    return tileImage(k, false);
   }
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
@@ -56,7 +114,7 @@ function tileImage(k) {
       g.drawImage(pic[KIND[bio.name]].img, x, 0, STEP, H, x, 0, STEP, H);
     }
   }
-  const t = { canvas: c };
+  t = { canvas: c };
   tiles.set(k, t);
   return t;
 }
@@ -76,8 +134,12 @@ export function drawMountains(ctx, cam) {
   for (; ox + k * w < cam.x + cam.viewW; k++) {
     const t = tileImage(k), src = t && source(t);
     if (src) ctx.drawImage(src, ox + k * w, y, w + 1, h);
-    else if (t && !t.canvas) tiles.delete(k); // sa saison a été libérée : à refaire
+    else if (t && t.kind) tiles.delete(k); // sa saison a été libérée : à refaire
   }
-  ahead(() => tiles.has(k), () => tileImage(k)); // la bande suivante, à l'avance
-  for (const key of tiles.keys()) if (key < k0 - 2 || key > k + 2) tiles.delete(key); // loin : oubliée
+  ahead(() => !canAdvance(k), () => tileImage(k, false)); // la bande suivante, à l'avance, par étapes
+  for (const [key, t] of tiles) {
+    if (key >= k0 - 2 && key <= k + 2) continue;
+    if (t.job) busy = false; // mélange abandonné : le canevas de travail est libre
+    tiles.delete(key); // loin : oubliée
+  }
 }

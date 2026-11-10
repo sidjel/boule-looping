@@ -18,6 +18,19 @@ let tmp = null;
  * J : x de la jonction (A avant, B après). Renvoie un canevas W × H.
  */
 export function mixTwo(A, B, sx, sw, W, H, worldAt, J) {
+  if (!tmp) tmp = document.createElement('canvas');
+  const steps = mixSteps(A, B, sx, sw, W, H, worldAt, J, tmp);
+  let r;
+  do r = steps.next(); while (!r.done);
+  return r.value;
+}
+
+/**
+ * Le même mélange en trois étapes, une par appel de next() (une par image du jeu : montagnes.js) :
+ * A masquée, puis B masquée dans own (canevas de travail à soi, pour qu'un autre mélange ne l'écrase
+ * pas entre deux étapes), puis l'addition. La dernière renvoie le canevas.
+ */
+export function* mixSteps(A, B, sx, sw, W, H, worldAt, J, own) {
   const w0 = worldAt(0), w1 = worldAt(W);
   const col = (x) => ((x - w0) / (w1 - w0)) * W;
   const c0 = col(J - BLEND), c1 = col(J + BLEND);
@@ -30,17 +43,18 @@ export function mixTwo(A, B, sx, sw, W, H, worldAt, J) {
   g.globalCompositeOperation = 'destination-in';
   g.fillStyle = ramp(g, c0, c1, 1, 0);
   g.fillRect(0, 0, W, H);
-  // B × t, dans un canevas à part, puis ajoutée
-  if (!tmp) tmp = document.createElement('canvas');
-  if (tmp.width < W || tmp.height < H) { tmp.width = Math.max(tmp.width, W); tmp.height = Math.max(tmp.height, H); }
-  const tg = tmp.getContext('2d');
+  yield;
+  // B × t, dans le canevas de travail, puis ajoutée
+  if (own.width < W || own.height < H) { own.width = Math.max(own.width, W); own.height = Math.max(own.height, H); }
+  const tg = own.getContext('2d');
   tg.globalCompositeOperation = 'copy';
   tg.drawImage(B, sx, 0, sw, B.height, 0, 0, W, H);
   tg.globalCompositeOperation = 'destination-in';
   tg.fillStyle = ramp(tg, c0, c1, 0, 1);
   tg.fillRect(0, 0, W, H);
+  yield;
   g.globalCompositeOperation = 'lighter';
-  g.drawImage(tmp, 0, 0, W, H, 0, 0, W, H);
+  g.drawImage(own, 0, 0, W, H, 0, 0, W, H);
   g.globalCompositeOperation = 'source-over';
   warmCanvas(out); // son dessin est fait maintenant (en préparation), pas à son premier affichage
   return out;

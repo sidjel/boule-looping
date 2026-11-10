@@ -96,6 +96,7 @@ export class Menu {
         <h3>Diagnostic de fluidité</h3>
         <p class="petit-texte">Le jeu note tout seul chaque ralentissement pendant la partie. Après une partie, exporte le rapport et envoie-le.</p>
         <p class="petit-texte"><b>${this.actions.diagInfo?.() || ''}</b></p>
+        ${check('flushEnd', 'Essai : préparer les feuilles sans pixel forcé à chaque morceau')}
         <button data-do="diag-export" class="petit">Exporter le diagnostic</button>
         <button data-do="diag-copy" class="petit">Copier</button>
         <button data-do="diag-show" class="petit">Afficher</button>

@@ -17,7 +17,7 @@ import { biomeMix } from './biomes.js';
 import { SHEET, SHEETS } from './levels.js';
 import { note } from './diagnostic.js';
 
-export const NEAR = 3200, FAR = 6500;
+export const NEAR = 3200, FAR = 6500, BEHIND = 800, FAR_BEHIND = 2500;
 const all = [];
 
 /** Une image du décor ; need(cx) : voir plus haut ; onRelease(p, image) : appelé quand elle est libérée. */
@@ -29,6 +29,11 @@ export function picture(src, need = () => 2, onRelease = null) {
 
 /** L'image est chargée et décodée : on peut la dessiner. */
 export const ready = (p) => !!p && p.state === 'on';
+/**
+ * L'image est prête et déjà passée par la carte graphique (son pixel d'essai a été posé à une image
+ * précédente, nextToWarm) : la mélanger maintenant ne paie plus son envoi.
+ */
+export const warmed = (p) => ready(p) && p.sentAt > 0 && performance.now() - p.sentAt > 12;
 
 function load(p) {
   const i = new Image();
@@ -43,6 +48,7 @@ function load(p) {
     p.w = i.naturalWidth;
     p.h = i.naturalHeight;
     p.state = 'on';
+    p.sentAt = 0;
     warm.push(p); // à envoyer à la carte graphique, en avance (main.js : nextToWarm)
     note(`image prête ${name} ${p.w}×${p.h} (${((p.w * p.h * 4) / 1048576).toFixed(1)} Mo ; reçue ${Math.round(tl - t0)} ms, décodée ${Math.round(performance.now() - tl)} ms)`);
   };
@@ -94,12 +100,13 @@ export function seasonsBetween(a, b) {
   }
   return out;
 }
+/** Demi-largeur de ce que montre la caméra (dernier updateResources). */
+export const viewHalf = () => half;
 /** (ancien nom) Les saisons visibles depuis le centre cx, à r px près. */
 export const seasonsAround = (cx, r) => seasonsBetween(cx - r, cx + r);
 
 // fenêtres autour de ce que montre la caméra : chargée (« sert ») de BEHIND px derrière l'écran à
 // NEAR px devant ; gardée jusqu'à FAR_BEHIND derrière et FAR devant
-const BEHIND = 800, FAR_BEHIND = 2500;
 const nearWin = (cx) => [cx - half - BEHIND, cx + half + NEAR];
 const farWin = (cx) => [cx - half - FAR_BEHIND, cx + half + FAR];
 
@@ -131,7 +138,7 @@ export function nextToWarm() {
   while (warm.length) {
     const p = warm.shift();
     if (p.canvas) { if (p.canvas.width) return p.canvas; continue; }
-    if (p.state === 'on' && p.img) return p.img;
+    if (p.state === 'on' && p.img) { p.sentAt = performance.now(); return p.img; }
   }
   return null;
 }

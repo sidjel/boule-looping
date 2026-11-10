@@ -83,7 +83,7 @@ function resize() {
   const lower = art && q < art.q && launched && !menu?.isOpen;
   if (!art || (Math.abs(art.q - q) > 0.05 && !lower)) {
     art = {
-      q, ink: new Map(), pending: new Map(),
+      q, ink: new Map(), pending: new Map(), spares: [],
       body: buildBallBody(Math.min(cam.followScale * 1.5, 3), save.skin),
     };
   }
@@ -98,7 +98,12 @@ const visible = (k) => cam.x < (k + 1) * SHEET && cam.x + cam.viewW > k * SHEET;
 
 // la terre du premier plan est peinte dans les feuilles : une fois ses images chargées,
 // on redessine les feuilles préparées sans elle
-baladeLoaded.then(() => { if (art) { art.ink.clear(); art.pending.clear(); } });
+baladeLoaded.then(() => {
+  if (!art) return;
+  for (const c of art.ink.values()) keepSpare(c);
+  art.ink.clear();
+  art.pending.clear();
+});
 
 /** Feuille finie : rangée (canevas sur la carte graphique, ink.js). */
 function storeInk(k, c) {
@@ -139,9 +144,32 @@ function evict(k) {
     .sort((p, q) => Math.abs(q - here) - Math.abs(p - here));
   for (const key of extra) {
     if (art.ink.size <= Math.min(KEEP_MAX, Math.max(4, keep.size))) break;
-    if (!art.spare) art.spare = art.ink.get(key); // son canevas resservira pour la prochaine feuille
+    keepSpare(art.ink.get(key)); // son canevas resservira pour une prochaine feuille
     art.ink.delete(key);
   }
+}
+
+/**
+ * Canevas de feuilles en réserve (même taille que les feuilles) : une feuille commencée sur un canevas
+ * neuf coûte 30 à 40 ms de plus sur téléphone (rapport du 10 novembre : feuilles 4, 5 et 11) qu'une
+ * feuille commencée sur un canevas déjà servi. La réserve est remplie menu ouvert (stockSpares), puis
+ * alimentée par les feuilles oubliées : pendant la partie, aucun canevas de feuille n'est créé.
+ * Au plus KEEP_MAX + 1 canevas en tout (feuilles gardées, en préparation, en réserve).
+ */
+const SPARE_MAX = 3;
+const canvasCount = () => art.ink.size + art.pending.size + art.spares.length;
+function keepSpare(c) {
+  if (c && art.spares.length < SPARE_MAX && canvasCount() <= KEEP_MAX + 1) art.spares.push(c);
+}
+function stockSpares() {
+  if (art.spares.length >= SPARE_MAX || canvasCount() >= KEEP_MAX + 1) return;
+  const c = document.createElement('canvas');
+  c.width = Math.ceil(SHEET * art.q);
+  c.height = Math.ceil(WORLD.h * art.q);
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff';
+  g.fillRect(0, 0, c.width, c.height); // la carte graphique lui réserve sa place maintenant
+  art.spares.push(c);
 }
 
 /**
@@ -175,11 +203,15 @@ const wanted = () => wantedWithDistance().map(([k]) => k);
  * feuille, à la vitesse de la boule, comparé au temps qu'il faut pour la finir au rythme actuel des
  * images) :
  * - calme : un morceau par image, et rien si l'image d'avant a été longue (le téléphone rattrape) ;
- * - pressé : plusieurs morceaux par image (au plus 4 ms de calcul), même après une image longue ;
+ * - pressé : plusieurs morceaux par image (au plus 2 ms de calcul), même après une image longue ;
  * - menu ouvert : autant qu'en tiennent 8 ms.
  * Après chaque image de préparation, un pixel de la feuille est posé sur l'écran, presque transparent
  * (render) : la carte graphique fait ce morceau tout de suite, au lieu de tout faire d'un coup quand la
- * feuille arrive à l'écran.
+ * feuille arrive à l'écran. Et une fois la feuille finie, un dernier pixel.
+ * Essai (Options → Diagnostic, save.options.flushEnd) : seulement le dernier pixel. Sur le téléphone,
+ * le pixel après chaque morceau coûtait 8 à 65 ms par image (rapport du 10 novembre) ; mais sans lui,
+ * le navigateur de test prend du retard sur la carte graphique pendant plusieurs niveaux. Le rapport
+ * du téléphone dira lequel garder.
  */
 let lastView = '', redraw = true; // (redraw : redessiner même en pause, ex. après un réglage)
 let lastDt = 0, skipped = 0, toFlush = null, lastFrame = performance.now(), frameAvg = 1 / 60, stepsPerSheet = 14;
@@ -197,13 +229,12 @@ function prepare() {
     if (!urgent && lastDt > 0.022 && skipped < 3) { skipped++; return; }
     skipped = 0;
     if (!job) {
-      const holder = { reuse: art.spare };
-      art.spare = null;
+      const holder = { reuse: art.spares.pop() };
       job = { gen: inkSteps(track, art.q, n, holder), holder, steps: 0 };
       art.pending.set(n, job);
       diag.note(`feuille ${n + 1} : préparation${holder.reuse ? ' (canevas réutilisé)' : ''}, ${Math.round(d)} px avant l'écran`);
     }
-    const budget = menu.isOpen ? 8 : urgent ? 4 : 0, maxSteps = menu.isOpen ? 99 : urgent ? Math.min(6, Math.ceil(need * 2)) : 1;
+    const budget = menu.isOpen ? 8 : urgent ? 2 : 0, maxSteps = menu.isOpen ? 99 : urgent ? Math.min(6, Math.ceil(need * 2)) : 1;
     let done = 0;
     do {
       const r = job.gen.next();
@@ -214,10 +245,11 @@ function prepare() {
         storeInk(n, r.value);
         art.pending.delete(n);
         evict(n);
+        toFlush = r.value;
         return;
       }
     } while (done < maxSteps && performance.now() - t0 < budget);
-    toFlush = job.holder.canvas;
+    if (!save.options.flushEnd) toFlush = job.holder.canvas;
     return;
   }
 }
@@ -397,7 +429,7 @@ function frame(now) {
   else {
     cam.update(dt, ball);
     // menu ouvert : on prépare d'avance les feuilles et le tour d'essai (pas pendant la partie)
-    if (menu.isOpen) { prepare(); warmUp(); }
+    if (menu.isOpen) { prepare(); warmUp(); stockSpares(); }
   }
   // en pause, une image identique à la précédente n'est pas redessinée (sous un fond flouté, le
   // navigateur n'a alors pas à refaire le flou à chaque image)
@@ -772,8 +804,8 @@ function render(dt) {
     ctx.globalAlpha = 1;
   }
   if (toFlush && !warming) {
-    // feuille en préparation : un pixel, à 1 % (invisible), pour que la carte graphique la dessine
-    // morceau par morceau (prepare)
+    // feuille en préparation (ou tout juste finie) : un pixel, à 1 % (invisible), pour que la carte
+    // graphique la dessine morceau par morceau, et non d'un coup à son entrée à l'écran (prepare)
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 0.01;
     ctx.drawImage(toFlush, 0, 0, 1, 1, 0, 0, 1, 1);
@@ -808,6 +840,7 @@ function diagEnv() {
     resolution_automatique_retenue: save.options.autoDpr,
     processeurs: navigator.hardwareConcurrency || null, memoire_appareil_go: navigator.deviceMemory || null,
     plein_ecran: !!document.fullscreenElement, vue_ensemble: !!cam.wide, images_decor_mo: Math.round(loadedMB()),
+    essai_feuilles_sans_pixel: !!save.options.flushEnd,
   };
 }
 function exportDiagnostic(previous = false) {
