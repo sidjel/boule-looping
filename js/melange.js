@@ -9,6 +9,7 @@
  */
 import { SHEET } from './levels.js';
 import { BLEND } from './biomes.js';
+import { warmCanvas } from './ressources.js';
 
 let tmp = null;
 /**
@@ -41,6 +42,7 @@ export function mixTwo(A, B, sx, sw, W, H, worldAt, J) {
   g.globalCompositeOperation = 'lighter';
   g.drawImage(tmp, 0, 0, W, H, 0, 0, W, H);
   g.globalCompositeOperation = 'source-over';
+  warmCanvas(out); // son dessin est fait maintenant (en préparation), pas à son premier affichage
   return out;
 }
 

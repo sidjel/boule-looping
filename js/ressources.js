@@ -121,14 +121,23 @@ export function rangeNeed(a, b) {
   };
 }
 
-/** La prochaine image prête à envoyer à la carte graphique (une par image du jeu), ou null. */
+/**
+ * La prochaine image (ou le prochain canevas tout juste préparé) à faire passer par la carte
+ * graphique, une par image du jeu, ou null : son premier usage à l'écran ne paiera plus son envoi ni
+ * l'exécution de son dessin en attente.
+ */
 const warm = [];
 export function nextToWarm() {
   while (warm.length) {
     const p = warm.shift();
+    if (p.canvas) { if (p.canvas.width) return p.canvas; continue; }
     if (p.state === 'on' && p.img) return p.img;
   }
   return null;
+}
+/** Un canevas tout juste préparé (mélange de saisons) : à faire passer par la carte graphique. */
+export function warmCanvas(canvas) {
+  if (warm.length < 40) warm.push({ canvas });
 }
 
 /** Mémoire des images chargées (Mo, une fois décodées) : pour le compteur. */
