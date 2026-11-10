@@ -17,6 +17,23 @@ export function rng(seed) {
 export const range = (rand, a, b) => a + (b - a) * rand();
 
 /**
+ * Un point tous les STEP px au plus (les lignes de la route ont un point tous les 3 px) : le trait
+ * reste aussi tremblé (ondulations de 15 à 160 px), mais la carte graphique a bien moins à tracer.
+ */
+const STEP = 5;
+function thin(pts, step) {
+  if (pts.length < 3) return pts;
+  const out = [pts[0]];
+  let last = pts[0];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const p = pts[i];
+    if (Math.hypot(p[0] - last[0], p[1] - last[1]) >= step) { out.push(p); last = p; }
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+
+/**
  * Trait de crayon le long d'une ligne brisée : plusieurs passages décalés
  * par deux ondulations lentes, épaisseur et opacité variables.
  * @param {CanvasRenderingContext2D} ctx
@@ -24,6 +41,7 @@ export const range = (rand, a, b) => a + (b - a) * rand();
  */
 export function pencilLine(ctx, pts, rand, { color = '#555', width = 3, alpha = 0.5, passes = 3, wobble = 1.5 } = {}) {
   if (pts.length < 2) return;
+  pts = thin(pts, STEP);
   const n = pts.length, nx = new Float32Array(n), ny = new Float32Array(n), arc = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];

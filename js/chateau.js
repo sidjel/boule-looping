@@ -11,7 +11,6 @@ for (const [k, src] of [['fond', 'images/niveau3/fond.webp'], ['drapeaux', 'imag
   const i = new Image();
   i.decoding = 'async';
   i.src = src;
-  i.decode?.().catch(() => {}); // décodée tout de suite, pas au premier dessin (à-coup)
   img[k] = i;
 }
 const ok = (i) => i && i.complete && i.naturalWidth > 0;
@@ -79,7 +78,7 @@ export function drawBande3(g, x, y, w, h, t, x0, x1) {
     // le reflet du château : par-dessus, il ondule plus fort, se tord et s'étire un peu en hauteur
     const rl = reflectLayer();
     if (rl && REFLET.x0 < v1 && REFLET.x1 > v0) {
-      const R = 2;
+      const R = 3;
       for (let r = 0; r < e.h; r += R) {
         const dx = 2.4 * Math.sin(r * 0.42 + t * 2.4) + 1.3 * Math.sin(r * 0.13 - t * 1.5);
         const sy = Math.max(0, Math.min(e.h - R, r + 1.6 * Math.sin(r * 0.21 + t * 1.9)));

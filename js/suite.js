@@ -19,7 +19,6 @@ for (const k of Object.values(KIND)) {
   const i = new Image();
   i.decoding = 'async';
   i.src = `images/automne/suite-${k}.webp`;
-  i.decode?.().catch(() => {}); // décodée tout de suite, pas au premier dessin (à-coup)
   img[k] = i;
 }
 const ok = (i) => i && i.complete && i.naturalWidth > 0;
@@ -31,7 +30,6 @@ for (const k of Object.keys(RAIN)) {
   const i = new Image();
   i.decoding = 'async';
   i.src = `images/pluie/pluie-${k}.webp`;
-  i.decode?.().catch(() => {}); // décodée tout de suite, pas au premier dessin (à-coup)
   RAIN[k] = i;
 }
 const rainKind = (name) => (name === 'Arrivée' ? 'arrivee' : 'pluie');
@@ -40,7 +38,6 @@ for (const k of ['entree', 'boucle', 'sortie']) {
   const i = new Image();
   i.decoding = 'async';
   i.src = `images/hiver/${k}.webp`;
-  i.decode?.().catch(() => {}); // décodée tout de suite, pas au premier dessin (à-coup)
   snow[k] = i;
 }
 

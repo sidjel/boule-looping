@@ -25,7 +25,6 @@ const LOOK = {
 const base = new Image();
 base.decoding = 'async';
 base.src = 'images/niveau0/soleil.webp';
-base.decode?.().catch(() => {}); // décodée tout de suite, pas au premier dessin (à-coup)
 const variants = {};
 /** Le disque teinté pour une saison (préparé une fois). */
 function variant(kind) {

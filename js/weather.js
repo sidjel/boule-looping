@@ -3,9 +3,44 @@
  * feuilles mortes emportées par le vent (automne), flocons (hiver), gouttes de pluie.
  */
 import { biomeParams, windAt } from './biomes.js';
+import { makeAtlas, drawSprite } from './sprites.js';
 
 const MAX = { leaf: 45, snow: 90, rain: 110 };
 const LEAF = ['#c9772d', '#b5502a', '#d9a23a', '#8f5a2a'];
+
+// feuilles (une par couleur) et flocon, dessinés une fois sur une planche
+let atlas = null;
+function sheet() {
+  if (atlas) return atlas;
+  const cells = LEAF.map((color) => ({ w: 28, h: 22, draw: (g) => {
+    g.fillStyle = color;
+    g.globalAlpha = 0.8;
+    g.beginPath();
+    g.moveTo(-12, 0);
+    g.quadraticCurveTo(0, -9, 12, 0);
+    g.quadraticCurveTo(0, 9, -12, 0);
+    g.fill();
+    g.globalAlpha = 1;
+    g.strokeStyle = 'rgba(90,60,30,0.6)';
+    g.lineWidth = 1.2;
+    g.beginPath();
+    g.moveTo(-12, 0);
+    g.lineTo(12, 0);
+    g.stroke();
+  } }));
+  cells.push({ w: 12, h: 12, draw: (g) => {
+    g.fillStyle = 'rgba(255,255,255,0.95)';
+    g.beginPath();
+    g.arc(0, 0, 4.5, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = 'rgba(150,170,190,0.5)';
+    g.lineWidth = 1;
+    g.stroke();
+  } });
+  atlas = makeAtlas(cells, 3);
+  return atlas;
+}
+const SNOW = LEAF.length;
 
 export class Weather {
   constructor() {
@@ -41,7 +76,7 @@ export class Weather {
           kind, x, y: kind === 'leaf' ? y0 + Math.random() * (y1 - y0) : y0 - Math.random() * 200,
           vx: 0, vy: kind === 'rain' ? 1500 + Math.random() * 400 : kind === 'snow' ? 60 + Math.random() * 70 : 40,
           a: Math.random() * 6.3, spin: (Math.random() - 0.5) * 6, s: 0.6 + Math.random() * 0.8,
-          color: LEAF[Math.floor(Math.random() * LEAF.length)],
+          ci: Math.floor(Math.random() * LEAF.length),
         });
       }
     }
@@ -62,44 +97,28 @@ export class Weather {
   }
 
   draw(ctx) {
+    if (!this.parts.length) return;
+    const A = sheet(), M = ctx.getTransform();
     ctx.save();
-    ctx.lineCap = 'round';
+    // la pluie : toutes les gouttes en un seul tracé
+    let rain = false;
+    ctx.beginPath();
     for (const p of this.parts) {
-      if (p.kind === 'rain') {
-        ctx.strokeStyle = 'rgba(95,120,150,0.45)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(p.x + 9, p.y - 36);
-        ctx.stroke();
-      } else if (p.kind === 'snow') {
-        ctx.fillStyle = 'rgba(255,255,255,0.95)';
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 4.5 * p.s, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(150,170,190,0.5)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      } else {
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.rotate(p.a);
-        ctx.scale(p.s, p.s * (0.5 + 0.5 * Math.abs(Math.sin(p.a * 1.3))));
-        ctx.fillStyle = p.color;
-        ctx.globalAlpha = 0.8;
-        ctx.beginPath();
-        ctx.moveTo(-12, 0);
-        ctx.quadraticCurveTo(0, -9, 12, 0);
-        ctx.quadraticCurveTo(0, 9, -12, 0);
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(90,60,30,0.6)';
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.moveTo(-12, 0);
-        ctx.lineTo(12, 0);
-        ctx.stroke();
-        ctx.restore();
-      }
+      if (p.kind !== 'rain') continue;
+      rain = true;
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x + 9, p.y - 36);
+    }
+    if (rain) {
+      ctx.strokeStyle = 'rgba(95,120,150,0.45)';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+    // flocons et feuilles : de petites images posées (pas des tracés)
+    for (const p of this.parts) {
+      if (p.kind === 'snow') drawSprite(ctx, M, A, SNOW, p.x, p.y, 0, p.s, p.s);
+      else if (p.kind === 'leaf') drawSprite(ctx, M, A, p.ci, p.x, p.y, p.a, p.s, p.s * (0.5 + 0.5 * Math.abs(Math.sin(p.a * 1.3))));
     }
     ctx.restore();
   }

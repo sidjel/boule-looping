@@ -15,7 +15,6 @@ for (const k of ['ete', 'automne', 'hiver', 'pluie']) {
   const i = new Image();
   i.decoding = 'async';
   i.src = `images/herbe/${k}.webp`;
-  i.decode?.().catch(() => {}); // décodée tout de suite, pas au premier dessin (à-coup)
   img[k] = i;
 }
 const ok = (i) => i && i.complete && i.naturalWidth > 0;

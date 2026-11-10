@@ -8,11 +8,43 @@
  * de saison) ; rien ailleurs.
  */
 import { biomeParams } from './biomes.js';
+import { makeAtlas, drawSprite } from './sprites.js';
 
 const FAR = 360, NEAR = 64; // particules au plus, pour tout l'écran en automne
 // des pailles claires (presque crème) et quelques-unes plus foncées : elles se voient sur le jaune des champs
 const STRAW = ['#fbefc0', '#f6e09a', '#f2d47a', '#e2b552', '#c7932f'];
 const EDGE = 'rgba(105,72,28,0.55)'; // le trait de crayon autour
+
+// les brins et la poussière, dessinés une fois : brin de 32 px (fin ou normal) et grain de 3 px, par couleur
+const LEN = 32, WID = { fine: 1.2, normal: 2.4 }, DUST = 3;
+let atlas = null;
+const cell = { straw: {}, dust: {} };
+function sheet() {
+  if (atlas) return atlas;
+  const cells = [];
+  STRAW.forEach((col, ci) => {
+    for (const kind of ['fine', 'normal']) {
+      cell.straw[`${kind}${ci}`] = cells.length;
+      const wd = WID[kind], edge = kind === 'fine' ? 1 : 1.6;
+      cells.push({ w: LEN + 6, h: 12 + wd, draw: (g) => {
+        g.lineCap = 'round';
+        const l = LEN / 2;
+        g.beginPath();
+        g.moveTo(-l, 0);
+        g.quadraticCurveTo(0, l * 0.25, l, 0); // un brin légèrement courbé
+        g.strokeStyle = EDGE; g.lineWidth = wd + edge; g.stroke();
+        g.strokeStyle = col; g.lineWidth = wd; g.stroke();
+      } });
+    }
+    cell.dust[ci] = cells.length;
+    cells.push({ w: DUST + 3, h: DUST + 3, draw: (g) => {
+      g.fillStyle = EDGE; g.fillRect(-DUST / 2 - 0.6, -DUST / 2 - 0.6, DUST + 1.2, DUST + 1.2);
+      g.fillStyle = col; g.fillRect(-DUST / 2, -DUST / 2, DUST, DUST);
+    } });
+  });
+  atlas = makeAtlas(cells, 3);
+  return atlas;
+}
 const rand = (a, b) => a + Math.random() * (b - a);
 
 export class Hay {
@@ -63,7 +95,7 @@ export class Hay {
         drift: rand(-40, 40), lift: near ? rand(-30, 10) : rand(-26, -4),
         a: rand(0, Math.PI), va: rand(-4, 4), ph: rand(0, 6.3),
         len: (near ? rand(22, 40) : rand(9, 20)) * (fine ? 1.3 : 1), wid: fine ? (near ? rand(1.3, 1.9) : rand(0.8, 1.2)) : near ? rand(2.4, 3.6) : rand(1.6, 2.6), fine,
-        r: rand(2.2, 4.2), col: STRAW[Math.floor(Math.random() * STRAW.length)],
+        r: rand(2.2, 4.2), ci: Math.floor(Math.random() * STRAW.length),
         life: 0, max: near ? rand(2.5, 5) : rand(4, 8), alpha: near ? rand(0.7, 0.95) : rand(0.55, 0.9),
       });
     }
@@ -71,31 +103,21 @@ export class Hay {
 
   drawLayer(ctx, list) {
     if (!list.length) return;
+    const A = sheet(), M = ctx.getTransform();
     ctx.save();
-    ctx.lineCap = 'round';
     for (const p of list) {
       const a = p.alpha * Math.min(1, p.life / 0.6, (p.max - p.life) / 1.2);
       if (a <= 0.01) continue;
       ctx.globalAlpha = a;
       if (p.dust) {
-        // un flocon de poussière de foin : un petit point clair cerné
-        ctx.fillStyle = EDGE;
-        ctx.fillRect(p.x - p.r / 2 - 0.6, p.y - p.r / 2 - 0.6, p.r + 1.2, p.r + 1.2);
-        ctx.fillStyle = p.col;
-        ctx.fillRect(p.x - p.r / 2, p.y - p.r / 2, p.r, p.r);
+        // un grain de poussière de foin : un petit point clair cerné
+        drawSprite(ctx, M, A, cell.dust[p.ci], p.x, p.y, 0, p.r / DUST, p.r / DUST);
         continue;
       }
-      // un brin de paille : un trait courbé qui tourne sur lui-même (vu de biais, il raccourcit)
-      const c = Math.cos(p.a), s = Math.sin(p.a), l = (p.len / 2) * (0.35 + 0.65 * Math.abs(Math.cos(p.a * 0.7 + p.ph)));
-      ctx.beginPath();
-      ctx.moveTo(p.x - c * l, p.y - s * l);
-      ctx.quadraticCurveTo(p.x - s * l * 0.25, p.y + c * l * 0.25, p.x + c * l, p.y + s * l);
-      ctx.strokeStyle = EDGE;
-      ctx.lineWidth = p.wid + (p.fine ? 1 : 1.6);
-      ctx.stroke();
-      ctx.strokeStyle = p.col;
-      ctx.lineWidth = p.wid;
-      ctx.stroke();
+      // un brin de paille courbé qui tourne sur lui-même (vu de biais, il raccourcit)
+      const fore = 0.35 + 0.65 * Math.abs(Math.cos(p.a * 0.7 + p.ph));
+      const kind = p.fine ? 'fine' : 'normal';
+      drawSprite(ctx, M, A, cell.straw[kind + p.ci], p.x, p.y, p.a, (p.len / LEN) * fore, p.wid / WID[kind]);
     }
     ctx.restore();
   }

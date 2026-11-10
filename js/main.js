@@ -17,7 +17,7 @@ import { Effects } from './effects.js';
 import { Bonuses, BONUS_INFO } from './bonus.js';
 import { Weather } from './weather.js';
 import { Hay } from './foin.js';
-import { mark, profil } from './profil.js';
+import { mark, profil, countDraws } from './profil.js';
 import { newFrame } from './avance.js';
 import { biomeAt, biomeOfSheet } from './biomes.js';
 import { save } from './save.js';
@@ -32,8 +32,9 @@ import { drawMountains } from './montagnes.js';
 import { moveNuages, drawNuages } from './nuages.js';
 
 const $ = (id) => document.getElementById(id);
-const canvas = $('jeu'), ctx = canvas.getContext('2d');
-profil.ctx = ctx;
+const canvas = $('jeu'), screenCtx = canvas.getContext('2d');
+let ctx = screenCtx; // (le tour d'essai dessine ailleurs, warmUp)
+profil.ctx = screenCtx;
 const hint = $('consigne'), zoomBtn = $('zoom'), musicBtn = $('musique');
 const forkLow = $('chemin-bas'), forkHigh = $('chemin-haut'), turn = $('tourner');
 const hud = $('hud'), finish = $('fin'), fpsBox = $('fps'), info = $('info'), gauges = $('effets');
@@ -86,11 +87,9 @@ const visible = (k) => cam.x < (k + 1) * SHEET && cam.x + cam.viewW > k * SHEET;
 // on redessine les feuilles préparées sans elle
 baladeLoaded.then(() => { if (art) { art.ink.clear(); art.pending.clear(); } });
 
-/** Feuille finie : rangée, puis remplacée par une image figée (ImageBitmap), affichée sans être renvoyée. */
+/** Feuille finie : rangée (canevas sur la carte graphique, ink.js). */
 function storeInk(k, c) {
   art.ink.set(k, c);
-  const a = art;
-  if (window.createImageBitmap) createImageBitmap(c).then((b) => { if (a.ink.get(k) === c) a.ink.set(k, b); }).catch(() => {});
 }
 
 function inkFor(k) {
@@ -135,6 +134,39 @@ function prepare() {
     }
     return;
   }
+}
+
+/* ---------- tour d'essai, menu ouvert : les trois premiers niveaux sont dessinés hors de l'écran,
+   une vue par image, pour que leurs grandes images (champs, moulin, ferme, château) soient déjà
+   envoyées à la carte graphique et leurs copies préparées : pas d'à-coup en passant devant ---------- */
+let warming = false, warmAt = 0, warmed = 0;
+const warmStart = performance.now();
+function warmUp() {
+  // deux passages (le second pour les images arrivées entre-temps), après le chargement
+  const t = performance.now() - warmStart;
+  if (warmed >= 2 || t < 1200 + warmed * 3000) return;
+  const step = cam.viewW * 0.8, x = warmAt * step;
+  if (x > 3 * SHEET) { warmed++; warmAt = 0; return; }
+  warmAt++;
+  if (!warmUp.c) {
+    warmUp.c = document.createElement('canvas');
+    warmUp.g = warmUp.c.getContext('2d');
+  }
+  const c = warmUp.c;
+  if (c.width !== canvas.width || c.height !== canvas.height) { c.width = canvas.width; c.height = canvas.height; }
+  const keep = { x: cam.x, y: cam.y };
+  warming = true;
+  ctx = warmUp.g;
+  try {
+    cam.x = x;
+    render(0);
+  } finally {
+    ctx = screenCtx;
+    warming = false;
+    cam.x = keep.x;
+    cam.y = keep.y;
+  }
+  if (warmed >= 1 && x + step > 3 * SHEET) { c.width = c.height = 0; warmUp.c = null; } // fini : on libère
 }
 
 /* ---------- aiguillages : le temps s'arrête presque, deux grands boutons ---------- */
@@ -270,7 +302,11 @@ function frame(now) {
   newFrame();
   mark('mise à jour');
   if (!paused) update(dt);
-  else cam.update(dt, ball);
+  else {
+    cam.update(dt, ball);
+    // menu ouvert : on prépare d'avance les feuilles et le tour d'essai (pas pendant la partie)
+    if (menu.isOpen) { prepare(); warmUp(); }
+  }
   render(paused ? 0 : dt * timeScale);
   mark('boutons');
   placeForkButtons();
@@ -578,7 +614,7 @@ function render(dt) {
   // seulement la partie visible de chaque feuille (les mêmes feuilles que visible() : pas de feuille
   // dessinée puis aussitôt oubliée, à refaire à chaque image)
   const vy0 = Math.max(0, cam.y - 10), vy1 = Math.min(WORLD.h, cam.y + cam.viewH + 10);
-  for (let k = Math.max(0, Math.floor(x0 / SHEET)); k < Math.min(SHEETS, Math.ceil(x1 / SHEET)); k++) {
+  for (let k = Math.max(0, Math.floor(x0 / SHEET)); k < Math.min(SHEETS, warming ? 0 : Math.ceil(x1 / SHEET)); k++) {
     const c = inkFor(k), q = c.width / SHEET, a = Math.max(x0 - 2, k * SHEET), b = Math.min(x1 + 2, (k + 1) * SHEET);
     if (b <= a || vy1 <= vy0) continue;
     ctx.drawImage(c, (a - k * SHEET) * q, vy0 * q, (b - a) * q, (vy1 - vy0) * q, a, vy0, b - a, vy1 - vy0);
@@ -628,6 +664,7 @@ function render(dt) {
 /* ---------- compteur d'images par seconde : #fps dans l'adresse, touche F, ou Options ---------- */
 
 let meterOn = location.hash === '#fps' || !!save.options.fps, frames = 0, acc = 0, worst = 0;
+countDraws(meterOn);
 function meter(dt) {
   if (!meterOn) return;
   frames++;
@@ -636,7 +673,8 @@ function meter(dt) {
   if (acc < 0.5) return;
   const mem = performance.memory ? ` · mémoire JS ${Math.round(performance.memory.usedJSHeapSize / 1048576)} Mo` : '';
   const top = profil.top(3).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(' · ');
-  fpsBox.textContent = `${Math.round(frames / acc)} img/s · pire ${Math.round(worst * 1000)} ms · calcul ${(profil.total / Math.max(1, profil.frames)).toFixed(1)} ms (pire ${profil.worst.toFixed(0)}) · ${top} · feuilles ${art.ink.size}${mem} · particules ${weather.parts.length}`;
+  const d = profil.topDraws(2), draws = `dessins ${Math.round(d.total)} (${d.top.map(([k, v]) => `${k} ${Math.round(v)}`).join(', ')})`;
+  fpsBox.textContent = `${Math.round(frames / acc)} img/s · pire ${Math.round(worst * 1000)} ms · calcul ${(profil.total / Math.max(1, profil.frames)).toFixed(1)} ms (pire ${profil.worst.toFixed(0)}) · ${top} · ${draws} · feuilles ${art.ink.size}${mem} · particules ${weather.parts.length}`;
   profil.reset();
   fpsBox.hidden = false;
   frames = 0;
@@ -695,7 +733,7 @@ const menu = new Menu($('menu'), {
   options: (k) => {
     applyOptions();
     if (k === 'wideLandscape') refreshButtons();
-    if (k === 'fps') { meterOn = !!save.options.fps; fpsBox.hidden = !meterOn; }
+    if (k === 'fps') { meterOn = !!save.options.fps; fpsBox.hidden = !meterOn; countDraws(meterOn); }
   },
   skin: (id) => {
     save.setSkin(id);
@@ -739,7 +777,7 @@ addEventListener('keydown', (e) => {
   if ((k === 'arrowdown' || k === 's') && near) pick('a');
   if (k === 'a') toggleFork();
   if ((k === 'enter' || k === ' ') && infoOpen) closeInfo();
-  if (k === 'f') { meterOn = !meterOn; fpsBox.hidden = !meterOn; }
+  if (k === 'f') { meterOn = !meterOn; fpsBox.hidden = !meterOn; countDraws(meterOn); }
   sound.unlock();
 });
 // Le son ne peut démarrer qu'après un geste : premier toucher, clic ou touche.

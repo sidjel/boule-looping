@@ -22,16 +22,24 @@ export function buildInk(track, q, sheet) {
   return r.value;
 }
 
-/** Étapes du dessin d'une feuille ; la dernière renvoie le canevas. */
+/**
+ * Étapes du dessin d'une feuille ; la dernière renvoie le canevas.
+ * La feuille est dessinée sur la carte graphique (pas en mémoire : une feuille en mémoire doit être
+ * gardée en double sur la carte graphique, dans une réserve limitée qui déborde avec les images du
+ * décor ; elle est alors renvoyée sans cesse : à-coups réguliers). Les traits au crayon sont allégés
+ * (pencil.js) pour que la carte graphique les fasse vite.
+ */
 export function* inkSteps(track, q, sheet) {
   const c = document.createElement('canvas');
   c.width = Math.ceil(SHEET * q);
   c.height = Math.ceil(WORLD.h * q);
-  // canevas en mémoire (pas sur la carte graphique) : chaque morceau du dessin est fait tout de suite,
-  // dans les 5 ms par image prévues ; sur la carte graphique, tout serait payé d'un coup à la fin
-  const g = c.getContext('2d', { willReadFrequently: true });
-  g.scale(q, q);
-  g.translate(-sheet * SHEET, 0);
+  const g = c.getContext('2d');
+  g.setTransform(q, 0, 0, q, -sheet * SHEET * q, 0);
+  yield* drawSheet(g, c, track, q, sheet);
+  return c;
+}
+
+function* drawSheet(g, c, track, q, sheet) {
   const x0 = sheet * SHEET - 120, x1 = (sheet + 1) * SHEET + 120, bio = (x) => biomeOfSheet(Math.floor(x / SHEET));
   // Tous les niveaux ont la même terre (texture en coordonnées du monde) et la même route, tracées
   // d'un seul tenant : rien ne change d'une feuille à l'autre. Les feuilles au crayon ajoutent par-
@@ -56,7 +64,6 @@ export function* inkSteps(track, q, sheet) {
   }
   // 2. la terre, dessous (sans grain : identique partout), puis les galeries, la route, les flaques
   yield* paintEarthAndRoad(g, track, x0, x1);
-  return c;
 }
 
 /**

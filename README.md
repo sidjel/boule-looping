@@ -154,9 +154,18 @@ par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même rob
   tout seuls) et note chaque saccade avec l'endroit et l'étape fautive. Options : `--pc`, `--pas`,
   `--de`/`--a`, `--json`, `--sans-gpu` (tout en logiciel), `--rapide`. Le navigateur de test n'a pas de
   vraie carte graphique : il est bien plus lent qu'un téléphone, mais il montre où et pourquoi ça coince.
-- **Règles qui évitent les saccades** : les feuilles (terre, route) se préparent sur un canevas en
-  mémoire, par morceaux de quelques ms, puis deviennent une image figée (ImageBitmap) ; tout canevas
-  dont on lit les pixels ou qui sert aux feuilles est en mémoire (`willReadFrequently`) — jamais de
-  lecture depuis la carte graphique ; les images sont décodées dès le chargement ; les morceaux de
-  paysage aux couleurs mêlées (passages de saison) sont préparés à l'avance, un par image au plus
-  (`js/avance.js`) ; le papier n'est pas dessiné sous le ciel ; l'herbe n'est dessinée qu'à l'écran.
+- **Règles qui évitent les saccades** :
+  - les particules nombreuses (foin, feuilles mortes, flocons) sont de petites images dessinées une
+    fois (`js/sprites.js`) puis posées, jamais des centaines de traits par image ; la pluie est un seul
+    tracé ;
+  - les feuilles (terre, route) sont dessinées sur la carte graphique, par morceaux (route morceau par
+    morceau), avec des traits au crayon allégés (un point tous les 5 px) ; menu ouvert, les premières
+    sont préparées d'avance ; une petite tuile dont on lit les pixels (grain du papier, soleil) est en
+    mémoire (`willReadFrequently`), jamais lue depuis la carte graphique ;
+  - menu ouvert, un tour d'essai dessine les trois premiers niveaux hors de l'écran (moulin, ferme,
+    château déjà prêts) ;
+  - les morceaux de paysage aux couleurs mêlées (passages de saison) sont préparés à l'avance, un par
+    image au plus (`js/avance.js`) ; le papier n'est pas dessiné sous le ciel ; l'herbe n'est dessinée
+    qu'à l'écran.
+- Le compteur affiche aussi le nombre de dessins par image et les étapes qui dessinent le plus
+  (sur téléphone, c'est souvent ce nombre qui ralentit, pas le calcul).

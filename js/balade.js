@@ -29,7 +29,6 @@ function load(key, src) {
   const i = new Image();
   i.decoding = 'async';
   i.src = src;
-  i.decode?.().catch(() => {}); // décodée tout de suite, pas au premier dessin (à-coup)
   img[key] = i;
 }
 for (const n of ['terre', 'champs', 'ferme', 'cochon']) load(n, `images/balade/${n}.webp`);
