@@ -48,12 +48,15 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
   pluie ; elle change peu à peu d'une saison à l'autre, sans jonction.
 - **Après le niveau 3** (`js/suite.js`, `images/automne/`, `tools/decouper-automne.py`) : le lac et les
   champs de foin prennent la suite de la bande du château (couture qui suit le dessin), puis les
-  champs se répètent (raccordés sur eux-mêmes) jusqu'à l'arrivée, aux couleurs de chaque saison :
-  roux et doré en automne, enneigés en hiver, sombres sous la pluie, dorés le soir à l'arrivée.
-- **Paysage d'hiver** (`images/hiver/`, `tools/decouper-hiver.py`) : pendant tout l'hiver, à la place
-  des champs, au pied des montagnes : sapins, collines enneigées, barrière, bonhomme de neige et igloo.
-  Il commence par une couture qui suit le dessin (champs déjà enneigés, même neige bleutée), se répète
-  en partie (sans le bonhomme ni l'igloo) et finit par ses grands sapins, juste avant la pluie.
+  champs se répètent (raccordés sur eux-mêmes) jusqu'à l'hiver, roux et dorés en automne.
+- **Paysage d'hiver** (`images/hiver/`, `tools/decouper-hiver-pluie.py`) : pendant tout l'hiver, à la
+  place des champs, au pied des montagnes : sapins, collines enneigées, barrière, bonhomme de neige et
+  igloo. Il commence par une couture qui suit le dessin (champs déjà enneigés, même neige bleutée) et
+  se répète en partie (sans le bonhomme ni l'igloo).
+- **Paysage de pluie** (`images/pluie/`, même outil) : forêt et lac. Au passage à la pluie, la jonction
+  se cache derrière un groupe de grands sapins enneigés ; au sol, la neige s'arrête en bord irrégulier
+  sur l'herbe, comme une neige qui fond. Le paysage se répète ensuite (raccordé sur lui-même, lac contre
+  lac) jusqu'au bout du parcours, aux couleurs grises de la pluie, puis du soir à l'arrivée.
 - **Automne (5 à 8)** : feuilles mortes qui volent, vent en rafales qui gêne l'avancée ; poussière et
   fins brins de foin emportés par le vent au-dessus des champs et tout près (`js/foin.js`).
 - **Hiver (9 à 12)** : neige, route glacée : la boule glisse, va plus vite, répond moins aux
