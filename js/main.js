@@ -105,9 +105,12 @@ function storeInk(k, c) {
   diag.note(`feuille ${k + 1} prête`);
 }
 
+const seen = new Set(); // feuilles déjà montrées (pour le journal)
+let inkLate = 0; // feuilles finies d'un coup à l'écran (outil : window.__boule.inkLate())
 function inkFor(k) {
   if (!art.ink.has(k)) {
-    const job = art.pending.get(k);
+    // (secours : la feuille arrive à l'écran sans être prête ; elle est finie d'un coup)
+    const job = art.pending.get(k), t0 = performance.now();
     let canvasK;
     if (job) {
       let r = job.gen.next();
@@ -115,60 +118,103 @@ function inkFor(k) {
       canvasK = r.value;
       art.pending.delete(k);
     } else canvasK = buildInk(track, art.q, k);
+    inkLate++;
+    if (launched) diag.note(`feuille ${k + 1} finie d'un coup à l'écran (${(performance.now() - t0).toFixed(1)} ms${job ? ', commencée' : ''})`);
     storeInk(k, canvasK);
     evict(k);
   }
   return art.ink.get(k);
 }
 
+/**
+ * Feuilles à garder : celles que la caméra montre, et celles qu'elle va montrer bientôt dans le sens
+ * de la marche (want) ; au plus KEEP_MAX en mémoire. Les autres sont oubliées, la plus loin d'abord.
+ */
+const KEEP_MAX = 5;
 function evict(k) {
-  const here = Math.floor(ball.x / SHEET);
-  for (const key of [...art.ink.keys()]) {
-    if (art.ink.size <= 4) break;
-    if (key !== k && Math.abs(key - here) > 1 && !visible(key)) {
-      // son canevas resservira pour la prochaine feuille
-      if (!art.spare) art.spare = art.ink.get(key);
-      art.ink.delete(key);
-    }
+  const keep = new Set(wanted());
+  const here = Math.floor((cam.x + cam.viewW / 2) / SHEET);
+  const extra = [...art.ink.keys()].filter((key) => key !== k && !keep.has(key) && !visible(key))
+    .sort((p, q) => Math.abs(q - here) - Math.abs(p - here));
+  for (const key of extra) {
+    if (art.ink.size <= Math.min(KEEP_MAX, Math.max(4, keep.size))) break;
+    if (!art.spare) art.spare = art.ink.get(key); // son canevas resservira pour la prochaine feuille
+    art.ink.delete(key);
   }
 }
 
 /**
- * Avance la préparation de la feuille suivante, un peu à chaque image : un seul morceau (8 ms de
- * morceaux menu ouvert), et rien si l'image d'avant a été longue (le téléphone rattrape). Après chaque
- * morceau, un pixel de la feuille est posé sur l'écran, presque transparent (render) : la carte
- * graphique fait ce morceau tout de suite, au lieu de tout faire d'un coup quand la feuille arrive
- * à l'écran.
+ * Les feuilles utiles, de la plus urgente à la moins urgente : celles à l'écran, puis celles qui y
+ * entreront dans le sens de la marche (jusqu'à LOOK_S secondes de route à la vitesse de la boule, au
+ * moins 900 px), puis une de plus pour les moments calmes. Chacune avec la distance (px) avant son
+ * entrée à l'écran (0 si elle y est déjà).
  */
-let lastDt = 0, skipped = 0, toFlush = null, lastFrame = performance.now();
+const LOOK_S = 1.6;
+function wantedWithDistance() {
+  const L = cam.x, R = cam.x + cam.viewW, v = ball.speed(), dir = (ball.onTrack ? ball.v : ball.vx) < -30 ? -1 : 1;
+  const reach = 900 + v * LOOK_S, out = [];
+  for (let k = Math.max(0, Math.floor(L / SHEET)); k < Math.min(SHEETS, Math.ceil(R / SHEET)); k++) out.push([k, 0]);
+  const first = dir > 0 ? Math.max(0, Math.ceil(R / SHEET)) : Math.floor(L / SHEET) - 1; // la prochaine à entrer
+  for (let i = 1; i <= 3; i++) {
+    const k = first + dir * (i - 1);
+    if (k < 0 || k >= SHEETS) break;
+    const d = dir > 0 ? k * SHEET - R : L - (k + 1) * SHEET;
+    if (d > reach && i > 1) break; // au-delà : seulement la première, en anticipation calme
+    out.push([k, Math.max(0, d)]);
+  }
+  // en marche arrière, la prochaine feuille vers l'avant reste prévue (la boule repart souvent en avant)
+  const fwd = Math.ceil(R / SHEET);
+  if (dir < 0 && fwd < SHEETS && !out.some(([k]) => k === fwd)) out.push([fwd, Math.max(0, fwd * SHEET - R)]);
+  return out;
+}
+const wanted = () => wantedWithDistance().map(([k]) => k);
+
+/**
+ * Avance la préparation des feuilles, selon l'urgence (temps avant que la caméra ne montre la
+ * feuille, à la vitesse de la boule, comparé au temps qu'il faut pour la finir au rythme actuel des
+ * images) :
+ * - calme : un morceau par image, et rien si l'image d'avant a été longue (le téléphone rattrape) ;
+ * - pressé : plusieurs morceaux par image (au plus 4 ms de calcul), même après une image longue ;
+ * - menu ouvert : autant qu'en tiennent 8 ms.
+ * Après chaque image de préparation, un pixel de la feuille est posé sur l'écran, presque transparent
+ * (render) : la carte graphique fait ce morceau tout de suite, au lieu de tout faire d'un coup quand la
+ * feuille arrive à l'écran.
+ */
+let lastDt = 0, skipped = 0, toFlush = null, lastFrame = performance.now(), frameAvg = 1 / 60, stepsPerSheet = 14;
 function prepare() {
-  const k = Math.floor(ball.x / SHEET), t0 = performance.now();
-  // pause si l'image d'avant a été longue, mais pas plus de 3 images de suite, ni quand la feuille
-  // suivante va bientôt entrer à l'écran
-  const soon = !art.ink.has(k + 1) && ball.x > (k + 1) * SHEET - 1200;
-  if (!menu.isOpen && lastDt > 0.022 && skipped < 3 && !soon) { skipped++; return; }
-  skipped = 0;
-  // en jeu, un seul morceau par image (chaque morceau peut être un grand remplissage pour la carte
-  // graphique) ; menu ouvert, autant qu'en tiennent 8 ms
-  const budget = menu.isOpen ? 8 : 0;
-  for (const n of [k + 1, k, k - 1, k + 2]) {
-    if (n < 0 || n >= SHEETS || art.ink.has(n)) continue;
-    if (!art.pending.has(n)) {
+  frameAvg += (Math.min(0.1, lastDt || 1 / 60) - frameAvg) * 0.1;
+  const t0 = performance.now(), v = Math.max(300, ball.speed());
+  for (const [n, d] of wantedWithDistance()) {
+    if (art.ink.has(n)) continue;
+    let job = art.pending.get(n);
+    // urgence : morceaux restants / images avant l'entrée à l'écran
+    const left = Math.max(1, stepsPerSheet - (job ? job.steps : 0));
+    const frames = Math.max(1, d / v / frameAvg);
+    const need = left / frames;                // morceaux par image pour être prêt à temps
+    const urgent = menu.isOpen || need > 0.5;  // marge de 2
+    if (!urgent && lastDt > 0.022 && skipped < 3) { skipped++; return; }
+    skipped = 0;
+    if (!job) {
       const holder = { reuse: art.spare };
       art.spare = null;
-      art.pending.set(n, { gen: inkSteps(track, art.q, n, holder), holder });
-      diag.note(`feuille ${n + 1} : préparation${holder.reuse ? ' (canevas réutilisé)' : ''}`);
+      job = { gen: inkSteps(track, art.q, n, holder), holder, steps: 0 };
+      art.pending.set(n, job);
+      diag.note(`feuille ${n + 1} : préparation${holder.reuse ? ' (canevas réutilisé)' : ''}, ${Math.round(d)} px avant l'écran`);
     }
-    const job = art.pending.get(n);
+    const budget = menu.isOpen ? 8 : urgent ? 4 : 0, maxSteps = menu.isOpen ? 99 : urgent ? Math.min(6, Math.ceil(need * 2)) : 1;
+    let done = 0;
     do {
       const r = job.gen.next();
+      job.steps++;
+      done++;
       if (r.done) {
+        stepsPerSheet = Math.max(stepsPerSheet * 0.8, job.steps);
         storeInk(n, r.value);
         art.pending.delete(n);
         evict(n);
         return;
       }
-    } while (performance.now() - t0 < budget);
+    } while (done < maxSteps && performance.now() - t0 < budget);
     toFlush = job.holder.canvas;
     return;
   }
@@ -662,6 +708,7 @@ function render(dt) {
   // dessinée puis aussitôt oubliée, à refaire à chaque image)
   const vy0 = Math.max(0, cam.y - 10), vy1 = Math.min(WORLD.h, cam.y + cam.viewH + 10);
   for (let k = Math.max(0, Math.floor(x0 / SHEET)); k < Math.min(SHEETS, warming ? 0 : Math.ceil(x1 / SHEET)); k++) {
+    if (!seen.has(k) && launched) { seen.add(k); diag.note(`feuille ${k + 1} à l'écran`); }
     const c = inkFor(k), q = c.width / SHEET, a = Math.max(x0 - 2, k * SHEET), b = Math.min(x1 + 2, (k + 1) * SHEET);
     if (b <= a || vy1 <= vy0) continue;
     ctx.drawImage(c, (a - k * SHEET) * q, vy0 * q, (b - a) * q, (vy1 - vy0) * q, a, vy0, b - a, vy1 - vy0);
@@ -943,4 +990,4 @@ applyOptions();
 resize();
 menu.open(false);
 requestAnimationFrame(frame);
-window.__boule = { ball, track, cam, sound, bonuses, weather, hay, summer, art: () => art, restart, menu, run, pick };
+window.__boule = { inkLate: () => inkLate, ball, track, cam, sound, bonuses, weather, hay, summer, art: () => art, restart, menu, run, pick };
