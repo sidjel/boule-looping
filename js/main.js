@@ -94,11 +94,11 @@ function storeInk(k, c) {
 
 function inkFor(k) {
   if (!art.ink.has(k)) {
-    const gen = art.pending.get(k);
+    const job = art.pending.get(k);
     let canvasK;
-    if (gen) {
-      let r = gen.next();
-      while (!r.done) r = gen.next();
+    if (job) {
+      let r = job.gen.next();
+      while (!r.done) r = job.gen.next();
       canvasK = r.value;
       art.pending.delete(k);
     } else canvasK = buildInk(track, art.q, k);
@@ -112,26 +112,50 @@ function evict(k) {
   const here = Math.floor(ball.x / SHEET);
   for (const key of [...art.ink.keys()]) {
     if (art.ink.size <= 4) break;
-    if (key !== k && Math.abs(key - here) > 1 && !visible(key)) art.ink.delete(key);
+    if (key !== k && Math.abs(key - here) > 1 && !visible(key)) {
+      // son canevas resservira pour la prochaine feuille
+      if (!art.spare) art.spare = art.ink.get(key);
+      art.ink.delete(key);
+    }
   }
 }
 
-/** Avance la préparation de la feuille suivante pendant au plus 5 ms par image. */
+/**
+ * Avance la préparation de la feuille suivante, un peu à chaque image : un seul morceau (8 ms de
+ * morceaux menu ouvert), et rien si l'image d'avant a été longue (le téléphone rattrape). Après chaque
+ * morceau, un pixel de la feuille est posé sur l'écran, presque transparent (render) : la carte
+ * graphique fait ce morceau tout de suite, au lieu de tout faire d'un coup quand la feuille arrive
+ * à l'écran.
+ */
+let lastDt = 0, skipped = 0, toFlush = null;
 function prepare() {
   const k = Math.floor(ball.x / SHEET), t0 = performance.now();
+  // pause si l'image d'avant a été longue, mais pas plus de 3 images de suite, ni quand la feuille
+  // suivante va bientôt entrer à l'écran
+  const soon = !art.ink.has(k + 1) && ball.x > (k + 1) * SHEET - 1200;
+  if (!menu.isOpen && lastDt > 0.022 && skipped < 3 && !soon) { skipped++; return; }
+  skipped = 0;
+  // en jeu, un seul morceau par image (chaque morceau peut être un grand remplissage pour la carte
+  // graphique) ; menu ouvert, autant qu'en tiennent 8 ms
+  const budget = menu.isOpen ? 8 : 0;
   for (const n of [k + 1, k, k - 1, k + 2]) {
     if (n < 0 || n >= SHEETS || art.ink.has(n)) continue;
-    if (!art.pending.has(n)) art.pending.set(n, inkSteps(track, art.q, n));
-    const gen = art.pending.get(n);
-    while (performance.now() - t0 < 5) {
-      const r = gen.next();
+    if (!art.pending.has(n)) {
+      const holder = { reuse: art.spare };
+      art.spare = null;
+      art.pending.set(n, { gen: inkSteps(track, art.q, n, holder), holder });
+    }
+    const job = art.pending.get(n);
+    do {
+      const r = job.gen.next();
       if (r.done) {
         storeInk(n, r.value);
         art.pending.delete(n);
         evict(n);
-        break;
+        return;
       }
-    }
+    } while (performance.now() - t0 < budget);
+    toFlush = job.holder.canvas;
     return;
   }
 }
@@ -295,6 +319,7 @@ const portrait = () => phone && innerHeight > innerWidth;
 
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
+  lastDt = (now - last) / 1000;
   last = now;
   time += dt;
   const paused = menu.isOpen || portrait() || infoOpen;
@@ -659,6 +684,15 @@ function render(dt) {
   }
   ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
   fx.drawTrail(ctx, input.liveTrail(), input.holding() ? input.active.last : null);
+  if (toFlush && !warming) {
+    // feuille en préparation : un pixel, à 1 % (invisible), pour que la carte graphique la dessine
+    // morceau par morceau (prepare)
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 0.01;
+    ctx.drawImage(toFlush, 0, 0, 1, 1, 0, 0, 1, 1);
+    ctx.globalAlpha = 1;
+    toFlush = null;
+  }
 }
 
 /* ---------- compteur d'images par seconde : #fps dans l'adresse, touche F, ou Options ---------- */

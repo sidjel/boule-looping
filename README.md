@@ -158,9 +158,11 @@ par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même rob
   - les particules nombreuses (foin, feuilles mortes, flocons) sont de petites images dessinées une
     fois (`js/sprites.js`) puis posées, jamais des centaines de traits par image ; la pluie est un seul
     tracé ;
-  - les feuilles (terre, route) sont dessinées sur la carte graphique, par morceaux (route morceau par
-    morceau), avec des traits au crayon allégés (un point tous les 5 px) ; menu ouvert, les premières
-    sont préparées d'avance ; une petite tuile dont on lit les pixels (grain du papier, soleil) est en
+  - les feuilles (terre, route) sont dessinées sur la carte graphique, un seul morceau par image (la
+    route morceau par morceau, la terre et le grain du papier en 4 bandes), rien si l'image d'avant a
+    été longue ; un pixel de la feuille en cours, invisible, est posé sur l'écran pour que la carte
+    graphique fasse chaque morceau tout de suite ; le canevas d'une feuille oubliée sert à la suivante ;
+    traits au crayon allégés (un point tous les 5 px) ; menu ouvert, les premières sont préparées ; une petite tuile dont on lit les pixels (grain du papier, soleil) est en
     mémoire (`willReadFrequently`), jamais lue depuis la carte graphique ;
   - menu ouvert, un tour d'essai dessine les trois premiers niveaux hors de l'écran (moulin, ferme,
     château déjà prêts) ;

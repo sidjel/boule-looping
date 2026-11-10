@@ -103,12 +103,12 @@ export function noiseTile(size, seed, dark = true) {
 }
 
 /** Ronge les traits avec du bruit : effet mine de crayon sur papier à grain. */
-export function grain(ctx, w, h, strength = 0.55) {
+export function grain(ctx, w, h, strength = 0.55, x = 0) {
   const tile = noiseTile(128, 77, true);
   ctx.save();
   ctx.globalCompositeOperation = 'destination-out';
   ctx.globalAlpha = strength;
   ctx.fillStyle = ctx.createPattern(tile, 'repeat');
-  ctx.fillRect(0, 0, w, h);
+  ctx.fillRect(x, 0, w, h);
   ctx.restore();
 }

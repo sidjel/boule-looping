@@ -29,10 +29,21 @@ export function buildInk(track, q, sheet) {
  * décor ; elle est alors renvoyée sans cesse : à-coups réguliers). Les traits au crayon sont allégés
  * (pencil.js) pour que la carte graphique les fasse vite.
  */
-export function* inkSteps(track, q, sheet) {
-  const c = document.createElement('canvas');
-  c.width = Math.ceil(SHEET * q);
-  c.height = Math.ceil(WORLD.h * q);
+const BANDS = 4; // grands remplissages découpés en bandes verticales (bords sur des pixels entiers)
+
+export function* inkSteps(track, q, sheet, holder = {}) {
+  // holder.reuse : le canevas d'une feuille oubliée, réutilisé (pas de grand canevas neuf à chaque niveau)
+  const w = Math.ceil(SHEET * q), h = Math.ceil(WORLD.h * q);
+  let c = holder.reuse;
+  if (c && c.width === w && c.height === h) {
+    const g0 = c.getContext('2d');
+    if (g0.reset) g0.reset(); else c.width = w; // tout effacé, réglages par défaut
+  } else {
+    c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+  }
+  holder.canvas = c; // (main.js le fait dessiner à la carte graphique morceau par morceau)
   const g = c.getContext('2d');
   g.setTransform(q, 0, 0, q, -sheet * SHEET * q, 0);
   yield* drawSheet(g, c, track, q, sheet);
@@ -57,10 +68,14 @@ function* drawSheet(g, c, track, q, sheet) {
     const b = biomeOfSheet(sheet);
     g.fillText(sheet === SHEETS - 1 ? 'arrivée' : `niveau ${sheet + 1} · ${b.name.toLowerCase()}`, sheet * SHEET + (sheet ? 110 : 60), 86);
     yield;
+    // le grain, en 4 bandes (une par image : un grand remplissage à la fois pour la carte graphique)
     g.setTransform(1, 0, 0, 1, 0, 0);
-    grain(g, c.width, c.height, 0.5);
+    for (let b = 0; b < BANDS; b++) {
+      const a = Math.round((b * c.width) / BANDS), e = Math.round(((b + 1) * c.width) / BANDS);
+      grain(g, e - a, c.height, 0.5, a);
+      yield;
+    }
     g.setTransform(q, 0, 0, q, -sheet * SHEET * q, 0);
-    yield;
   }
   // 2. la terre, dessous (sans grain : identique partout), puis les galeries, la route, les flaques
   yield* paintEarthAndRoad(g, track, x0, x1);
@@ -390,10 +405,16 @@ function* paintEarthAndRoad(g, track, x0, x1) {
       g.stroke();
     }
   }
-  g.fillStyle = pat || '#c08a55';
-  g.fillRect(x0, 0, x1 - x0, WORLD.h + 60);
-  g.restore();
   yield;
+  // la terre, en bandes (bords sur des pixels entiers de la feuille : pas de couture)
+  g.fillStyle = pat || '#c08a55';
+  const t = g.getTransform(), toWorld = (px) => (px - t.e) / t.a, W = g.canvas.width;
+  for (let b = 0; b < BANDS; b++) {
+    const a = b ? toWorld(Math.round((b * W) / BANDS)) : x0, e = b < BANDS - 1 ? toWorld(Math.round(((b + 1) * W) / BANDS)) : x1;
+    g.fillRect(a, 0, e - a, WORLD.h + 60);
+    yield;
+  }
+  g.restore();
   drawTunnels(g, track, x0, x1);
   yield;
   // la route, morceau par morceau (une pause après chacun : jamais plus de quelques ms d'affilée)
