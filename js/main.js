@@ -811,8 +811,14 @@ function diagEnv() {
   };
 }
 function exportDiagnostic(previous = false) {
-  const r = previous ? diag.previousReport() : diag.report(diagEnv());
+  let r = previous ? diag.previousReport() : diag.report(diagEnv());
+  // session en cours sans aucune image de jeu (page tout juste rouverte) : la session précédente
+  if (!previous && !r.statistiques.images_en_jeu) {
+    const prev = diag.previousReport();
+    if (prev && prev.statistiques.images_en_jeu) { r = prev; previous = true; }
+  }
   if (!r) return false;
+  exportDiagnostic.last = previous ? 'précédente' : 'en cours';
   const text = JSON.stringify(r, null, 1);
   const name = `diagnostic-boule-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
   const blob = new Blob([text], { type: 'application/json' });
@@ -938,9 +944,18 @@ const menu = new Menu($('menu'), {
     if (k === 'fps') { meterOn = !!save.options.fps; fpsBox.hidden = !meterOn; }
   },
   diagPrevious: () => !!diag.previousReport(),
+  diagInfo: () => {
+    const now = diag.report(diagEnv()).statistiques.images_en_jeu, prev = diag.previousReport();
+    return `Partie en cours : ${now} images de jeu enregistrées.${prev ? ` Partie précédente : ${prev.statistiques.images_en_jeu} images (${prev.session.debut.slice(11, 16)}).` : ''}`;
+  },
   diagText: () => JSON.stringify(diag.report(diagEnv())),
   diag: (what) => {
-    if (what === 'export') return exportDiagnostic() ? 'Rapport créé : choisis où l’enregistrer ou l’envoyer.' : 'Rien à exporter.';
+    if (what === 'export') {
+      if (!exportDiagnostic()) return 'Rien à exporter.';
+      return exportDiagnostic.last === 'précédente'
+        ? 'Aucune partie jouée depuis l’ouverture : rapport de la partie précédente créé.'
+        : 'Rapport créé : choisis où l’enregistrer ou l’envoyer.';
+    }
     if (what === 'previous') return exportDiagnostic(true) ? 'Rapport de la session précédente créé.' : 'Pas de session précédente.';
     if (what === 'copy') return copyDiagnostic().then((ok) => (ok ? 'Rapport copié : colle-le dans un message.' : 'Copie impossible ici : utilise « Exporter ».'));
     if (what === 'reset') { diag.resetDiagnostic(); return 'Statistiques remises à zéro.'; }
@@ -1000,7 +1015,9 @@ addEventListener('pointerup', firstSound, true);
 addEventListener('touchend', firstSound, true);
 const fullscreen = setupFullscreen($('plein-ecran'), $('astuce'), $('demande-plein'), () => save.options.autoFullscreen);
 addEventListener('pagehide', () => { saveProgress(); save.flush(); diag.keepSummary(diagEnv()); });
-addEventListener('visibilitychange', () => { if (document.hidden) save.flush(); });
+// Android ne prévient pas toujours de la fermeture (pagehide) : le résumé du diagnostic est aussi
+// gardé dès que la page passe à l'arrière-plan (changement d'application, écran éteint)
+document.addEventListener('visibilitychange', () => { if (document.hidden) { save.flush(); diag.keepSummary(diagEnv()); } });
 
 let resizeTimer = 0;
 addEventListener('resize', () => {
