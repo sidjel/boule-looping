@@ -91,6 +91,7 @@ export class Menu {
         ${check('autoFullscreen', 'Proposer le plein écran au lancement')}
         ${check('wideLandscape', 'En paysage, commencer en vue d’ensemble')}
         ${check('labels', 'Écrire le nom des bonus au-dessus des boules')}
+        <label class="ligne">Qualité d’image <select data-opt="quality">${[[0, 'Automatique'], [2, 'Haute'], [1.5, 'Moyenne'], [1, 'Économique']].map(([v, t]) => `<option value="${v}"${o.quality === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
         ${check('fps', 'Afficher le compteur d’images par seconde (fluidité)')}`);
     } else if (screen === 'credits') {
       html = card('Crédits', `<p><b>Idée, dessins et décors d'origine</b><br>sidjel — la route au crayon, le looping, le soleil, les nuages et la boule rouge viennent de ses dessins.</p>

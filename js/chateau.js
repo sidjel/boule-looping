@@ -6,14 +6,18 @@
  *   redessinée en fines bandes qui glissent un peu de côté ; le reflet du château tremble ;
  *   quelques reflets de lumière s'allument et s'éteignent.
  */
-const img = {};
+import { picture, ready, rangeNeed } from './ressources.js';
+
+// chargées seulement près du niveau 3 (ressources.js) ; l'eau et le reflet préparés sont oubliés avec elles
+const forget = () => { water = null; reflect = null; };
+const pics = {};
 for (const [k, src] of [['fond', 'images/niveau3/fond.webp'], ['drapeaux', 'images/niveau3/drapeaux.webp'], ['eau', 'images/niveau3/eau.png']]) {
-  const i = new Image();
-  i.decoding = 'async';
-  i.src = src;
-  img[k] = i;
+  pics[k] = picture(src, rangeNeed(2500, 7500), forget);
 }
-const ok = (i) => i && i.complete && i.naturalWidth > 0;
+/** img.nom : l'image si elle est prête, sinon null. */
+const img = {};
+for (const k of Object.keys(pics)) Object.defineProperty(img, k, { get: () => (ready(pics[k]) ? pics[k].img : null) });
+const ok = (i) => !!i;
 let anim = null;
 fetch('images/niveau3/anim.json').then((r) => r.json()).then((a) => (anim = a)).catch(() => {});
 

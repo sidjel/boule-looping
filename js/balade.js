@@ -18,31 +18,35 @@ import { SHEET, WORLD } from './track.js';
 import { DESSIN1 } from './niveau1-route.js';
 import { drawSuite } from './suite.js';
 import { drawBande3 } from './chateau.js';
+import { picture, ready, rangeNeed } from './ressources.js';
 
 /** Feuilles de la balade en couleurs. */
 export const STYLE_SHEETS = new Set([0, 1, 2]);
 const Z1 = 3 * SHEET; // fin de la balade en couleurs (niveaux 1 à 3)
 const K = DESSIN1.K, OY = DESSIN1.offY;
 
+// les images de la balade, chargées seulement près des trois premiers niveaux (ressources.js) ; la
+// terre sert partout (texture des feuilles). Leurs copies (miroir, bord adouci) sont oubliées avec elles.
+const forget = (p, i) => { mirrors.delete(i); softs.delete(i); tiles.delete(i); };
+const pics = {
+  terre: picture('images/balade/terre.webp'),
+  champs: picture('images/balade/champs.webp', rangeNeed(-5000, 5500), forget),
+  ferme: picture('images/balade/ferme.webp', rangeNeed(-5000, 5500), forget),
+  cochon: picture('images/balade/cochon.webp', rangeNeed(-5000, 5500), forget),
+  tour: picture('images/niveau0/tour.webp', rangeNeed(-5000, 3000), forget),
+  ailes: picture('images/niveau0/ailes.webp', rangeNeed(-5000, 3000), forget),
+};
+/** img.nom : l'image si elle est prête, sinon null. */
 const img = {};
-function load(key, src) {
-  const i = new Image();
-  i.decoding = 'async';
-  i.src = src;
-  img[key] = i;
-}
-for (const n of ['terre', 'champs', 'ferme', 'cochon']) load(n, `images/balade/${n}.webp`);
-for (const n of ['tour', 'ailes']) load(n, `images/niveau0/${n}.webp`);
-const ok = (i) => i && i.complete && i.naturalWidth > 0;
+for (const k of Object.keys(pics)) Object.defineProperty(img, k, { get: () => (ready(pics[k]) ? pics[k].img : null) });
+const ok = (i) => !!i;
 let geo = null, meta = null, n3 = null;
 fetch('images/niveau3/niveau3.json').then((r) => r.json()).then((g) => (n3 = g)).catch(() => {});
 fetch('images/niveau0/geo.json').then((r) => r.json()).then((g) => (geo = g)).catch(() => {});
 fetch('images/balade/balade.json').then((r) => r.json()).then((g) => (meta = g)).catch(() => {});
 /** Résolu quand la texture de terre est chargée (les feuilles sont alors redessinées avec elle). */
 export const baladeLoaded = new Promise((done) => {
-  const i = img.terre;
-  if (i.complete) done();
-  else i.onload = i.onerror = () => done();
+  const t = setInterval(() => { if (ready(pics.terre) || pics.terre.failed) { clearInterval(t); done(); } }, 50);
 });
 
 /** Part de la balade en couleurs à l'abscisse x (pour les décors au crayon : feuilles, coutures). */
@@ -158,7 +162,8 @@ const P3 = { k: 2000 / 2682, top: 0 };
 const p3y = () => (1440 + 80 - 1536 * (2932 / 2682)) * K + OY; // haut du dessin du moulin
 const PX = 2000 / 2012; // un pixel des images du moulin (champs, montagnes) → monde
 // la ferme : son horizon (haies, 322 px du haut) sur celui des champs du niveau 1 ; elle prend la suite
-const FARM = { f: 1.05, horizon: 322, x: 1500, blend: 260 }; // les champs du niveau 1 s'arrêtent sous la fin du raccord
+// les champs du niveau 1 s'arrêtent sous la fin du raccord ; w, h : taille de ferme.webp
+const FARM = { f: 1.05, horizon: 322, x: 1500, blend: 260, w: 2113, h: 837 };
 // parallaxe : part du mouvement de la caméra suivie, et ancre (x où le plan est à sa place)
 const Q = { ciel: 0.9, soleil: 0.92, petits: 0.85, nuages: 0.75, montagnes: 0.3, champs: 0.12, herbe: -0.3 };
 const ANCHOR = 1200;
@@ -193,44 +198,44 @@ export class Balade {
     // (les nuages, communs à tous les niveaux : nuages.js)
     // (3 · les montagnes, communes à tous les niveaux : montagnes.js)
     // 3 · les champs : niveau 1 (avec charrette et moulin), puis la ferme du niveau 2
-    if (meta && ok(img.champs)) {
-      const i = img.champs, ox = sx(Q.champs), y0 = p3y() + sy(Q.champs);
-      const yc = y0 + meta.champs.top * PX, w = i.naturalWidth * PX, h = i.naturalHeight * PX;
-      // à gauche du niveau 1 : son reflet (sans charrette : seulement la moitié de droite)
-      g.save();
-      g.beginPath(); g.rect(ox - w * 0.55, yc - 400, w * 0.55, h + 800); g.clip();
-      g.drawImage(mirror(i), ox - w, yc, w + 1, h);
-      g.restore();
-      g.save();
-      g.beginPath(); g.rect(ox - 2, yc - 400, FARM.x + FARM.blend + 2, h + 800); g.clip();
-      g.drawImage(i, ox, yc, w + 1, h);
-      g.restore();
+    if (meta) {
+      // (positions tirées des données, pas des images : chaque image peut être libérée loin d'ici)
+      const ox = sx(Q.champs), y0 = p3y() + sy(Q.champs);
+      const [cw, ch] = meta.champs.size, yc = y0 + meta.champs.top * PX, w = cw * PX, h = ch * PX;
+      const i = img.champs;
+      if (ok(i) && ox - w < x1 && ox + FARM.x + FARM.blend > x0) {
+        // à gauche du niveau 1 : son reflet (sans charrette : seulement la moitié de droite)
+        g.save();
+        g.beginPath(); g.rect(ox - w * 0.55, yc - 400, w * 0.55, h + 800); g.clip();
+        g.drawImage(mirror(i), ox - w, yc, w + 1, h);
+        g.restore();
+        g.save();
+        g.beginPath(); g.rect(ox - 2, yc - 400, FARM.x + FARM.blend + 2, h + 800); g.clip();
+        g.drawImage(i, ox, yc, w + 1, h);
+        g.restore();
+      }
       // la ferme prend la suite des champs : son horizon sur celui des champs, raccord progressif
       const f = img.ferme;
-      if (ok(f)) {
-        const fw = f.naturalWidth * FARM.f, fh = f.naturalHeight * FARM.f;
-        const fx = ox + FARM.x, fy = yc + (meta.ligne_haies - meta.champs.top) * PX - FARM.horizon * FARM.f;
-        if (fx < x1 && fieldsEnd > x0) {
-          g.drawImage(softLeft(f, FARM.blend / fw), fx, fy, fw, fh);
-          // niveau 3 : la bande (ferme, lac, château) prend la suite, raccordée au bord droit de la ferme
-          // par une couture qui suit le dessin (tools/decouper-niveau3.py) ; même plan que les champs
-          // (drapeaux qui flottent, eau qui ondule : chateau.js)
-          if (n3) drawBande3(g, ox + n3.u0, y0 - p3y() + n3.y0, n3.w, n3.h, t, x0, x1);
-          // puis le lac et les champs de foin, jusqu'au bout du parcours (aux couleurs des saisons)
-          drawSuite(g, ox, y0 - p3y(), x0, x1, (u) => (u - Q.champs * ANCHOR) / (1 - Q.champs));
-          if (ok(img.cochon)) {
-            const pig = img.cochon;
-            for (const p of PIGS) {
-              const pw = p.w, ph = (pig.naturalHeight * pw) / pig.naturalWidth;
-              const px = fx + fw * p.u, py = fy + fh * p.v - ph - (p.wait > 0 ? 0 : Math.abs(Math.sin(t * 6 + p.w)) * 3);
-              g.save();
-              g.translate(px, py);
-              if (p.dir < 0) { g.translate(pw, 0); g.scale(-1, 1); }
-              g.rotate(p.wait > 0 ? 0 : Math.sin(t * 6 + p.w) * 0.03);
-              g.drawImage(pig, 0, 0, pw, ph);
-              g.restore();
-            }
-          }
+      const fw = FARM.w * FARM.f, fh = FARM.h * FARM.f;
+      const fx = ox + FARM.x, fy = yc + (meta.ligne_haies - meta.champs.top) * PX - FARM.horizon * FARM.f;
+      if (ok(f) && fx < x1 && fx + fw > x0) g.drawImage(softLeft(f, FARM.blend / fw), fx, fy, fw, fh);
+      // niveau 3 : la bande (ferme, lac, château) prend la suite, raccordée au bord droit de la ferme
+      // par une couture qui suit le dessin (tools/decouper-niveau3.py) ; même plan que les champs
+      // (drapeaux qui flottent, eau qui ondule : chateau.js)
+      if (n3 && ox + n3.u0 < x1 && ox + n3.u0 + n3.w > x0) drawBande3(g, ox + n3.u0, y0 - p3y() + n3.y0, n3.w, n3.h, t, x0, x1);
+      // puis le lac et les champs de foin, jusqu'au bout du parcours (aux couleurs des saisons)
+      drawSuite(g, ox, y0 - p3y(), x0, x1, (u) => (u - Q.champs * ANCHOR) / (1 - Q.champs));
+      if (ok(f) && ok(img.cochon) && fx < x1 && fx + fw > x0) {
+        const pig = img.cochon;
+        for (const p of PIGS) {
+          const pw = p.w, ph = (pig.naturalHeight * pw) / pig.naturalWidth;
+          const px = fx + fw * p.u, py = fy + fh * p.v - ph - (p.wait > 0 ? 0 : Math.abs(Math.sin(t * 6 + p.w)) * 3);
+          g.save();
+          g.translate(px, py);
+          if (p.dir < 0) { g.translate(pw, 0); g.scale(-1, 1); }
+          g.rotate(p.wait > 0 ? 0 : Math.sin(t * 6 + p.w) * 0.03);
+          g.drawImage(pig, 0, 0, pw, ph);
+          g.restore();
         }
       }
       // le moulin (devant la ferme qui commence derrière lui) : la tour, puis les ailes qui tournent ; et les pailles de la charrette

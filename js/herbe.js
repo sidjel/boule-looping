@@ -8,16 +8,19 @@
 import { WORLD } from './track.js';
 import { biomeMix } from './biomes.js';
 import { ahead } from './avance.js';
+import { picture, ready, seasonNeed } from './ressources.js';
 
 const KINDS = { 'Été': 'ete', Automne: 'automne', Hiver: 'hiver', Pluie: 'pluie', 'Arrivée': 'ete' };
-const img = {};
-for (const k of ['ete', 'automne', 'hiver', 'pluie']) {
-  const i = new Image();
-  i.decoding = 'async';
-  i.src = `images/herbe/${k}.webp`;
-  img[k] = i;
-}
-const ok = (i) => i && i.complete && i.naturalWidth > 0;
+// une version par saison (l'été sert aussi à l'arrivée), chargée seulement près de sa saison
+const pic = {
+  ete: picture('images/herbe/ete.webp', seasonNeed('Été', 'Arrivée')),
+  automne: picture('images/herbe/automne.webp', seasonNeed('Automne')),
+  hiver: picture('images/herbe/hiver.webp', seasonNeed('Hiver')),
+  pluie: picture('images/herbe/pluie.webp', seasonNeed('Pluie')),
+};
+const anyReady = () => Object.values(pic).find(ready);
+/** L'image à dessiner pour une bande ({ kind } ou { canvas }) ; null si sa saison n'est pas chargée. */
+const source = (t) => (t.canvas ? t.canvas : ready(pic[t.kind]) ? pic[t.kind].img : null);
 
 const TW = 1400;      // largeur d'une bande (monde)
 const Q = 0.3;        // l'herbe glisse 30 % plus vite que la route
@@ -32,13 +35,13 @@ function tileImage(k) {
   if (tiles.has(k)) return tiles.get(k);
   const u0 = k * TW, mid = biomeMix(worldOf(u0 + TW / 2)), a = biomeMix(worldOf(u0)), b = biomeMix(worldOf(u0 + TW));
   const pure = a.t === 0 && b.t === 0 && a.a === b.a;
-  const kind0 = KINDS[a.a.name], i0 = img[kind0];
-  if (!ok(i0)) return null;
-  if (pure && mid.t === 0) { tiles.set(k, i0); return i0; }
+  const kind0 = KINDS[a.a.name], i0 = pic[kind0];
+  if (!ready(i0)) return null;
+  if (pure && mid.t === 0) { const t = { kind: kind0 }; tiles.set(k, t); return t; }
   // bande de transition : on mélange les deux saisons colonne par colonne selon le mélange du sol
   const kinds = new Set([KINDS[a.a.name], KINDS[a.b.name], KINDS[b.a.name], KINDS[b.b.name], KINDS[mid.a.name], KINDS[mid.b.name]]);
-  for (const kk of kinds) if (!ok(img[kk])) return null;
-  const W = i0.naturalWidth, H = i0.naturalHeight, c = document.createElement('canvas');
+  for (const kk of kinds) if (!ready(pic[kk])) return null;
+  const W = i0.w, H = i0.h, c = document.createElement('canvas');
   c.width = W; c.height = H;
   const g = c.getContext('2d');
   const STEP = 6;
@@ -48,11 +51,12 @@ function tileImage(k) {
       if (w < 0.004) continue;
       g.globalAlpha = w;
       g.globalCompositeOperation = 'lighter'; // les deux saisons s'additionnent (poids 1 au total)
-      g.drawImage(img[KINDS[bio.name]], x, 0, STEP, H, x, 0, STEP, H);
+      g.drawImage(pic[KINDS[bio.name]].img, x, 0, STEP, H, x, 0, STEP, H);
     }
   }
-  tiles.set(k, c);
-  return c;
+  const t = { canvas: c };
+  tiles.set(k, t);
+  return t;
 }
 
 export class Grass {
@@ -62,10 +66,10 @@ export class Grass {
 
   /** Dessine l'herbe devant tout (repère du monde déjà en place dans ctx). */
   draw(ctx, cam) {
-    const i0 = img.ete;
-    if (!ok(i0)) return;
+    const i0 = anyReady();
+    if (!i0) return;
     const t = this.t, cx = cam.x + cam.viewW / 2;
-    const w = TW, h = (i0.naturalHeight * w) / i0.naturalWidth, base = WORLD.h + 60, top = base - h;
+    const w = TW, h = (i0.h * w) / i0.w, base = WORLD.h + 60, top = base - h;
     if (cam.y + cam.viewH < top) return;
     const ox = -Q * (cx - ANCHOR);
     // un souffle doux, en rafales
@@ -84,8 +88,8 @@ export class Grass {
       y += rh;
     }
     for (let k = k0; k <= k1; k++) {
-      const src = tileImage(k);
-      if (!src) continue;
+      const t = tileImage(k), src = t && source(t);
+      if (!src) { if (t && !t.canvas) tiles.delete(k); continue; } // saison libérée : à refaire
       const sc = src.height / h, sw = src.width / w, tx = ox + k * w;
       for (const [y, rh, dx] of rows) {
         // la partie de la bande à l'écran seulement
@@ -95,5 +99,6 @@ export class Grass {
       }
     }
     ahead(() => tiles.has(k1 + 1), () => tileImage(k1 + 1)); // la bande suivante, à l'avance
+    for (const key of tiles.keys()) if (key < k0 - 2 || key > k1 + 3) tiles.delete(key); // loin : oubliée
   }
 }

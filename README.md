@@ -154,6 +154,16 @@ par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même rob
   tout seuls) et note chaque saccade avec l'endroit et l'étape fautive. Options : `--pc`, `--pas`,
   `--de`/`--a`, `--json`, `--sans-gpu` (tout en logiciel), `--rapide`. Le navigateur de test n'a pas de
   vraie carte graphique : il est bien plus lent qu'un téléphone, mais il montre où et pourquoi ça coince.
+- **Images selon l'endroit** (`js/ressources.js`) : chaque image du décor dit où elle sert (sa saison,
+  ou une zone du parcours) ; elle est chargée et décodée hors du jeu quand la caméra en approche
+  (3 200 px), gardée jusqu'à 6 500 px, puis libérée, et les copies préparées à partir d'elle sont
+  oubliées avec elle. Les niveaux eux-mêmes (route, bonus, obstacles) restent tous en mémoire.
+  Mémoire des images : 41 à 74 Mo selon l'endroit, au lieu de 130 Mo (affichée dans le compteur).
+  Le fondu attend (1,5 s au plus) que les images du nouvel endroit soient prêtes.
+- **Qualité d'image** (Options) : automatique, haute (résolution 2), moyenne (1,5), économique (1).
+  En automatique, si le jeu reste sous 50 images par seconde pendant trois mesures de 2 s d'affilée,
+  la résolution baisse d'un cran, et ce choix est gardé pour la fois suivante. Seuls les pixels du
+  canevas changent : cadrage, physique et gestes sont les mêmes.
 - **Règles qui évitent les saccades** :
   - les particules nombreuses (foin, feuilles mortes, flocons) sont de petites images dessinées une
     fois (`js/sprites.js`) puis posées, jamais des centaines de traits par image ; la pluie est un seul

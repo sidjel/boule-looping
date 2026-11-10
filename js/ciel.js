@@ -8,27 +8,27 @@
  * en dessous, celle du bas.
  */
 import { biomeMix } from './biomes.js';
+import { picture, ready, seasonNeed } from './ressources.js';
 
 const KIND = { 'Été': 'ete', Automne: 'automne', Hiver: 'hiver', Pluie: 'pluie', 'Arrivée': 'arrivee' };
-const img = {};
-for (const k of Object.values(KIND)) {
-  const i = new Image();
-  i.decoding = 'async';
-  i.src = `images/ciel/${k}.webp`;
-  img[k] = i;
-}
-const ok = (i) => i && i.complete && i.naturalWidth > 0;
+// une version par saison, chargée seulement près de sa saison (ressources.js)
+const pic = {};
+for (const [name, k] of Object.entries(KIND)) pic[k] = picture(`images/ciel/${k}.webp`, seasonNeed(name));
 let meta = null;
 fetch('images/ciel/ciel.json').then((r) => r.json()).then((m) => (meta = m)).catch(() => {});
 
 const Q = 0.9, ANCHOR = 1200, TOP = -260, SCALE = 2.27;
 
-/** Le ciel couvre tout l'écran dès que ses images sont prêtes : le papier dessous est alors inutile. */
-export const skyReady = () => !!meta && Object.values(img).every(ok);
+/** Le ciel couvre tout l'écran dès que ses images (saison sous la caméra) sont prêtes : le papier dessous est alors inutile. */
+export function skyReady(cx) {
+  const m = biomeMix(cx);
+  return !!meta && ready(pic[KIND[m.a.name]]) && (m.t <= 0.002 || ready(pic[KIND[m.b.name]]));
+}
 
 function paint(g, cam, kind, alpha) {
-  const i = img[kind];
-  if (!ok(i) || !meta || alpha <= 0.002) return;
+  const p = pic[kind];
+  if (!ready(p) || !meta || alpha <= 0.002) return;
+  const i = p.img;
   const cx = cam.x + cam.viewW / 2, cy = cam.y + cam.viewH / 2;
   const w = i.naturalWidth * SCALE, h = i.naturalHeight * SCALE * 0.73;
   const ox = Q * (cx - ANCHOR), y = TOP + Q * 0.5 * (cy - 716);

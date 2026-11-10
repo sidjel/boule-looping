@@ -9,17 +9,20 @@
  */
 import { WORLD } from './track.js';
 import { biomeMix } from './biomes.js';
+import { picture, ready, seasonNeed } from './ressources.js';
 
 const KIND = { 'Été': 'ete', Automne: 'automne', Hiver: 'hiver', Pluie: 'pluie', 'Arrivée': 'arrivee' };
 const NAMES = ['b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'g0', 'g1', 'g2'];
-const img = {};
-for (const n of NAMES) for (const k of Object.values(KIND)) {
-  const i = new Image();
-  i.decoding = 'async';
-  i.src = `images/nuages/${n}-${k}.webp`;
-  img[`${n}-${k}`] = i;
+// chaque nuage en cinq couleurs de saison, chargées seulement près de leur saison (ressources.js)
+const pic = {};
+for (const n of NAMES) for (const [name, k] of Object.entries(KIND)) pic[`${n}-${k}`] = picture(`images/nuages/${n}-${k}.webp`, seasonNeed(name));
+// taille d'un nuage (la même dans toutes les saisons), prise sur la première couleur prête
+const dims = {};
+function dim(n) {
+  if (dims[n]) return dims[n];
+  for (const k of Object.values(KIND)) { const p = pic[`${n}-${k}`]; if (ready(p)) return (dims[n] = [p.w, p.h]); }
+  return null;
 }
-const ok = (i) => i && i.complete && i.naturalWidth > 0;
 
 const rnd = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 const SPAN = WORLD.w + 6000; // longueur d'un tour de dérive
@@ -54,18 +57,19 @@ export function drawNuages(ctx, cam) {
   for (const R of ROWS) {
     const ox = R.q * (cx - ANCHOR), oy = R.q * 0.5 * (cy - 716);
     for (const c of R.list) {
-      const base = img[`${c.k}-ete`];
-      if (!ok(base)) continue;
+      const d = dim(c.k);
+      if (!d) continue;
       const k = c.k.startsWith('g') ? c.s * 1.25 : c.s * 1.6; // (mêmes tailles qu'aux niveaux 1 et 2)
-      const w = base.naturalWidth * k, h = base.naturalHeight * k;
+      const w = d[0] * k, h = d[1] * k;
       const u = ((((c.u + 3000 + t * c.v) % SPAN) + SPAN) % SPAN) - 3000, x = u + ox, y = c.y + oy;
       if (x + w < x0 || x > x1) continue;
       // la saison sous le nuage (là où il est à l'écran)
       const m = biomeMix(x + w / 2);
       const layers = m.b !== m.a && m.t > 0.01 ? [[m.a, 1], [m.b, m.t]] : [[m.a, 1]];
       for (const [bio, a] of layers) {
-        const i = img[`${c.k}-${KIND[bio.name]}`];
-        if (!ok(i)) continue;
+        const p = pic[`${c.k}-${KIND[bio.name]}`];
+        if (!ready(p)) continue;
+        const i = p.img;
         ctx.globalAlpha = a;
         if (c.flip) {
           ctx.save();

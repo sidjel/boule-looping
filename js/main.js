@@ -19,6 +19,7 @@ import { Weather } from './weather.js';
 import { Hay } from './foin.js';
 import { mark, profil, countDraws } from './profil.js';
 import { newFrame } from './avance.js';
+import { updateResources, readyAt, loadedMB } from './ressources.js';
 import { biomeAt, biomeOfSheet } from './biomes.js';
 import { save } from './save.js';
 import { Menu, scoreTable } from './menu.js';
@@ -62,14 +63,22 @@ const vibrate = (ms) => save.options.vibrate && navigator.vibrate?.(ms);
 
 let art = null;
 
+/**
+ * Résolution du dessin (pixels de l'écran par point CSS) : qualité haute 2, moyenne 1,5, économique 1,
+ * ou automatique (Options → Qualité d'image). Seuls les pixels du canevas changent : le cadrage, la
+ * physique et les gestes restent les mêmes (la caméra raisonne en coordonnées du monde).
+ */
+const dprCap = () => save.options.quality || save.options.autoDpr || 2;
 function resize() {
-  const dpr = Math.min(2, devicePixelRatio || 1);
+  const dpr = Math.min(dprCap(), devicePixelRatio || 1);
   canvas.width = Math.round(innerWidth * dpr);
   canvas.height = Math.round(innerHeight * dpr);
   cam.resize(canvas.width, canvas.height, dpr);
-  // Calques dessinés pour le cadrage le plus zoomé : nets dans les deux vues.
+  // Calques dessinés pour le cadrage le plus zoomé : nets dans les deux vues. En pleine partie, une
+  // résolution plus basse garde les feuilles déjà prêtes (plus fines que nécessaire : pas d'à-coup).
   const q = Math.min(cam.followScale, 1);
-  if (!art || Math.abs(art.q - q) > 0.05) {
+  const lower = art && q < art.q && launched && !menu?.isOpen;
+  if (!art || (Math.abs(art.q - q) > 0.05 && !lower)) {
     art = {
       q, ink: new Map(), pending: new Map(),
       body: buildBallBody(Math.min(cam.followScale * 1.5, 3), save.skin),
@@ -127,7 +136,7 @@ function evict(k) {
  * graphique fait ce morceau tout de suite, au lieu de tout faire d'un coup quand la feuille arrive
  * à l'écran.
  */
-let lastDt = 0, skipped = 0, toFlush = null;
+let lastDt = 0, skipped = 0, toFlush = null, lastFrame = performance.now();
 function prepare() {
   const k = Math.floor(ball.x / SHEET), t0 = performance.now();
   // pause si l'image d'avant a été longue, mais pas plus de 3 images de suite, ni quand la feuille
@@ -325,6 +334,7 @@ function frame(now) {
   const paused = menu.isOpen || portrait() || infoOpen;
   turn.hidden = !portrait();
   newFrame();
+  updateResources(cam.x + cam.viewW / 2, now); // images du décor : celles des saisons proches seulement
   mark('mise à jour');
   if (!paused) update(dt);
   else {
@@ -338,6 +348,8 @@ function frame(now) {
   updateRecap(paused ? 0 : dt);
   mark(null);
   meter(dt);
+  autoQuality((now - lastFrame) / 1000, !paused && !fading && launched);
+  lastFrame = now;
   requestAnimationFrame(frame);
 }
 
@@ -612,7 +624,7 @@ function render(dt) {
   mark('papier');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   // le papier est caché par le ciel dès qu'il est chargé (sauf hors du parcours, où le ciel s'arrête)
-  if (!skyReady() || x0 < 0 || x1 > SHEET * SHEETS) drawPaper(ctx, W, H, cam);
+  if (!skyReady(cam.x + cam.viewW / 2) || x0 < 0 || x1 > SHEET * SHEETS) drawPaper(ctx, W, H, cam);
   // petit tremblement de caméra aux gros atterrissages
   cam.shake = Math.max(0, (cam.shake || 0) - dt * 3);
   const sh = (cam.shake || 0) * 10 * cam.dpr, ox = (Math.random() - 0.5) * sh, oy = (Math.random() - 0.5) * sh;
@@ -695,6 +707,25 @@ function render(dt) {
   }
 }
 
+/* ---------- qualité automatique : si le téléphone n'arrive pas à suivre (moins de 50 images par
+   seconde pendant trois mesures de 2 s d'affilée, en jeu), la résolution baisse d'un cran (2 → 1,5 → 1)
+   et le choix est gardé pour la fois suivante ---------- */
+const auto = { t: 0, n: 0, slow: 0 };
+function autoQuality(dt, playing) {
+  if (save.options.quality || !playing || document.hidden) { auto.t = auto.n = 0; return; }
+  auto.t += dt;
+  auto.n++;
+  if (auto.t < 2) return;
+  const fps = auto.n / auto.t;
+  auto.t = auto.n = 0;
+  auto.slow = fps < 50 ? auto.slow + 1 : 0;
+  const cur = Math.min(dprCap(), devicePixelRatio || 1);
+  if (auto.slow < 3 || cur <= 1) return;
+  auto.slow = 0;
+  save.setOption('autoDpr', cur > 1.5 ? 1.5 : 1);
+  resize();
+}
+
 /* ---------- compteur d'images par seconde : #fps dans l'adresse, touche F, ou Options ---------- */
 
 let meterOn = location.hash === '#fps' || !!save.options.fps, frames = 0, acc = 0, worst = 0;
@@ -708,7 +739,7 @@ function meter(dt) {
   const mem = performance.memory ? ` · mémoire JS ${Math.round(performance.memory.usedJSHeapSize / 1048576)} Mo` : '';
   const top = profil.top(3).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(' · ');
   const d = profil.topDraws(2), draws = `dessins ${Math.round(d.total)} (${d.top.map(([k, v]) => `${k} ${Math.round(v)}`).join(', ')})`;
-  fpsBox.textContent = `${Math.round(frames / acc)} img/s · pire ${Math.round(worst * 1000)} ms · calcul ${(profil.total / Math.max(1, profil.frames)).toFixed(1)} ms (pire ${profil.worst.toFixed(0)}) · ${top} · ${draws} · feuilles ${art.ink.size}${mem} · particules ${weather.parts.length}`;
+  fpsBox.textContent = `${Math.round(frames / acc)} img/s · pire ${Math.round(worst * 1000)} ms · calcul ${(profil.total / Math.max(1, profil.frames)).toFixed(1)} ms (pire ${profil.worst.toFixed(0)}) · ${top} · ${draws} · images ${Math.round(loadedMB())} Mo · résolution ${cam.dpr} · feuilles ${art.ink.size}${mem} · particules ${weather.parts.length}`;
   profil.reset();
   fpsBox.hidden = false;
   frames = 0;
@@ -735,11 +766,17 @@ function fadeJump(action) {
   setTimeout(() => {
     action();
     cam.update(1, ball, true); // la caméra arrive directement au nouvel endroit
-    // les feuilles du nouvel endroit sont préparées sous le voile, puis il s'efface
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      veil.classList.remove('plein');
-      fading = false;
-    }));
+    // les images du nouvel endroit se chargent et les feuilles se préparent sous le voile (1,5 s au plus)
+    const cx = cam.x + cam.viewW / 2, t0 = performance.now();
+    updateResources(cx, t0, true);
+    const open = () => {
+      if (!readyAt(cx) && performance.now() - t0 < 1500) return requestAnimationFrame(open);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        veil.classList.remove('plein');
+        fading = false;
+      }));
+    };
+    open();
   }, 300);
 }
 const restartFromStart = () => fadeJump(() => restart(true));
@@ -767,6 +804,7 @@ const menu = new Menu($('menu'), {
   options: (k) => {
     applyOptions();
     if (k === 'wideLandscape') refreshButtons();
+    if (k === 'quality') resize();
     if (k === 'fps') { meterOn = !!save.options.fps; fpsBox.hidden = !meterOn; countDraws(meterOn); }
   },
   skin: (id) => {
