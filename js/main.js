@@ -631,6 +631,7 @@ function onEvent(e) {
     showRecap(game.finishLevel(k - 1));
     game.enterLevel(k, false);
     saveProgress();
+    save.prefetchGhost(k + 1); // le fantôme du niveau suivant, lu à l'avance
   } else if (e.type === 'clink') {
     fx.clink(ball.x, ball.y, e.power);
     sound.clink(e.power);
@@ -998,7 +999,8 @@ const firstSound = (e) => {
 addEventListener('pointerup', firstSound, true);
 addEventListener('touchend', firstSound, true);
 const fullscreen = setupFullscreen($('plein-ecran'), $('astuce'), $('demande-plein'), () => save.options.autoFullscreen);
-addEventListener('pagehide', () => { saveProgress(); diag.keepSummary(diagEnv()); });
+addEventListener('pagehide', () => { saveProgress(); save.flush(); diag.keepSummary(diagEnv()); });
+addEventListener('visibilitychange', () => { if (document.hidden) save.flush(); });
 
 let resizeTimer = 0;
 addEventListener('resize', () => {

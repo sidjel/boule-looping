@@ -24,9 +24,36 @@ try {
   }
 } catch { /* pas de stockage */ }
 
-function write() {
-  try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { /* pas de stockage */ }
+/**
+ * Les écritures (et le fantôme d'un niveau) sont faites à un moment calme du navigateur, groupées,
+ * pas pendant l'image où la boule passe d'un niveau à l'autre ; en quittant la page, tout est écrit
+ * tout de suite (save.flush).
+ */
+let dirty = false;
+const pendingGhosts = new Map();
+const idle = (f) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(f, { timeout: 1500 }) : setTimeout(f, 300));
+let scheduled = false;
+function schedule() {
+  if (scheduled) return;
+  scheduled = true;
+  idle(flush);
 }
+function flush() {
+  scheduled = false;
+  if (dirty) {
+    dirty = false;
+    try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { /* pas de stockage */ }
+  }
+  for (const [k, ghost] of pendingGhosts) {
+    try { localStorage.setItem(`${KEY}-fantome-${k}`, JSON.stringify(ghost)); } catch { /* plein */ }
+  }
+  pendingGhosts.clear();
+}
+function write() {
+  dirty = true;
+  schedule();
+}
+const ghostCache = new Map(); // fantômes déjà lus (et décodés)
 
 export const save = {
   get options() { return data.options; },
@@ -45,11 +72,21 @@ export const save = {
   setLevel(k, best, ghost) {
     data.levels[k] = best;
     write();
-    if (ghost) try { localStorage.setItem(`${KEY}-fantome-${k}`, JSON.stringify(ghost)); } catch { /* plein */ }
+    if (ghost) { pendingGhosts.set(k, ghost); ghostCache.set(k, ghost); schedule(); }
   },
   ghost(k) {
-    try { return JSON.parse(localStorage.getItem(`${KEY}-fantome-${k}`) || 'null'); } catch { return null; }
+    if (ghostCache.has(k)) return ghostCache.get(k);
+    let g = null;
+    try { g = JSON.parse(localStorage.getItem(`${KEY}-fantome-${k}`) || 'null'); } catch { /* rien */ }
+    ghostCache.set(k, g);
+    return g;
   },
+  /** Lit à l'avance (moment calme) le fantôme d'un niveau. */
+  prefetchGhost(k) {
+    if (!ghostCache.has(k)) idle(() => this.ghost(k));
+  },
+  /** Écrit tout de suite ce qui attend (en quittant la page). */
+  flush,
   get skin() { return data.skin; },
   setSkin(id) {
     data.skin = id;
