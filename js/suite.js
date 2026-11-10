@@ -11,6 +11,7 @@
  * de la pluie puis du soir à l'arrivée (tools/decouper-hiver-pluie.py, images/hiver/, images/pluie/).
  */
 import { biomeMix } from './biomes.js';
+import { ahead } from './avance.js';
 
 const KIND = { 'Été': 'ete', Automne: 'automne', Hiver: 'hiver', Pluie: 'pluie', 'Arrivée': 'arrivee' };
 const img = {};
@@ -18,6 +19,7 @@ for (const k of Object.values(KIND)) {
   const i = new Image();
   i.decoding = 'async';
   i.src = `images/automne/suite-${k}.webp`;
+  i.decode?.().catch(() => {}); // décodée tout de suite, pas au premier dessin (à-coup)
   img[k] = i;
 }
 const ok = (i) => i && i.complete && i.naturalWidth > 0;
@@ -29,6 +31,7 @@ for (const k of Object.keys(RAIN)) {
   const i = new Image();
   i.decoding = 'async';
   i.src = `images/pluie/pluie-${k}.webp`;
+  i.decode?.().catch(() => {}); // décodée tout de suite, pas au premier dessin (à-coup)
   RAIN[k] = i;
 }
 const rainKind = (name) => (name === 'Arrivée' ? 'arrivee' : 'pluie');
@@ -37,6 +40,7 @@ for (const k of ['entree', 'boucle', 'sortie']) {
   const i = new Image();
   i.decoding = 'async';
   i.src = `images/hiver/${k}.webp`;
+  i.decode?.().catch(() => {}); // décodée tout de suite, pas au premier dessin (à-coup)
   snow[k] = i;
 }
 
@@ -130,8 +134,13 @@ export function drawSuite(g, ox, oy, x0, x1, worldOf) {
     g.drawImage(im.src, im.sx, 0, w / S * R, im.src.height, x, y, w + 0.5, H);
     return false;
   };
-  // les champs, jusqu'au début du paysage d'hiver
-  for (let k = 0; k <= winter.k; k++) if (hayPiece(k, k === winter.k ? winter.entree.u + 1 : undefined)) return;
+  // les champs, jusqu'au début du paysage d'hiver (le morceau suivant est préparé à l'avance)
+  for (let k = 0; k <= winter.k; k++) {
+    if (hayPiece(k, k === winter.k ? winter.entree.u + 1 : undefined)) {
+      ahead(() => cache.has(k), () => pieceImage(k, worldOf));
+      return;
+    }
+  }
   // le paysage d'hiver : entrée, répétitions, sortie
   const seg = (img, u, w) => {
     const x = ox + u;
@@ -144,7 +153,7 @@ export function drawSuite(g, ox, oy, x0, x1, worldOf) {
   const P = winter.pluie;
   for (let j = Math.max(0, Math.floor((x0 - ox - P.u) / P.w)); j < 400; j++) {
     const x = ox + P.u + j * P.w;
-    if (x > x1) break;
+    if (x > x1) { ahead(() => rainCache.has(j), () => rainImage(j, worldOf)); break; }
     const im = rainImage(j, worldOf);
     if (im) g.drawImage(im, x, y, P.w + 0.5, H);
   }

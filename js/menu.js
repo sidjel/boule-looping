@@ -90,7 +90,8 @@ export class Menu {
         ${check('vibrate', 'Vibrations (téléphone)')}
         ${check('autoFullscreen', 'Proposer le plein écran au lancement')}
         ${check('wideLandscape', 'En paysage, commencer en vue d’ensemble')}
-        ${check('labels', 'Écrire le nom des bonus au-dessus des boules')}`);
+        ${check('labels', 'Écrire le nom des bonus au-dessus des boules')}
+        ${check('fps', 'Afficher le compteur d’images par seconde (fluidité)')}`);
     } else if (screen === 'credits') {
       html = card('Crédits', `<p><b>Idée, dessins et décors d'origine</b><br>sidjel — la route au crayon, le looping, le soleil, les nuages et la boule rouge viennent de ses dessins.</p>
         <p><b>Programmation, niveaux 2 à 16, saisons</b><br>écrits avec Claude (Anthropic), d'après les demandes de l'auteur.</p>

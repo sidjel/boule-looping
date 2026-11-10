@@ -63,10 +63,15 @@ export function hatch(ctx, rand, x0, y0, x1, y1, opts) {
 }
 
 /** Petite tuile de bruit, réutilisée pour le grain du papier et des traits. */
+const tilesCache = new Map();
 export function noiseTile(size, seed, dark = true) {
+  const key = `${size},${seed},${dark}`;
+  if (tilesCache.has(key)) return tilesCache.get(key);
   const c = document.createElement('canvas');
   c.width = c.height = size;
-  const g = c.getContext('2d'), img = g.createImageData(size, size), rand = rng(seed);
+  // en mémoire (pas sur la carte graphique) : les feuilles, préparées en mémoire, s'en servent ; une
+  // tuile sur la carte graphique devrait y être relue, ce qui bloque l'affichage (saccade)
+  const g = c.getContext('2d', { willReadFrequently: true }), img = g.createImageData(size, size), rand = rng(seed);
   for (let i = 0; i < img.data.length; i += 4) {
     const v = rand();
     const fiber = v > 0.985 ? 0.5 : 0;
@@ -75,6 +80,7 @@ export function noiseTile(size, seed, dark = true) {
     img.data[i + 3] = Math.round(255 * (v * v * 0.35 + fiber));
   }
   g.putImageData(img, 0, 0);
+  tilesCache.set(key, c);
   return c;
 }
 

@@ -15,6 +15,7 @@ for (const k of Object.values(KIND)) {
   const i = new Image();
   i.decoding = 'async';
   i.src = `images/ciel/${k}.webp`;
+  i.decode?.().catch(() => {}); // décodée tout de suite, pas au premier dessin (à-coup)
   img[k] = i;
 }
 const ok = (i) => i && i.complete && i.naturalWidth > 0;
@@ -22,6 +23,9 @@ let meta = null;
 fetch('images/ciel/ciel.json').then((r) => r.json()).then((m) => (meta = m)).catch(() => {});
 
 const Q = 0.9, ANCHOR = 1200, TOP = -260, SCALE = 2.27;
+
+/** Le ciel couvre tout l'écran dès que ses images sont prêtes : le papier dessous est alors inutile. */
+export const skyReady = () => !!meta && Object.values(img).every(ok);
 
 function paint(g, cam, kind, alpha) {
   const i = img[kind];

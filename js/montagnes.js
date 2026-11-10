@@ -7,6 +7,7 @@
  * la brume de l'horizon (aux niveaux 1 et 2, les champs passent devant).
  */
 import { biomeMix } from './biomes.js';
+import { ahead } from './avance.js';
 
 const KIND = { 'Été': 'ete', Automne: 'automne', Hiver: 'hiver', Pluie: 'pluie', 'Arrivée': 'arrivee' };
 const img = {};
@@ -14,6 +15,7 @@ for (const k of Object.values(KIND)) {
   const i = new Image();
   i.decoding = 'async';
   i.src = `images/montagnes/${k}.webp`;
+  i.decode?.().catch(() => {}); // décodée tout de suite, pas au premier dessin (à-coup)
   img[k] = i;
 }
 const ok = (i) => i && i.complete && i.naturalWidth > 0;
@@ -58,8 +60,10 @@ export function drawMountains(ctx, cam) {
   const w = TW, h = (i0.naturalHeight * w) / i0.naturalWidth;
   const ox = Q * (cx - ANCHOR), y = PEAKS + Q * 0.5 * (cy - 716);
   if (y > cam.y + cam.viewH || y + h < cam.y) return;
-  for (let k = Math.floor((cam.x - ox) / w) - 1; ox + k * w < cam.x + cam.viewW; k++) {
+  let k = Math.floor((cam.x - ox) / w) - 1;
+  for (; ox + k * w < cam.x + cam.viewW; k++) {
     const src = tileImage(k);
     if (src) ctx.drawImage(src, ox + k * w, y, w + 1, h);
   }
+  ahead(() => tiles.has(k), () => tileImage(k)); // la bande suivante, à l'avance
 }

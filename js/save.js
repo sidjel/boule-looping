@@ -6,7 +6,7 @@
 const KEY = 'boule-looping';
 
 const DEFAULTS = {
-  options: { music: 0.8, sfx: 1, vibrate: true, autoFullscreen: true, wideLandscape: true, labels: true },
+  options: { music: 0.8, sfx: 1, vibrate: true, autoFullscreen: true, wideLandscape: true, labels: true, fps: false },
   progress: null,          // { level, time, loops, bonuses, jumps }
   scores: [],              // [{ name, time, score, stars, loops, bonuses, date }]
   lastName: '',

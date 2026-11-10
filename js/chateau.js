@@ -11,6 +11,7 @@ for (const [k, src] of [['fond', 'images/niveau3/fond.webp'], ['drapeaux', 'imag
   const i = new Image();
   i.decoding = 'async';
   i.src = src;
+  i.decode?.().catch(() => {}); // décodée tout de suite, pas au premier dessin (à-coup)
   img[k] = i;
 }
 const ok = (i) => i && i.complete && i.naturalWidth > 0;

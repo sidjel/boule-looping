@@ -25,6 +25,7 @@ const LOOK = {
 const base = new Image();
 base.decoding = 'async';
 base.src = 'images/niveau0/soleil.webp';
+base.decode?.().catch(() => {}); // décodée tout de suite, pas au premier dessin (à-coup)
 const variants = {};
 /** Le disque teinté pour une saison (préparé une fois). */
 function variant(kind) {
@@ -32,7 +33,7 @@ function variant(kind) {
   if (!(base.complete && base.naturalWidth)) return null;
   const c = document.createElement('canvas');
   c.width = base.naturalWidth; c.height = base.naturalHeight;
-  const g = c.getContext('2d');
+  const g = c.getContext('2d', { willReadFrequently: true }); // lecture des pixels : en mémoire
   g.drawImage(base, 0, 0);
   const [r, gg, b] = LOOK[kind].tint;
   if (r < 255 || gg < 255 || b < 255) {
@@ -45,6 +46,9 @@ function variant(kind) {
   variants[kind] = c;
   return c;
 }
+
+// toutes les teintes dès le chargement (pas pendant le jeu, au premier changement de saison)
+base.addEventListener('load', () => { for (const k of Object.keys(LOOK)) variant(k); });
 
 const lerp = (a, b, t) => a + (b - a) * t;
 

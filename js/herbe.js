@@ -7,6 +7,7 @@
  */
 import { WORLD } from './track.js';
 import { biomeMix } from './biomes.js';
+import { ahead } from './avance.js';
 
 const KINDS = { 'Été': 'ete', Automne: 'automne', Hiver: 'hiver', Pluie: 'pluie', 'Arrivée': 'ete' };
 const img = {};
@@ -14,6 +15,7 @@ for (const k of ['ete', 'automne', 'hiver', 'pluie']) {
   const i = new Image();
   i.decoding = 'async';
   i.src = `images/herbe/${k}.webp`;
+  i.decode?.().catch(() => {}); // décodée tout de suite, pas au premier dessin (à-coup)
   img[k] = i;
 }
 const ok = (i) => i && i.complete && i.naturalWidth > 0;
@@ -69,17 +71,30 @@ export class Grass {
     const ox = -Q * (cx - ANCHOR);
     // un souffle doux, en rafales
     const gust = 0.09 * Math.sin(t * 1.3) + 0.04 * Math.sin(t * 2.7 + 1) + 0.02 * Math.sin(t * 5.1) + 0.03;
-    const ROW = 8, k0 = Math.floor((cam.x - ox) / w) - 1, k1 = Math.ceil((cam.x + cam.viewW - ox) / w);
-    const y0 = Math.max(0, cam.y - top);
+    // seulement les bandes à l'écran (le haut de l'herbe penche d'au plus |gust|·h vers la droite)
+    const vx0 = cam.x, vx1 = cam.x + cam.viewW, lean = Math.abs(gust) * h + 2;
+    const k0 = Math.floor((vx0 - lean - ox) / w), k1 = Math.floor((vx1 + lean - ox) / w);
+    const y0 = Math.max(0, cam.y - top), yEnd = Math.min(h, cam.y + cam.viewH - top);
+    // fines bandes horizontales : le pied fixe, le haut penche (pas de coupure dans les brins) ;
+    // plus hautes vers le pied, où l'herbe bouge peu (le décalage d'une bande à l'autre reste petit)
+    const rows = [];
+    for (let y = Math.floor(y0 / 8) * 8; y < yEnd;) {
+      const lift = (h - y) / h, slope = 2 * Math.abs(gust) * lift;
+      const rh = Math.min(h - y, Math.max(8, Math.min(64, Math.round(1.2 / Math.max(slope, 0.01)))));
+      rows.push([y, rh, gust * h * lift * lift]);
+      y += rh;
+    }
     for (let k = k0; k <= k1; k++) {
       const src = tileImage(k);
       if (!src) continue;
-      const sc = src.height / h;
-      // fines bandes horizontales : le pied fixe, le haut penche (pas de coupure dans les brins)
-      for (let y = Math.floor(y0 / ROW) * ROW; y < h; y += ROW) {
-        const lift = (h - y) / h, dx = gust * h * lift * lift, rh = Math.min(ROW, h - y);
-        ctx.drawImage(src, 0, y * sc, src.width, rh * sc, ox + k * w + dx, top + y, w + 1, rh + 0.5);
+      const sc = src.height / h, sw = src.width / w, tx = ox + k * w;
+      for (const [y, rh, dx] of rows) {
+        // la partie de la bande à l'écran seulement
+        const a = Math.max(vx0, tx + dx), b = Math.min(vx1, tx + dx + w);
+        if (b <= a) continue;
+        ctx.drawImage(src, (a - tx - dx) * sw, y * sc, (b - a) * sw, rh * sc, a, top + y, b - a + 1, rh + 0.5);
       }
     }
+    ahead(() => tiles.has(k1 + 1), () => tileImage(k1 + 1)); // la bande suivante, à l'avance
   }
 }

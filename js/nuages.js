@@ -17,6 +17,7 @@ for (const n of NAMES) for (const k of Object.values(KIND)) {
   const i = new Image();
   i.decoding = 'async';
   i.src = `images/nuages/${n}-${k}.webp`;
+  i.decode?.().catch(() => {}); // décodée tout de suite, pas au premier dessin (à-coup)
   img[`${n}-${k}`] = i;
 }
 const ok = (i) => i && i.complete && i.naturalWidth > 0;

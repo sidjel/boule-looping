@@ -27,7 +27,9 @@ export function* inkSteps(track, q, sheet) {
   const c = document.createElement('canvas');
   c.width = Math.ceil(SHEET * q);
   c.height = Math.ceil(WORLD.h * q);
-  const g = c.getContext('2d');
+  // canevas en mémoire (pas sur la carte graphique) : chaque morceau du dessin est fait tout de suite,
+  // dans les 5 ms par image prévues ; sur la carte graphique, tout serait payé d'un coup à la fin
+  const g = c.getContext('2d', { willReadFrequently: true });
   g.scale(q, q);
   g.translate(-sheet * SHEET, 0);
   const x0 = sheet * SHEET - 120, x1 = (sheet + 1) * SHEET + 120, bio = (x) => biomeOfSheet(Math.floor(x / SHEET));
@@ -386,12 +388,15 @@ function* paintEarthAndRoad(g, track, x0, x1) {
   g.restore();
   yield;
   drawTunnels(g, track, x0, x1);
-  track.pieces.forEach((pc, i) => {
-    if (pc.line[pc.line.length - 1][0] < x0 - 60 || pc.line[0][0] > x1 + 60) return;
+  yield;
+  // la route, morceau par morceau (une pause après chacun : jamais plus de quelques ms d'affilée)
+  for (const [i, pc] of track.pieces.entries()) {
+    if (pc.line[pc.line.length - 1][0] < x0 - 60 || pc.line[0][0] > x1 + 60) continue;
     icy(g, pc, i, x0, x1);
     pencilLine(g, pc.line, rng(77 + i * 10), { color: '#3a2a1f', width: 6.5, alpha: 0.6, passes: 4, wobble: 1.4 });
     pencilLine(g, pc.line, rng(78 + i * 10), { color: '#1d140e', width: 2.6, alpha: 0.5, passes: 2, wobble: 0.9 });
-  });
+    yield;
+  }
   drawPuddles(g, track, x0, x1);
   yield;
 }

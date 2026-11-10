@@ -17,6 +17,8 @@ import { Effects } from './effects.js';
 import { Bonuses, BONUS_INFO } from './bonus.js';
 import { Weather } from './weather.js';
 import { Hay } from './foin.js';
+import { mark, profil } from './profil.js';
+import { newFrame } from './avance.js';
 import { biomeAt, biomeOfSheet } from './biomes.js';
 import { save } from './save.js';
 import { Menu, scoreTable } from './menu.js';
@@ -24,13 +26,14 @@ import { Game, skinPhys, medalTimes } from './game.js';
 import { drawObstacles, drawPlanks, obstaclesOf } from './obstacles.js';
 import { Balade, baladeLoaded } from './balade.js';
 import { Grass } from './herbe.js';
-import { drawSky } from './ciel.js';
+import { drawSky, skyReady } from './ciel.js';
 import { drawSoleil } from './soleil.js';
 import { drawMountains } from './montagnes.js';
 import { moveNuages, drawNuages } from './nuages.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('jeu'), ctx = canvas.getContext('2d');
+profil.ctx = ctx;
 const hint = $('consigne'), zoomBtn = $('zoom'), musicBtn = $('musique');
 const forkLow = $('chemin-bas'), forkHigh = $('chemin-haut'), turn = $('tourner');
 const hud = $('hud'), finish = $('fin'), fpsBox = $('fps'), info = $('info'), gauges = $('effets');
@@ -83,6 +86,13 @@ const visible = (k) => cam.x < (k + 1) * SHEET && cam.x + cam.viewW > k * SHEET;
 // on redessine les feuilles préparées sans elle
 baladeLoaded.then(() => { if (art) { art.ink.clear(); art.pending.clear(); } });
 
+/** Feuille finie : rangée, puis remplacée par une image figée (ImageBitmap), affichée sans être renvoyée. */
+function storeInk(k, c) {
+  art.ink.set(k, c);
+  const a = art;
+  if (window.createImageBitmap) createImageBitmap(c).then((b) => { if (a.ink.get(k) === c) a.ink.set(k, b); }).catch(() => {});
+}
+
 function inkFor(k) {
   if (!art.ink.has(k)) {
     const gen = art.pending.get(k);
@@ -93,7 +103,7 @@ function inkFor(k) {
       canvasK = r.value;
       art.pending.delete(k);
     } else canvasK = buildInk(track, art.q, k);
-    art.ink.set(k, canvasK);
+    storeInk(k, canvasK);
     evict(k);
   }
   return art.ink.get(k);
@@ -117,7 +127,7 @@ function prepare() {
     while (performance.now() - t0 < 5) {
       const r = gen.next();
       if (r.done) {
-        art.ink.set(n, r.value);
+        storeInk(n, r.value);
         art.pending.delete(n);
         evict(n);
         break;
@@ -257,11 +267,15 @@ function frame(now) {
   time += dt;
   const paused = menu.isOpen || portrait() || infoOpen;
   turn.hidden = !portrait();
+  newFrame();
+  mark('mise à jour');
   if (!paused) update(dt);
   else cam.update(dt, ball);
   render(paused ? 0 : dt * timeScale);
+  mark('boutons');
   placeForkButtons();
   updateRecap(paused ? 0 : dt);
+  mark(null);
   meter(dt);
   requestAnimationFrame(frame);
 }
@@ -302,6 +316,7 @@ function update(realDt) {
   if (run.running) run.time += realDt;
   const ballScreenX = ((ball.x - cam.x) * cam.scale) / cam.dpr;
   const push = input.push(ballScreenX);
+  mark('physique');
   const steps = Math.ceil(dt * 600);
   for (let i = 0; i < steps; i++) {
     const vy0 = ball.vy, wasAir = !ball.onTrack;
@@ -313,6 +328,7 @@ function update(realDt) {
     }
     for (const e of ball.events.splice(0)) onEvent(e);
   }
+  mark('jeu');
   const got = game.update(dt, ball);
   if (got) {
     feat('star');
@@ -338,17 +354,22 @@ function update(realDt) {
     showInfo(hit.color);
   }
   if (!run.finished && ball.x > FINISH.x) arrive();
+  mark('décor (calcul)');
   moveNuages(dt);
   summer.update(dt, cam);
   grass.update(dt);
+  mark('météo (calcul)');
   weather.update(dt, cam, ball.clock);
   hay.update(dt, cam, weather.wind());
+  mark('effets (calcul)');
   fx.follow(ball, dt);
   fx.update(dt);
   cam.update(realDt, ball);
   if (time % 0.25 < realDt) refreshButtons();
   if (time - lastSave > 5 && run.running) { lastSave = time; saveProgress(); }
+  mark('feuilles (préparation)');
   prepare();
+  mark('son, texte');
   const b = ball.biome();
   sound.update(ball.speed(), ball.onTrack, { ice: b.snow > 0.5, rain: biomeAt(cam.x + cam.viewW / 2).rain, gust: b.wind * weather.wind() });
   const sheet = Math.max(0, Math.min(SHEETS - 1, Math.floor(ball.x / SHEET))), bio = biomeOfSheet(sheet);
@@ -527,8 +548,10 @@ function recordScore() {
 
 function render(dt) {
   const W = canvas.width, H = canvas.height, s = cam.scale, x0 = cam.x, x1 = cam.x + cam.viewW;
+  mark('papier');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  drawPaper(ctx, W, H, cam);
+  // le papier est caché par le ciel dès qu'il est chargé (sauf hors du parcours, où le ciel s'arrête)
+  if (!skyReady() || x0 < 0 || x1 > SHEET * SHEETS) drawPaper(ctx, W, H, cam);
   // petit tremblement de caméra aux gros atterrissages
   cam.shake = Math.max(0, (cam.shake || 0) - dt * 3);
   const sh = (cam.shake || 0) * 10 * cam.dpr, ox = (Math.random() - 0.5) * sh, oy = (Math.random() - 0.5) * sh;
@@ -537,32 +560,55 @@ function render(dt) {
   ctx.beginPath();
   ctx.rect(0, cam.y - 10, SHEET * SHEETS, cam.viewH + 20);
   ctx.clip();
+  mark('ciel');
   drawSky(ctx, cam); // le ciel de la saison, sur tous les niveaux
+  mark('soleil');
   drawSoleil(ctx, cam, time); // le soleil, qui descend vers les montagnes au fil des saisons
+  mark('montagnes');
   drawMountains(ctx, cam); // les montagnes, de la couleur de la saison
+  mark('nuages');
   drawNuages(ctx, cam); // les nuages, deux rangs, de la couleur de la saison
+  mark('champs et paysages');
   summer.drawFar(ctx, cam); // la balade en couleurs : ciel, soleil, nuages, montagnes, champs, moulin, ferme
+  mark('foin');
   hay.drawFar(ctx); // automne : poussière et brins de foin au-dessus des champs
+  mark('oiseaux');
   drawBirds(ctx, time, dt, x0, x1);
-  for (let k = Math.max(0, Math.floor(x0 / SHEET)); k <= Math.min(SHEETS - 1, Math.floor(x1 / SHEET)); k++) {
-    ctx.drawImage(inkFor(k), k * SHEET, 0, SHEET, WORLD.h);
+  mark('feuilles (terre, route)');
+  // seulement la partie visible de chaque feuille (les mêmes feuilles que visible() : pas de feuille
+  // dessinée puis aussitôt oubliée, à refaire à chaque image)
+  const vy0 = Math.max(0, cam.y - 10), vy1 = Math.min(WORLD.h, cam.y + cam.viewH + 10);
+  for (let k = Math.max(0, Math.floor(x0 / SHEET)); k < Math.min(SHEETS, Math.ceil(x1 / SHEET)); k++) {
+    const c = inkFor(k), q = c.width / SHEET, a = Math.max(x0 - 2, k * SHEET), b = Math.min(x1 + 2, (k + 1) * SHEET);
+    if (b <= a || vy1 <= vy0) continue;
+    ctx.drawImage(c, (a - k * SHEET) * q, vy0 * q, (b - a) * q, (vy1 - vy0) * q, a, vy0, b - a, vy1 - vy0);
   }
+  mark('aiguillages');
   drawForks(ctx, track, time, x0, x1, slow ? 1 : 0);
   ctx.restore();
+  mark('table');
   drawTable(ctx, cam);
+  mark('obstacles');
   drawPlanks(ctx, track, x0, x1);
   drawObstacles(ctx, track, x0, x1, art.q);
+  mark('manches à air');
   drawWindsocks(ctx, track, weather.wind(), time, x0, x1);
+  mark('étoiles, fantôme, bonus');
   game.drawStars(ctx, x0, x1, time);
   game.drawGhost(ctx);
   bonuses.draw(ctx, time, x0, x1, save.options.labels);
+  mark('boule et effets');
   fx.drawHeat(ctx, ball);
   fx.drawSpeed(ctx, ball);
   drawBall(ctx, art.body, ball, track, time, save.skin);
   fx.draw(ctx);
+  mark('foin');
   hay.drawNear(ctx); // automne : brins de foin qui passent tout près
+  mark('herbe');
   grass.draw(ctx, cam); // l'herbe fleurie du premier plan, au vent, sur tout le parcours
+  mark('météo');
   weather.draw(ctx);
+  mark('ralenti, trace');
   // ralenti : écran légèrement bleuté, bords assombris
   const k = Math.max(0, Math.min(1, (1 - timeScale) / (1 - SLOW)));
   if (k > 0.01) {
@@ -579,9 +625,9 @@ function render(dt) {
   fx.drawTrail(ctx, input.liveTrail(), input.holding() ? input.active.last : null);
 }
 
-/* ---------- compteur caché : #fps dans l'adresse, ou touche F ---------- */
+/* ---------- compteur d'images par seconde : #fps dans l'adresse, touche F, ou Options ---------- */
 
-let meterOn = location.hash === '#fps', frames = 0, acc = 0, worst = 0;
+let meterOn = location.hash === '#fps' || !!save.options.fps, frames = 0, acc = 0, worst = 0;
 function meter(dt) {
   if (!meterOn) return;
   frames++;
@@ -589,7 +635,9 @@ function meter(dt) {
   worst = Math.max(worst, dt);
   if (acc < 0.5) return;
   const mem = performance.memory ? ` · mémoire JS ${Math.round(performance.memory.usedJSHeapSize / 1048576)} Mo` : '';
-  fpsBox.textContent = `${Math.round(frames / acc)} img/s · pire ${Math.round(worst * 1000)} ms · feuilles ${art.ink.size}${mem} · particules ${weather.parts.length}`;
+  const top = profil.top(3).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(' · ');
+  fpsBox.textContent = `${Math.round(frames / acc)} img/s · pire ${Math.round(worst * 1000)} ms · calcul ${(profil.total / Math.max(1, profil.frames)).toFixed(1)} ms (pire ${profil.worst.toFixed(0)}) · ${top} · feuilles ${art.ink.size}${mem} · particules ${weather.parts.length}`;
+  profil.reset();
   fpsBox.hidden = false;
   frames = 0;
   acc = 0;
@@ -604,24 +652,50 @@ function applyOptions() {
   cam.wideBy.landscape = o.wideLandscape;
 }
 
+/* ---------- fondu : pour changer d'endroit d'un coup (nouvelle partie, retour au niveau 1, partie
+   reprise), sans voyage de la caméra à travers tout le parcours ---------- */
+const veil = $('fondu');
+let fading = false;
+function fadeJump(action) {
+  if (fading) return;
+  fading = true;
+  veil.classList.add('plein');
+  setTimeout(() => {
+    action();
+    cam.update(1, ball, true); // la caméra arrive directement au nouvel endroit
+    // les feuilles du nouvel endroit sont préparées sous le voile, puis il s'efface
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      veil.classList.remove('plein');
+      fading = false;
+    }));
+  }, 300);
+}
+const restartFromStart = () => fadeJump(() => restart(true));
+
+/** Reprendre la partie enregistrée (au début du niveau atteint). */
+function continueSaved() {
+  const p = save.progress;
+  if (!p) return restart(true);
+  ball.respawn(p.level);
+  game.reset();
+  game.enterLevel(p.level);
+  game.score = p.score || 0;
+  Object.assign(run, { time: p.time, running: false, finished: false, loops: p.loops, bonuses: p.bonuses });
+  launched = false;
+  hint.classList.remove('cache');
+}
+
 const menu = new Menu($('menu'), {
-  newGame: () => { finish.hidden = true; restart(true); fullscreen.start(); },
+  newGame: () => { finish.hidden = true; restartFromStart(); fullscreen.start(); },
   resume: () => {},
   continueSaved: () => {
     fullscreen.start();
-    const p = save.progress;
-    if (!p) return restart(true);
-    ball.respawn(p.level);
-    game.reset();
-    game.enterLevel(p.level);
-    game.score = p.score || 0;
-    Object.assign(run, { time: p.time, running: false, finished: false, loops: p.loops, bonuses: p.bonuses });
-    launched = false;
-    hint.classList.remove('cache');
+    fadeJump(continueSaved);
   },
   options: (k) => {
     applyOptions();
     if (k === 'wideLandscape') refreshButtons();
+    if (k === 'fps') { meterOn = !!save.options.fps; fpsBox.hidden = !meterOn; }
   },
   skin: (id) => {
     save.setSkin(id);
@@ -639,7 +713,7 @@ const replay = $('rejouer');
 let pressTimer = 0, longPress = false;
 replay.addEventListener('pointerdown', () => {
   longPress = false;
-  pressTimer = setTimeout(() => { longPress = true; restart(true); fx.text('Retour au niveau 1', ball.x + 200, ball.y - 150); }, 700);
+  pressTimer = setTimeout(() => { longPress = true; fadeJump(() => { restart(true); fx.text('Retour au niveau 1', ball.x + 200, ball.y - 150); }); }, 700);
 });
 replay.addEventListener('pointerup', () => clearTimeout(pressTimer));
 replay.addEventListener('pointerleave', () => clearTimeout(pressTimer));
@@ -652,8 +726,8 @@ forkHigh.addEventListener('click', () => pick('b'));
 $('menu-btn').addEventListener('click', openMenu);
 $('enregistrer').addEventListener('click', recordScore);
 $('nom').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') recordScore(); });
-$('rejouer-fin').addEventListener('click', () => { finish.hidden = true; restart(true); });
-$('fin-menu').addEventListener('click', () => { finish.hidden = true; restart(true); menu.open(false); });
+$('rejouer-fin').addEventListener('click', () => { finish.hidden = true; restartFromStart(); });
+$('fin-menu').addEventListener('click', () => { finish.hidden = true; menu.open(false); restartFromStart(); });
 addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   if (k === 'escape') { if (menu.isOpen) { if (menu.paused) menu.close(); } else openMenu(); return; }
@@ -686,4 +760,4 @@ applyOptions();
 resize();
 menu.open(false);
 requestAnimationFrame(frame);
-window.__boule = { ball, track, cam, sound, bonuses, weather, hay, summer, restart, menu, run, pick };
+window.__boule = { ball, track, cam, sound, bonuses, weather, hay, summer, art: () => art, restart, menu, run, pick };

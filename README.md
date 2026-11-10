@@ -100,7 +100,8 @@ tout est fabriqué dans le navigateur (Web Audio), sans fichier son, donc sans d
 - **Doigt posé** : la boule roule doucement vers le doigt.
 - **Loupe** (en bas à droite) : passe de la vue d'ensemble (tout le parcours) au zoom sur la boule.
   En paysage, la vue d'ensemble est le réglage de départ ; en portrait, c'est le zoom.
-- **↺** : recommencer le niveau en cours ; appui long : retour au niveau 1.
+- **↺** : recommencer le niveau en cours ; appui long : retour au niveau 1, en fondu (pas de voyage
+  de la caméra à travers le parcours ; de même pour « Nouvelle partie » et « Continuer »).
 - **Plein écran** (en haut à droite, visible dès le menu) : au lancement, une fenêtre demande
   « Jouer en plein écran ? » (Oui / Non merci ; option « Proposer le plein écran au lancement ») ; sur iPhone,
   ajouter le jeu à l'écran d'accueil (Partager → « Sur l'écran d'accueil »), il s'ouvre alors en plein écran.
@@ -143,4 +144,19 @@ virages, étoiles à portée de saut) et fait jouer chaque niveau, et chaque che
 par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même robot sans jamais sauter.
 
 ## Mesurer la fluidité
-Ajouter `#fps` à l'adresse (ou touche F) : images par seconde, pire image, feuilles en mémoire.
+- **Dans le jeu** : Options → « Afficher le compteur d'images par seconde », ou `#fps` à la fin de
+  l'adresse, ou touche F. En bas de l'écran : images par seconde, pire image, temps de calcul d'une
+  image et les trois étapes les plus coûteuses (`js/profil.js` mesure chaque étape : ciel, montagnes,
+  champs et paysages, feuilles, herbe, météo…).
+- **Sur tout le parcours** (Playwright) : `node tools/mesurer-fps.mjs` pose la boule tous les 250 px
+  et donne les points les plus lents avec leurs causes et un résumé par niveau ;
+  `node tools/mesurer-fps.mjs --partie --dpr 1` joue une partie entière (aiguillages et bonus choisis
+  tout seuls) et note chaque saccade avec l'endroit et l'étape fautive. Options : `--pc`, `--pas`,
+  `--de`/`--a`, `--json`, `--sans-gpu` (tout en logiciel), `--rapide`. Le navigateur de test n'a pas de
+  vraie carte graphique : il est bien plus lent qu'un téléphone, mais il montre où et pourquoi ça coince.
+- **Règles qui évitent les saccades** : les feuilles (terre, route) se préparent sur un canevas en
+  mémoire, par morceaux de quelques ms, puis deviennent une image figée (ImageBitmap) ; tout canevas
+  dont on lit les pixels ou qui sert aux feuilles est en mémoire (`willReadFrequently`) — jamais de
+  lecture depuis la carte graphique ; les images sont décodées dès le chargement ; les morceaux de
+  paysage aux couleurs mêlées (passages de saison) sont préparés à l'avance, un par image au plus
+  (`js/avance.js`) ; le papier n'est pas dessiné sous le ciel ; l'herbe n'est dessinée qu'à l'écran.

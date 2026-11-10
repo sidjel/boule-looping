@@ -88,6 +88,9 @@
     .jauge { isolation: isolate; }
     .jauge.blue i { background: #4d82cf; } .jauge.yellow i { background: #d6a524; }
     /* menu et cartes */
+    /* fondu pour changer d'endroit d'un coup (nouvelle partie, retour au niveau 1) */
+    #fondu { position: absolute; inset: 0; background: #ebe8df; opacity: 0; pointer-events: none; transition: opacity .3s ease-out; }
+    #fondu.plein { opacity: 1; transition: opacity .28s ease-in; }
     #menu, #fin { position: absolute; inset: 0; display: grid; place-items: center; overflow: auto; padding: 16px 0;
       background: rgba(226,224,218,.6); backdrop-filter: blur(2px); }
     #menu[hidden], #fin[hidden] { display: none; }
@@ -213,6 +216,7 @@
     <button id="rejouer-fin" type="button">Nouvelle partie</button>
     <button id="fin-menu" type="button">Menu</button>
   </div></div>
+  <div id="fondu"></div>
   <div id="menu" hidden></div>
   <div id="fps" hidden></div>
   <div id="tourner" hidden>
