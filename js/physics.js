@@ -3,8 +3,11 @@
  * - Sur la route : mouvement le long du chemin du centre, accélération 5/7·g·sinθ
  *   (inertie d'une sphère pleine), frottement de roulement proportionnel à la réaction.
  * - La route est une gouttière : la bille reste dedans sur les bosses (sauf à la lèvre d'un
- *   tremplin). Sous un surplomb (haut d'un looping), si la réaction devient négative, elle
- *   tombe : parabole, rebond, reprise.
+ *   tremplin). Dans un looping, elle reste plaquée à la paroi : sans assez d'élan, elle ne tombe
+ *   pas, elle redescend en marche arrière le long de la courbe (track.js : pc.inLoop). Sous un
+ *   autre surplomb, si la réaction devient négative, elle tombe : parabole, rebond, reprise.
+ * - Vitesse plafonnée (SPEED.cap, le long de la route et pour les lancers) ; la boule rouge
+ *   permet de dépasser un peu ce plafond pendant son effet, puis la vitesse y revient en douceur.
  * - Saisons : sur la glace elle glisse (accélère davantage, presque sans frottement, répond
  *   moins aux gestes, surtout pour revenir en arrière) ; le vent d'automne la pousse ;
  *   les flaques et l'eau la freinent.
@@ -18,7 +21,14 @@ import { hitObstacles, windCalm } from './obstacles.js';
 export const G = 2400;            // px/s² (≈ 1 m pour 245 px)
 const AIR = 0.00009;              // traînée de l'air (par px)
 const STATIC = 70;                // px/s² : en dessous, la bille reste posée
-const V_MAX = 4200;
+/**
+ * Plafond de vitesse le long de la route (px/s). Au-dessus (élan de la boule rouge, descente),
+ * la vitesse redescend vers lui en douceur (OVER px/s² de freinage) ; les lancers au doigt ne le
+ * dépassent jamais. redCap : plafond pendant l'effet de la boule rouge (part du plafond).
+ */
+export const SPEED = { cap: 1696, redCap: 1.15, stickLoops: true }; // stickLoops : plaquée dans les loopings
+const OVER = 2600;
+const V_MAX = 4200;               // limite absolue (sécurité)
 const BOOST = 950;                // px/s ajoutés par la boule rouge
 const BOND = 1250;                // px/s d'élan vers le haut donnés par la boule verte
 const HOP_REST = 0.35;            // s entre deux sauts
@@ -89,9 +99,12 @@ export class Ball {
   bonus(kind) {
     this.fx[kind] = BONUS[kind].time;
     if (kind === 'red') {
-      if (this.onTrack) this.v = clamp(this.v + (this.v < -1 ? -1 : 1) * BOOST, -V_MAX, V_MAX);
-      else {
-        const sp = Math.hypot(this.vx, this.vy) || 1, k = (sp + BOOST) / sp;
+      const cap = SPEED.cap * SPEED.redCap;
+      if (this.onTrack) {
+        const dir = this.v < -1 ? -1 : 1;
+        this.v = dir * Math.max(Math.abs(this.v), Math.min(cap, Math.abs(this.v) + BOOST));
+      } else {
+        const sp = Math.hypot(this.vx, this.vy) || 1, k = Math.max(sp, Math.min(cap, sp + BOOST)) / sp;
         this.vx *= k;
         this.vy *= k;
       }
@@ -143,7 +156,9 @@ export class Ball {
   impulse(wx, wy) {
     if (!this.onTrack) return false;
     const p = this.frame();
-    this.v = clamp(this.v + this.control(wx * p.tx + wy * p.ty), -V_MAX, V_MAX);
+    // un lancer ne dépasse pas le plafond (mais ne freine pas une boule déjà plus rapide)
+    const nv = this.v + this.control(wx * p.tx + wy * p.ty), lim = Math.max(SPEED.cap, Math.abs(this.v));
+    this.v = clamp(nv, -lim, lim);
     return true;
   }
 
@@ -173,8 +188,9 @@ export class Ball {
     let p = this.frame();
     // Réaction de la route (par unité de masse).
     let N = this.v * this.v * p.k - G * grav * p.ny;
+    const looping = SPEED.stickLoops && this.pc.inLoop[p.i] === 1;
     if (N < 0) {
-      const glued = this.fx.blue > 0;
+      const glued = this.fx.blue > 0 || looping; // dans un looping : plaquée à la paroi
       if (p.ny > 0.15 && !glued) return this.takeOff(p);
       const z = this.pc.jump[p.i];
       if (z && this.v > 0 && !glued) {
@@ -188,13 +204,19 @@ export class Ball {
     if (b.wind) along += b.roll * windAt(this.clock) * b.wind * this.skin.wind * windCalm(this.tr, this.x) * p.tx;
     let resist = b.roll * b.rollRes * this.skin.rollRes * N + AIR * this.v * this.v;
     resist += this.puddleDrag(p);
-    if (Math.abs(this.v) < 6 && Math.abs(along) < STATIC + resist) {
+    if (Math.abs(this.v) < 6 && Math.abs(along) < STATIC + resist && !(looping && p.ny > 0)) {
       this.v = 0;
+    } else if (looping && p.ny > 0 && Math.abs(this.v) < 6 && Math.abs(along) < STATIC) {
+      // arrêtée à l'envers tout en haut (équilibre instable) : elle redescend par où elle est venue
+      this.v = this.lastS > this.s ? 8 : -8;
     } else {
       const dir = this.v !== 0 ? Math.sign(this.v) : Math.sign(along);
       const nv = this.v + (along - dir * resist) * dt;
       this.v = this.v !== 0 && Math.sign(nv) !== Math.sign(this.v) && Math.abs(along) < resist ? 0 : nv;
     }
+    // au-dessus du plafond : retour en douceur (plafond plus haut pendant l'effet de la boule rouge)
+    const cap = this.fx.red > 0 ? SPEED.cap * SPEED.redCap : SPEED.cap;
+    if (Math.abs(this.v) > cap) this.v = Math.sign(this.v) * Math.max(cap, Math.abs(this.v) - OVER * dt);
     this.v = clamp(this.v, -V_MAX, V_MAX);
     this.lastS = this.s;
     this.s += this.v * dt;
@@ -203,7 +225,7 @@ export class Ball {
       if (this.v < -40) this.events.push({ type: 'clink', power: -this.v });
       this.v = -this.v * 0.35;
     }
-    for (const top of this.pc.loopTops) if (this.lastS < top && this.s >= top) this.events.push({ type: 'loop' });
+    for (const top of this.pc.loopTops) if (this.lastS < top && this.s >= top) this.events.push({ type: 'loop', pc: this.pc.name, top });
     // passage d'un tronçon à l'autre
     if (this.s > this.pc.length) {
       if (this.pc.next) {

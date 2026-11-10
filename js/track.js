@@ -92,7 +92,8 @@ function buildPiece(name, def) {
     if (J.piece && J.piece !== name) return;
     for (let i = 0; i < n; i++) if (x[i] > J.x0 && x[i] < J.x1 && y[i] < J.yMax) jump[i] = z + 1;
   });
-  return { name, line, x, y, tx, ty, k, jump, n, step: STEP, length: (n - 1) * STEP, loopTops: [], puddles: [], platform: !!def.platform };
+  // inLoop : la partie d'un looping où la boule roule à l'envers (remplie par buildTrack)
+  return { name, line, x, y, tx, ty, k, jump, inLoop: new Uint8Array(n), n, step: STEP, length: (n - 1) * STEP, loopTops: [], puddles: [], platform: !!def.platform };
 }
 
 export function buildTrack() {
@@ -120,6 +121,12 @@ export function buildTrack() {
     let top = -1;
     for (let i = 0; i < pc.n; i++) if (pc.x[i] > a && pc.x[i] < b && (top < 0 || pc.y[i] < pc.y[top])) top = i;
     pc.loopTops.push(top * STEP);
+    // la boule y est plaquée (physics.js) : du sommet, de part et d'autre, tant que la route est
+    // au-dessus d'elle (normale vers le bas, ny = -tx > 0), plus 12 points de marge
+    let i0 = top, i1 = top;
+    while (i0 > 0 && -pc.tx[i0 - 1] > -0.05) i0--;
+    while (i1 < pc.n - 1 && -pc.tx[i1 + 1] > -0.05) i1++;
+    for (let i = Math.max(0, i0 - 12); i <= Math.min(pc.n - 1, i1 + 12); i++) pc.inLoop[i] = 1;
   }
   const main = p.main;
   track.sMin = indexWhere(main, (i) => main.x[i] >= BALL_R) * STEP;

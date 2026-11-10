@@ -139,6 +139,9 @@ par exemple `npx serve .` ou `python3 -m http.server`.
 Settings → Pages → Source : « Deploy from a branch », branche `main`, dossier `/ (root)`.
 
 ## Vérifier les niveaux
+Physique (js/physics.js) : dans un looping, la boule reste plaquée à la paroi (sans assez d'élan, elle
+redescend en marche arrière, elle ne décroche plus) ; vitesse plafonnée à 1 696 px/s le long de la route
+(SPEED.cap), jusqu'à 1 950 px/s pendant l'effet de la boule rouge, retour au plafond en douceur.
 `node tools/verifier-niveaux.mjs` : contrôle la géométrie (place dans chaque feuille, hauteur,
 virages, étoiles à portée de saut) et fait jouer chaque niveau, et chaque chemin des aiguillages,
 par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même robot sans jamais sauter.
