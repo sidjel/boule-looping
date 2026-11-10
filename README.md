@@ -144,6 +144,16 @@ virages, étoiles à portée de saut) et fait jouer chaque niveau, et chaque che
 par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même robot sans jamais sauter.
 
 ## Mesurer la fluidité
+- **Diagnostic automatique** (`js/diagnostic.js`) : pendant toute la partie, le jeu note l'intervalle
+  réel entre deux images et, à part, le temps de calcul JavaScript de chaque étape, les appels
+  drawImage par étape, la position de la boule et de la caméra, les particules, le contexte (looping,
+  passage de saison, passage de niveau, vue d'ensemble). Historique circulaire de 10 s ; images
+  longues classées (> 20, 25, 33, 50 ms), regroupées en événements ; les 5 plus importants sont gardés
+  avec 1 s avant et 0,5 s après. Journal : chargements et décodages d'images, canevas créés ou
+  agrandis, préparations à l'avance et des feuilles, changements de résolution. Options → « Exporter
+  le diagnostic » (partage ou téléchargement d'un fichier JSON), « Copier », « Afficher » (zone de
+  texte, si le reste est bloqué), « Remettre à zéro ». Un résumé est gardé en quittant la page
+  (« Exporter la session précédente »). Coût mesuré : environ 0,002 ms par image.
 - **Dans le jeu** : Options → « Afficher le compteur d'images par seconde », ou `#fps` à la fin de
   l'adresse, ou touche F. En bas de l'écran : images par seconde, pire image, temps de calcul d'une
   image et les trois étapes les plus coûteuses (`js/profil.js` mesure chaque étape : ciel, montagnes,

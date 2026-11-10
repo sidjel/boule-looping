@@ -20,7 +20,9 @@ import { Hay } from './foin.js';
 import { mark, profil, countDraws } from './profil.js';
 import { newFrame } from './avance.js';
 import { updateResources, readyAt, loadedMB } from './ressources.js';
-import { biomeAt, biomeOfSheet } from './biomes.js';
+import { biomeAt, biomeOfSheet, biomeMix } from './biomes.js';
+import { LOOP_ZONES } from './levels.js';
+import * as diag from './diagnostic.js';
 import { save } from './save.js';
 import { Menu, scoreTable } from './menu.js';
 import { Game, skinPhys, medalTimes } from './game.js';
@@ -71,6 +73,7 @@ let art = null;
 const dprCap = () => save.options.quality || save.options.autoDpr || 2;
 function resize() {
   const dpr = Math.min(dprCap(), devicePixelRatio || 1);
+  if (cam.dpr !== dpr) diag.note(`résolution ${cam.dpr} → ${dpr}`);
   canvas.width = Math.round(innerWidth * dpr);
   canvas.height = Math.round(innerHeight * dpr);
   cam.resize(canvas.width, canvas.height, dpr);
@@ -99,6 +102,7 @@ baladeLoaded.then(() => { if (art) { art.ink.clear(); art.pending.clear(); } });
 /** Feuille finie : rangée (canevas sur la carte graphique, ink.js). */
 function storeInk(k, c) {
   art.ink.set(k, c);
+  diag.note(`feuille ${k + 1} prête`);
 }
 
 function inkFor(k) {
@@ -153,6 +157,7 @@ function prepare() {
       const holder = { reuse: art.spare };
       art.spare = null;
       art.pending.set(n, { gen: inkSteps(track, art.q, n, holder), holder });
+      diag.note(`feuille ${n + 1} : préparation${holder.reuse ? ' (canevas réutilisé)' : ''}`);
     }
     const job = art.pending.get(n);
     do {
@@ -177,6 +182,8 @@ const warmStart = performance.now();
 function warmUp() {
   // deux passages (le second pour les images arrivées entre-temps), après le chargement
   const t = performance.now() - warmStart;
+  // seulement avant la première partie, la boule au début (en pleine partie, le menu ne fait rien)
+  if (launched || ball.x > 3 * SHEET) { warmed = 2; return; }
   if (warmed >= 2 || t < 1200 + warmed * 3000) return;
   const step = cam.viewW * 0.8, x = warmAt * step;
   if (x > 3 * SHEET) { warmed++; warmAt = 0; return; }
@@ -334,6 +341,7 @@ function frame(now) {
   const paused = menu.isOpen || portrait() || infoOpen;
   turn.hidden = !portrait();
   newFrame();
+  mark('images (chargement)');
   updateResources(cam.x + cam.viewW / 2, now); // images du décor : celles des saisons proches seulement
   mark('mise à jour');
   if (!paused) update(dt);
@@ -346,8 +354,10 @@ function frame(now) {
   mark('boutons');
   placeForkButtons();
   updateRecap(paused ? 0 : dt);
+  const js = performance.now() - profil.start;
   mark(null);
   meter(dt);
+  record(now - lastFrame, js, !paused && !fading && launched && !document.hidden);
   autoQuality((now - lastFrame) / 1000, !paused && !fading && launched);
   lastFrame = now;
   requestAnimationFrame(frame);
@@ -707,6 +717,60 @@ function render(dt) {
   }
 }
 
+/* ---------- diagnostic automatique des ralentissements (js/diagnostic.js) ---------- */
+const loopNear = (x) => LOOP_ZONES.some(([name, a, b]) => ball.pc && ball.pc.name === name && x > a - 250 && x < b + 250);
+const frameInfo = {};
+function record(dtMs, js, playing) {
+  const cx = cam.x + cam.viewW / 2, lv = Math.max(0, Math.min(SHEETS - 1, Math.floor(ball.x / SHEET)));
+  const m = biomeMix(cx), local = ball.x - lv * SHEET;
+  frameInfo.level = lv;
+  frameInfo.biome = m.t > 0 ? `${m.a.name} → ${m.b.name}` : m.a.name;
+  frameInfo.bx = ball.x; frameInfo.by = ball.y; frameInfo.bv = ball.speed();
+  frameInfo.cx = cam.x; frameInfo.cy = cam.y; frameInfo.cs = cam.scale;
+  frameInfo.parts = weather.parts.length + hay.far.length + hay.near.length + fx.items.length;
+  frameInfo.loop = loopNear(ball.x);
+  frameInfo.season = m.t > 0;
+  frameInfo.sheet = local < 600 || local > SHEET - 300 || art.pending.size > 0;
+  frameInfo.wide = cam.wide;
+  diag.frame(dtMs, js, playing, frameInfo);
+}
+/** Informations sur l'appareil et le jeu, pour le rapport. */
+function diagEnv() {
+  return {
+    appareil: navigator.userAgent, ecran: `${screen.width}×${screen.height}`, fenetre: `${innerWidth}×${innerHeight}`,
+    densite_ecran: devicePixelRatio, resolution_du_jeu: cam.dpr, canevas: `${canvas.width}×${canvas.height}`,
+    qualite: ({ 0: 'automatique', 2: 'haute', 1.5: 'moyenne', 1: 'économique' })[save.options.quality] ?? save.options.quality,
+    resolution_automatique_retenue: save.options.autoDpr,
+    processeurs: navigator.hardwareConcurrency || null, memoire_appareil_go: navigator.deviceMemory || null,
+    plein_ecran: !!document.fullscreenElement, vue_ensemble: !!cam.wide, images_decor_mo: Math.round(loadedMB()),
+  };
+}
+function exportDiagnostic(previous = false) {
+  const r = previous ? diag.previousReport() : diag.report(diagEnv());
+  if (!r) return false;
+  const text = JSON.stringify(r, null, 1);
+  const name = `diagnostic-boule-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
+  const blob = new Blob([text], { type: 'application/json' });
+  const file = typeof File === 'function' ? new File([blob], name, { type: 'application/json' }) : null;
+  // téléphone : la feuille de partage (Fichiers, e-mail, Drive…) ; sinon, un téléchargement
+  if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+    navigator.share({ files: [file], title: 'Diagnostic' }).catch(() => download(blob, name));
+  } else download(blob, name);
+  return true;
+}
+function download(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+}
+function copyDiagnostic() {
+  const text = JSON.stringify(diag.report(diagEnv()));
+  return navigator.clipboard?.writeText(text).then(() => true, () => false) ?? Promise.resolve(false);
+}
+
 /* ---------- qualité automatique : si le téléphone n'arrive pas à suivre (moins de 50 images par
    seconde pendant trois mesures de 2 s d'affilée, en jeu), la résolution baisse d'un cran (2 → 1,5 → 1)
    et le choix est gardé pour la fois suivante ---------- */
@@ -723,13 +787,13 @@ function autoQuality(dt, playing) {
   if (auto.slow < 3 || cur <= 1) return;
   auto.slow = 0;
   save.setOption('autoDpr', cur > 1.5 ? 1.5 : 1);
+  diag.note(`qualité automatique : trop lent (${fps.toFixed(0)} img/s), résolution baissée`);
   resize();
 }
 
 /* ---------- compteur d'images par seconde : #fps dans l'adresse, touche F, ou Options ---------- */
 
 let meterOn = location.hash === '#fps' || !!save.options.fps, frames = 0, acc = 0, worst = 0;
-countDraws(meterOn);
 function meter(dt) {
   if (!meterOn) return;
   frames++;
@@ -805,7 +869,16 @@ const menu = new Menu($('menu'), {
     applyOptions();
     if (k === 'wideLandscape') refreshButtons();
     if (k === 'quality') resize();
-    if (k === 'fps') { meterOn = !!save.options.fps; fpsBox.hidden = !meterOn; countDraws(meterOn); }
+    if (k === 'fps') { meterOn = !!save.options.fps; fpsBox.hidden = !meterOn; }
+  },
+  diagPrevious: () => !!diag.previousReport(),
+  diagText: () => JSON.stringify(diag.report(diagEnv())),
+  diag: (what) => {
+    if (what === 'export') return exportDiagnostic() ? 'Rapport créé : choisis où l’enregistrer ou l’envoyer.' : 'Rien à exporter.';
+    if (what === 'previous') return exportDiagnostic(true) ? 'Rapport de la session précédente créé.' : 'Pas de session précédente.';
+    if (what === 'copy') return copyDiagnostic().then((ok) => (ok ? 'Rapport copié : colle-le dans un message.' : 'Copie impossible ici : utilise « Exporter ».'));
+    if (what === 'reset') { diag.resetDiagnostic(); return 'Statistiques remises à zéro.'; }
+    return '';
   },
   skin: (id) => {
     save.setSkin(id);
@@ -849,7 +922,7 @@ addEventListener('keydown', (e) => {
   if ((k === 'arrowdown' || k === 's') && near) pick('a');
   if (k === 'a') toggleFork();
   if ((k === 'enter' || k === ' ') && infoOpen) closeInfo();
-  if (k === 'f') { meterOn = !meterOn; fpsBox.hidden = !meterOn; countDraws(meterOn); }
+  if (k === 'f') { meterOn = !meterOn; fpsBox.hidden = !meterOn; }
   sound.unlock();
 });
 // Le son ne peut démarrer qu'après un geste : premier toucher, clic ou touche.
@@ -859,7 +932,7 @@ const firstSound = (e) => {
 addEventListener('pointerup', firstSound, true);
 addEventListener('touchend', firstSound, true);
 const fullscreen = setupFullscreen($('plein-ecran'), $('astuce'), $('demande-plein'), () => save.options.autoFullscreen);
-addEventListener('pagehide', saveProgress);
+addEventListener('pagehide', () => { saveProgress(); diag.keepSummary(diagEnv()); });
 
 let resizeTimer = 0;
 addEventListener('resize', () => {

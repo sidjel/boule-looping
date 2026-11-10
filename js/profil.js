@@ -24,6 +24,7 @@ export const profil = {
   onFrame: null,    // appelé à la fin de chaque image : onFrame(ms, étapes) (outil)
   draws: {},        // dessins cumulés par étape depuis reset() (si countDraws)
   frameDraws: {},   // dessins de l'image en cours
+  frameImages: {},  // appels drawImage de l'image en cours, par étape
   counting: false,
   reset() {
     this.sum = {}; this.max = {}; this.frames = 0; this.total = 0; this.worst = 0; this.draws = {};
@@ -44,7 +45,7 @@ export function mark(name) {
   if (profil.sync && profil.ctx) profil.ctx.getImageData(0, 0, 1, 1);
   const t = now();
   if (profil.cur) profil.frame[profil.cur] = (profil.frame[profil.cur] || 0) + t - profil.t;
-  else if (name) { profil.start = t; profil.frame = {}; profil.frameDraws = {}; }
+  else if (name) { profil.start = t; profil.frame = {}; profil.frameDraws = {}; profil.frameImages = {}; }
   profil.cur = name;
   profil.t = t;
   if (name) return;
@@ -70,8 +71,12 @@ export function countDraws(on) {
   const P = CanvasRenderingContext2D.prototype;
   for (const m of ['fill', 'stroke', 'fillRect', 'strokeRect', 'drawImage', 'fillText', 'strokeText', 'clip']) {
     const orig = P[m];
+    const image = m === 'drawImage';
     P[m] = function (...a) {
-      if (profil.counting && this === profil.ctx && profil.cur) profil.frameDraws[profil.cur] = (profil.frameDraws[profil.cur] || 0) + 1;
+      if (profil.counting && this === profil.ctx && profil.cur) {
+        profil.frameDraws[profil.cur] = (profil.frameDraws[profil.cur] || 0) + 1;
+        if (image) profil.frameImages[profil.cur] = (profil.frameImages[profil.cur] || 0) + 1;
+      }
       return orig.apply(this, a);
     };
   }

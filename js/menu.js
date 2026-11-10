@@ -92,7 +92,15 @@ export class Menu {
         ${check('wideLandscape', 'En paysage, commencer en vue d’ensemble')}
         ${check('labels', 'Écrire le nom des bonus au-dessus des boules')}
         <label class="ligne">Qualité d’image <select data-opt="quality">${[[0, 'Automatique'], [2, 'Haute'], [1.5, 'Moyenne'], [1, 'Économique']].map(([v, t]) => `<option value="${v}"${o.quality === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
-        ${check('fps', 'Afficher le compteur d’images par seconde (fluidité)')}`);
+        ${check('fps', 'Afficher le compteur d’images par seconde (fluidité)')}
+        <h3>Diagnostic de fluidité</h3>
+        <p class="petit-texte">Le jeu note tout seul chaque ralentissement pendant la partie. Après une partie, exporte le rapport et envoie-le.</p>
+        <button data-do="diag-export" class="petit">Exporter le diagnostic</button>
+        <button data-do="diag-copy" class="petit">Copier</button>
+        <button data-do="diag-show" class="petit">Afficher</button>
+        <button data-do="diag-reset" class="petit">Remettre à zéro</button>
+        ${this.actions.diagPrevious?.() ? '<button data-do="diag-previous" class="petit">Exporter la session précédente</button>' : ''}
+        <p id="diag-msg" class="petit-texte"></p>`);
     } else if (screen === 'credits') {
       html = card('Crédits', `<p><b>Idée, dessins et décors d'origine</b><br>sidjel — la route au crayon, le looping, le soleil, les nuages et la boule rouge viennent de ses dessins.</p>
         <p><b>Programmation, niveaux 2 à 16, saisons</b><br>écrits avec Claude (Anthropic), d'après les demandes de l'auteur.</p>
@@ -111,6 +119,22 @@ export class Menu {
     if (what === 'continue') { this.close(); this.actions.continueSaved(); }
     if (what === 'new') { this.close(); this.actions.newGame(); }
     if (what === 'clear') { save.clearScores(); this.show('scores'); }
+    if (what && what.startsWith('diag-')) {
+      const msg = this.root.querySelector('#diag-msg'), say = (m) => { if (msg) msg.textContent = m; };
+      if (what === 'diag-show') {
+        // dernier recours (partage et téléchargement bloqués) : le rapport dans une zone de texte
+        const box = document.createElement('textarea');
+        box.readOnly = true;
+        box.className = 'rapport';
+        box.value = this.actions.diagText();
+        msg?.after(box);
+        box.focus();
+        box.select();
+        say('Rapport affiché : tout est sélectionné, copie-le.');
+        return;
+      }
+      Promise.resolve(this.actions.diag(what.slice(5))).then(say);
+    }
     if (t.dataset.skin) { this.actions.skin(t.dataset.skin); this.show('boules'); }
   }
 

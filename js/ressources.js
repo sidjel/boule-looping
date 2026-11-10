@@ -15,6 +15,7 @@
  */
 import { biomeMix } from './biomes.js';
 import { SHEET, SHEETS } from './levels.js';
+import { note } from './diagnostic.js';
 
 export const NEAR = 3200, FAR = 6500;
 const all = [];
@@ -34,19 +35,24 @@ function load(p) {
   i.decoding = 'async';
   p.img = i;
   p.state = 'loading';
+  const name = p.src.split('/').slice(-2).join('/'), t0 = performance.now();
+  note(`chargement ${name}`);
+  let tl = 0;
   const done = () => {
     if (p.img !== i || !i.naturalWidth) return;
     p.w = i.naturalWidth;
     p.h = i.naturalHeight;
     p.state = 'on';
+    note(`image prête ${name} ${p.w}×${p.h} (${((p.w * p.h * 4) / 1048576).toFixed(1)} Mo ; reçue ${Math.round(tl - t0)} ms, décodée ${Math.round(performance.now() - tl)} ms)`);
   };
-  i.onload = () => { if (i.decode) i.decode().then(done, done); else done(); };
+  i.onload = () => { tl = performance.now(); if (i.decode) i.decode().then(done, done); else done(); };
   i.onerror = () => { if (p.img === i) { p.img = null; p.state = 'off'; p.failed = true; } };
   i.src = p.src;
 }
 
 function release(p) {
   const i = p.img;
+  note(`libérée ${p.src.split('/').slice(-2).join('/')}`);
   p.img = null;
   p.state = 'off';
   if (p.onRelease) p.onRelease(p, i);
