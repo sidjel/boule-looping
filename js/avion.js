@@ -23,7 +23,6 @@ const Q = 0.3, ANCHOR = 1200;     // dans le plan des montagnes (montagnes.js)
 const VMIN = 20, VMAX = 1300;     // vitesse dans son plan (px/s) : jamais de sur-place
 const ACCEL = 120;                // px/s² : il change de vitesse en douceur
 const WIDTH = 300;                // largeur au départ (monde), 0,55 fois moins à la fin (il s'éloigne)
-const CLIMB = 700;                // montée totale, de son départ jusqu'au-dessus de l'écran
 
 const pic = picture('images/avion/avion.webp', rangeNeed(START - 2000, END + 2000));
 let meta = null;
@@ -34,6 +33,7 @@ fetch('images/avion/avion.json').then((r) => r.json()).then((m) => (meta = m)).c
  * vitesse ; camV : vitesse de la caméra (lissée) ; state : 'avant' (pas encore parti), 'vol', 'fini'.
  */
 const plane = { state: 'avant', u: 0, u0: 0, u1: 1, v: 80, lastCx: 0, camV: 0 };
+if (typeof window !== 'undefined') window.__avion = plane; // (outils de mesure)
 const layer = (cx) => Q * (cx - ANCHOR);
 const progress = () => Math.max(0, Math.min(1, (plane.u - plane.u0) / (plane.u1 - plane.u0)));
 /** Là où on s'attend à le voir à l'écran (part de la largeur), selon son avancée. */
@@ -86,11 +86,16 @@ export function drawAvion(ctx, cam, time) {
   if (plane.state !== 'vol' || !meta || !ready(pic)) return;
   const s = progress(), cx = cam.x + cam.viewW / 2, cy = cam.y + cam.viewH / 2;
   const x = plane.u + layer(cx);
-  const y = HIDE.y - CLIMB * s ** 1.4 + Q * 0.5 * (cy - 716) + 5 * Math.sin(time * 0.8) + 2 * Math.sin(time * 2.1);
+  // hauteur, en part de la hauteur de l'écran : il part à l'altitude de la butte (vue d'ensemble : à
+  // 0,39 de la hauteur, derrière elle) ; en vue suivie, où l'on ne voit qu'une bande de ciel, il part
+  // dans le haut de l'écran (au moins 0,11). Il monte de plus en plus franchement (s^2,2 : il reste bas
+  // longtemps) jusqu'à sortir par le haut (−0,12) au bout de l'automne, dans les deux vues.
+  const fy0 = Math.min(0.42, Math.max(0.11, (HIDE.y + Q * 0.5 * (cy - 716) - cam.y) / cam.viewH));
+  const y = cam.y + cam.viewH * (fy0 + (-0.12 - fy0) * s ** 2.2) + 5 * Math.sin(time * 0.8) + 2 * Math.sin(time * 2.1);
   const w = WIDTH * (1 - 0.45 * s), h = (w * meta.h) / meta.w;
   if (x + w < cam.x || x - w > cam.x + cam.viewW || y + h < cam.y || y - h > cam.y + cam.viewH) return;
   // assiette : le nez suit à moitié la pente de sa montée (au plus 10°), et se balance un peu
-  const slope = Math.atan2(-CLIMB * 1.4 * s ** 0.4, plane.u1 - plane.u0);
+  const slope = Math.atan2(-(fy0 + 0.12) * cam.viewH * 2.2 * s ** 1.2, plane.u1 - plane.u0);
   const pitch = Math.max(-0.18, slope * 0.55) + 0.015 * Math.sin(time * 1.1);
   ctx.save();
   ctx.globalAlpha = 0.92 - 0.12 * s; // voilé par l'air, de plus en plus en s'éloignant
