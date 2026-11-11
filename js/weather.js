@@ -5,7 +5,7 @@
 import { biomeShare, rainAt, windAt } from './biomes.js';
 import { makeAtlas, drawSprite } from './sprites.js';
 
-const MAX = { leaf: 45, snow: 90, rain: 220 };
+const MAX = { leaf: 45, snow: 130, rain: 220 };
 const LEAF = ['#c9772d', '#b5502a', '#d9a23a', '#8f5a2a'];
 
 // feuilles (une par couleur) et flocon, dessinés une fois sur une planche
