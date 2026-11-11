@@ -102,11 +102,11 @@ export function biomeShare(x, key) {
 }
 
 /**
- * La pluie qui tombe en x (0 à 1) : aux niveaux 13 et 14 seulement. Aux niveaux 15 et 16, le soleil se
- * couche : la pluie cesse peu à peu autour du début du niveau 15 (± BLEND px). La saison reste la
+ * La pluie qui tombe en x (0 à 1) : aux niveaux 13, 14 et 15 seulement. Au niveau 16, le soleil se
+ * couche : la pluie cesse peu à peu autour du début du niveau 16 (± BLEND px). La saison reste la
  * pluie (route, flaques, physique) : seules les gouttes et leur bruit s'arrêtent.
  */
-export const RAIN_END = 14 * SHEET;
+export const RAIN_END = 15 * SHEET;
 export function rainAt(x) {
   return biomeShare(x, 'rain') * Math.max(0, Math.min(1, (RAIN_END + BLEND - x) / (2 * BLEND)));
 }
