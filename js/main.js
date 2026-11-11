@@ -226,6 +226,7 @@ const wanted = () => wantedWithDistance().map(([k]) => k);
  */
 let lastView = '', redraw = true; // (redraw : redessiner même en pause, ex. après un réglage)
 let lastDt = 0, skipped = 0, toFlush = null, lastFrame = performance.now(), frameAvg = 1 / 60, stepsPerSheet = 14;
+let veilGrad = null; // dégradé du ralenti (render)
 let obstacleSheet = -1; // feuille tout juste préparée : ses obstacles reçoivent leur image, un par image du jeu
 function prepare() {
   if (obstacleSheet >= 0) {
@@ -802,11 +803,18 @@ function render(dt) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = `rgba(70,95,150,${0.13 * k})`;
     ctx.fillRect(0, 0, W, H);
-    const v = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
-    v.addColorStop(0, 'rgba(30,35,60,0)');
-    v.addColorStop(1, `rgba(30,35,60,${0.35 * k})`);
-    ctx.fillStyle = v;
+    // bords assombris : le dégradé est fait une fois par taille d'écran, à son plus fort, puis posé
+    // plus ou moins transparent (avant : recréé à chaque image du ralenti)
+    if (!veilGrad || veilGrad.W !== W || veilGrad.H !== H) {
+      const v = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+      v.addColorStop(0, 'rgba(30,35,60,0)');
+      v.addColorStop(1, 'rgba(30,35,60,0.35)');
+      veilGrad = { v, W, H };
+    }
+    ctx.globalAlpha = k;
+    ctx.fillStyle = veilGrad.v;
     ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
   }
   ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
   fx.drawTrail(ctx, input.liveTrail(), input.holding() ? input.active.last : null);

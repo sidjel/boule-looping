@@ -11,6 +11,7 @@
 import { SHEET, SHEETS, STARS, BALL_R } from './track.js';
 import { biomeOfSheet } from './biomes.js';
 import { save } from './save.js';
+import { twoAtlases, drawSprite } from './sprites.js';
 
 const R = BALL_R;
 const COMBO_WINDOW = 3;     // s
@@ -136,42 +137,22 @@ export class Game {
     return [g[i * 2] + (g[i * 2 + 2] - g[i * 2]) * u, g[i * 2 + 1] + (g[i * 2 + 3] - g[i * 2 + 1]) * u];
   }
 
-  /** Étoiles au crayon : qui tournent doucement, scintillent, et s'envolent quand on les prend. */
+  /**
+   * Étoiles au crayon : qui tournent doucement, scintillent, et s'envolent quand on les prend.
+   * L'étoile (lueur, corps, reflet) est dessinée une fois (starAtlas), puis posée tournée et agrandie :
+   * une image par étoile au lieu d'un dégradé, d'un remplissage et de deux traits à chaque image.
+   */
   drawStars(ctx, x0, x1, t) {
+    let M = null, A = null;
     for (const s of this.stars) {
       if (s.x < x0 - 60 || s.x > x1 + 60) continue;
       if (s.got && s.t > 0.8) continue;
-      ctx.save();
-      ctx.translate(s.x, s.y - (s.got ? s.t * 120 : 0));
-      ctx.rotate(Math.sin(t * 1.3 + s.x) * 0.25 + (s.got ? s.t * 6 : 0));
+      if (!M) { ctx.save(); M = ctx.getTransform(); A = starAtlas(Math.hypot(M.a, M.b)); }
       const k = 1 + 0.08 * Math.sin(t * 4 + s.x);
-      ctx.scale(k, k);
       ctx.globalAlpha = s.got ? Math.max(0, 1 - s.t / 0.8) : 1;
-      const glow = ctx.createRadialGradient(0, 0, 4, 0, 0, 46);
-      glow.addColorStop(0, 'rgba(255,220,90,0.45)');
-      glow.addColorStop(1, 'rgba(255,220,90,0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(-46, -46, 92, 92);
-      ctx.beginPath();
-      for (let i = 0; i < 10; i++) {
-        const a = -Math.PI / 2 + (i * Math.PI) / 5, r = i % 2 ? 11 : 26;
-        ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-      }
-      ctx.closePath();
-      ctx.fillStyle = 'rgba(245,200,60,0.92)';
-      ctx.fill();
-      ctx.lineWidth = 3;
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = '#b8862b';
-      ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(-6, -12);
-      ctx.lineTo(-2, -18);
-      ctx.stroke();
-      ctx.restore();
+      drawSprite(ctx, M, A, 0, s.x, s.y - (s.got ? s.t * 120 : 0), Math.sin(t * 1.3 + s.x) * 0.25 + (s.got ? s.t * 6 : 0), k, k);
     }
+    if (M) ctx.restore();
   }
 
   /** Fantôme : boule grise translucide de ton meilleur passage. */
@@ -191,5 +172,35 @@ export class Game {
     ctx.restore();
   }
 }
+
+/** L'étoile, dessinée une fois, centrée : lueur, corps doré, petit reflet. */
+const starAtlas = twoAtlases(() => [{
+  w: 92, h: 92,
+  draw(g) {
+    const glow = g.createRadialGradient(0, 0, 4, 0, 0, 46);
+    glow.addColorStop(0, 'rgba(255,220,90,0.45)');
+    glow.addColorStop(1, 'rgba(255,220,90,0)');
+    g.fillStyle = glow;
+    g.fillRect(-46, -46, 92, 92);
+    g.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + (i * Math.PI) / 5, r = i % 2 ? 11 : 26;
+      g.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    g.closePath();
+    g.fillStyle = 'rgba(245,200,60,0.92)';
+    g.fill();
+    g.lineWidth = 3;
+    g.lineJoin = 'round';
+    g.strokeStyle = '#b8862b';
+    g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,0.7)';
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(-6, -12);
+    g.lineTo(-2, -18);
+    g.stroke();
+  },
+}]);
 
 export const LEVEL_COUNT = SHEETS - 1;

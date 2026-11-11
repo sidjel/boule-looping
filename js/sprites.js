@@ -47,3 +47,17 @@ export function drawSprite(ctx, M, atlas, r, x, y, angle, sx, sy) {
     M.a * x + M.c * y + M.e, M.b * x + M.d * y + M.f);
   ctx.drawImage(atlas.canvas, rx, ry, rw, rh, -rw / 2, -rh / 2, rw, rh);
 }
+
+/**
+ * Une planche en deux finesses (1,5 et 3 pixels par unité du monde), faites ensemble au premier
+ * appel : celle qui convient à l'échelle de l'écran (pixels d'écran par unité du monde) est rendue,
+ * toujours un peu plus fine que l'écran, jamais beaucoup plus (une image très réduite scintille).
+ * cells() : les cases (voir makeAtlas). Renvoie pick(échelle) → planche.
+ */
+export function twoAtlases(cells) {
+  let lo = null, hi = null;
+  return (scale) => {
+    if (!lo) { lo = makeAtlas(cells(), 1.5); hi = makeAtlas(cells(), 3); }
+    return scale <= 1.25 ? lo : hi;
+  };
+}
