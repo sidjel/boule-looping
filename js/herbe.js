@@ -106,12 +106,12 @@ export class Grass {
   /**
    * Dessine l'herbe devant tout (repère du monde déjà en place dans ctx).
    * Le pied reste fixe, le haut penche : le décalage d'une hauteur y est gust·h·((h − y)/h)².
-   * tilted (par défaut) : quelques rangées inclinées, chacune penchée de son haut à son bas (le décalage
-   * suit la courbe à 0,3 px près, sans marche entre deux rangées) ; environ 9 rangées sur toute la
-   * hauteur au lieu de 50 à 80 : 14 dessins par image au lieu de 94 en vue suivie (essai du 11 novembre).
-   * Sinon (essai : Options → « herbe à l'ancienne ») : fines rangées droites, décalées en escalier.
+   * L'herbe est dessinée en quelques rangées fixes, chacune penchée de son haut à son bas : le décalage
+   * suit la courbe à 0,3 px près, sans marche d'une rangée à l'autre (environ 9 rangées sur toute la
+   * hauteur au lieu de 50 à 80 fines rangées décalées en escalier : 16 à 32 dessins par image au lieu
+   * de 68 à 204, et environ 100 dessins de moins par image en automne au téléphone, 11 novembre).
    */
-  draw(ctx, cam, tilted = true) {
+  draw(ctx, cam) {
     const i0 = anyReady();
     if (!i0) return;
     const t = this.t, cx = cam.x + cam.viewW / 2;
@@ -125,43 +125,30 @@ export class Grass {
     const k0 = Math.floor((vx0 - lean - ox) / w), k1 = Math.floor((vx1 + lean - ox) / w);
     const y0 = Math.max(0, cam.y - top), yEnd = Math.min(h, cam.y + cam.viewH - top);
     const shift = (y) => gust * h * ((h - y) / h) ** 2;
+    // rangées fixes de hauteur RH : entre deux points exacts, l'écart à la courbe est au plus
+    // |gust|·RH²/(4h), soit 0,3 px au vent le plus fort (|gust| ≤ 0,18)
+    const RH = Math.max(8, Math.floor(Math.sqrt((0.3 * 4 * h) / 0.18)));
     const rows = [];
-    if (tilted) {
-      // rangées fixes de hauteur RH : entre deux points exacts, l'écart à la courbe est au plus
-      // |gust|·RH²/(4h), soit 0,3 px au vent le plus fort (|gust| ≤ 0,18)
-      const RH = Math.max(8, Math.floor(Math.sqrt((0.3 * 4 * h) / 0.18)));
-      for (let y = Math.floor(y0 / RH) * RH; y < yEnd; y += RH) {
-        const rh = Math.min(RH, h - y);
-        rows.push([y, rh, shift(y), shift(y + rh)]);
-      }
-    } else {
-      // fines bandes horizontales : plus hautes vers le pied, où l'herbe bouge peu
-      for (let y = Math.floor(y0 / 8) * 8; y < yEnd;) {
-        const lift = (h - y) / h, slope = 2 * Math.abs(gust) * lift;
-        const rh = Math.min(h - y, Math.max(8, Math.min(64, Math.round(1.2 / Math.max(slope, 0.01)))));
-        rows.push([y, rh, shift(y), shift(y)]);
-        y += rh;
-      }
+    for (let y = Math.floor(y0 / RH) * RH; y < yEnd; y += RH) {
+      const rh = Math.min(RH, h - y);
+      rows.push([y, rh, shift(y), shift(y + rh)]);
     }
-    const m = tilted ? ctx.getTransform() : null;
+    const m = ctx.getTransform();
     for (let k = k0; k <= k1; k++) {
       const t = tileImage(k), src = t && source(t);
       if (!src) { if (t && !t.canvas) tiles.delete(k); continue; } // saison libérée : à refaire
       const sc = src.height / h, sw = src.width / w, tx = ox + k * w;
       for (const [y, rh, da, db] of rows) {
         // la partie de la bande à l'écran seulement (sur toute la hauteur de la rangée inclinée)
-        const lo = Math.min(da, db), hi = Math.max(da, db);
-        const u0 = Math.max(0, vx0 - tx - hi), u1 = Math.min(w, vx1 - tx - lo);
+        const u0 = Math.max(0, vx0 - tx - Math.max(da, db)), u1 = Math.min(w, vx1 - tx - Math.min(da, db));
         if (u1 <= u0) continue;
-        if (tilted) {
-          // rangée penchée : x' = x + kx·(Y − Ytop), le haut décalé de da, le bas de db
-          const kx = (db - da) / rh, ex = -kx * (top + y);
-          ctx.setTransform(m.a, m.b, m.c + m.a * kx, m.d + m.b * kx, m.e + m.a * ex, m.f + m.b * ex);
-        }
+        // rangée penchée : x' = x + kx·(Y − Ytop), le haut décalé de da, le bas de db
+        const kx = (db - da) / rh, ex = -kx * (top + y);
+        ctx.setTransform(m.a, m.b, m.c + m.a * kx, m.d + m.b * kx, m.e + m.a * ex, m.f + m.b * ex);
         ctx.drawImage(src, u0 * sw, y * sc, (u1 - u0) * sw, rh * sc, tx + da + u0, top + y, u1 - u0 + 1, rh + 0.5);
       }
     }
-    if (m) ctx.setTransform(m);
+    ctx.setTransform(m);
     ahead(() => !canAdvance(k1 + 1), () => tileImage(k1 + 1, false)); // la bande suivante, à l'avance, par étapes
     for (const [key, tt] of tiles) {
       if (key >= k0 - 2 && key <= k1 + 3) continue;

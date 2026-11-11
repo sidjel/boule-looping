@@ -93,7 +93,6 @@ export class Menu {
         ${check('labels', 'Écrire le nom des bonus au-dessus des boules')}
         <label class="ligne">Qualité d’image <select data-opt="quality">${[[0, 'Automatique'], [2, 'Haute'], [1.5, 'Moyenne'], [1, 'Économique']].map(([v, t]) => `<option value="${v}"${o.quality === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
         ${check('fps', 'Afficher le compteur d’images par seconde (fluidité)')}
-        ${check('oldGrass', 'Essai : herbe à l’ancienne (fines rangées, pour comparer)')}
         <h3>Diagnostic de fluidité</h3>
         <p class="petit-texte">Le jeu note tout seul chaque ralentissement pendant la partie. Après une partie, copie le résumé (court) et colle-le dans un message.</p>
         <p class="petit-texte"><b>${this.actions.diagInfo?.() || ''}</b></p>

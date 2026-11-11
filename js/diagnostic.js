@@ -301,7 +301,7 @@ export function summaryText(r) {
   const br = /(Chrome|Firefox|Version)\/(\d+)/.exec(e.appareil || '') || ['', '', ''];
   const lg = Object.values(S.images_longues || {});
   L.push(`BOULE résumé v1 · ${(e.debut || '').slice(0, 16)} · ${e.duree_s} s · ${S.images_en_jeu} images · ${S.images_par_seconde_moyennes} ips · calcul ${S.calcul_js_moyen_ms} ms · p50 ${S.intervalle_median_ms} p95 ${S.intervalle_95_pourcent_ms} p99 ${S.intervalle_99_pourcent_ms}`);
-  L.push(`Appareil : ${ua[0]} ${br[1]} ${br[2]} · canevas ${e.canevas} rés. ${e.resolution_du_jeu} (${e.qualite}) · plein écran ${e.plein_ecran ? 'oui' : 'non'} · vue d'ensemble ${e.vue_ensemble ? 'oui' : 'non'} · décor ${e.images_decor_mo} Mo${e.herbe ? ` · herbe ${e.herbe}` : ''}`);
+  L.push(`Appareil : ${ua[0]} ${br[1]} ${br[2]} · canevas ${e.canevas} rés. ${e.resolution_du_jeu} (${e.qualite}) · plein écran ${e.plein_ecran ? 'oui' : 'non'} · vue d'ensemble ${e.vue_ensemble ? 'oui' : 'non'} · décor ${e.images_decor_mo} Mo`);
   L.push(`Longues : >20 ${lg[0]} · >25 ${lg[1]} · >33 ${lg[2]} · >50 ${lg[3]} | secondes ${S.secondes.en_jeu} : <57 ${S.secondes.sous_57_ips} · <50 ${S.secondes.sous_50_ips} · <40 ${S.secondes.sous_40_ips}`);
   L.push('Contexte (longues/images) : ' + Object.entries(S.par_contexte || {}).map(([k, v]) => `${k} ${v.images_longues}/${v.images}`).join(' · '));
   L.push('Niveaux (longues/retard ms) : ' + (S.par_niveau || []).map((n) => `${n.niveau === 'arrivée' ? 'A' : n.niveau}:${n.images_longues}/${n.retard_ms}`).join(' '));

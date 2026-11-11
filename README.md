@@ -212,7 +212,7 @@ par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même rob
     qu'à l'écran ;
   - l'herbe ondule en environ 9 rangées inclinées (chacune penchée de son haut à son bas, à 0,3 px de
     la courbe du vent) au lieu de 50 à 80 fines rangées décalées en escalier : 16 à 32 dessins par
-    image au lieu de 68 à 204, et des brins sans crans. Options → « Essai : herbe à l'ancienne »
-    remet l'ancienne méthode pour comparer (indiqué dans le résumé du diagnostic).
+    image au lieu de 68 à 204, et des brins sans crans (au téléphone : environ 100 dessins de moins par
+    image en automne).
 - Le compteur affiche aussi le nombre de dessins par image et les étapes qui dessinent le plus
   (sur téléphone, c'est souvent ce nombre qui ralentit, pas le calcul).
