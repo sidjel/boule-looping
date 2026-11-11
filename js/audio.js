@@ -206,6 +206,7 @@ export class Sound {
     const now = performance.now();
     if (now - this.lastUpdate < 50) return;
     this.lastUpdate = now;
+    this.isQuiet = false;
     const t = this.ac.currentTime, k = Math.min(1, speed / 1600);
     const roll = rolling && speed > 15 ? 0.09 * k ** 0.8 : 0;
     // sur la glace : glissement plus clair, presque pas de grondement
@@ -218,6 +219,22 @@ export class Sound {
     const gust = Math.min(1, Math.abs(env.gust || 0) / 800);
     this.windGain.gain.setTargetAtTime(0.11 * w * w + 0.07 * gust * gust, t, 0.15);
     this.wind.frequency.setTargetAtTime(500 + 1500 * w, t, 0.15);
+  }
+
+  /**
+   * Silence du roulement, du vent et de la pluie : jeu en pause (menu, fenêtre d'explication, écran
+   * d'arrivée). Sans cela, ces sons gardaient leur dernier volume : le bruit de la boule tournait en
+   * boucle derrière le menu et à la fin du parcours.
+   */
+  quiet() {
+    if (!this.rollGain || this.isQuiet) return;
+    this.isQuiet = true;
+    const t = this.ac.currentTime;
+    for (const g of [this.rollGain, this.rumbleGain, this.windGain, this.rainGain]) {
+      g.gain.cancelScheduledValues(t);
+      g.gain.setTargetAtTime(0, t, 0.05);
+    }
+    this.lastUpdate = 0; // à la reprise, update() règle tout de suite les volumes
   }
 
   /** Choc acier sur la route. */

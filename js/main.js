@@ -39,6 +39,7 @@ const canvas = $('jeu'), screenCtx = canvas.getContext('2d');
 let ctx = screenCtx; // (le tour d'essai dessine ailleurs, warmUp)
 profil.ctx = screenCtx;
 const hint = $('consigne'), zoomBtn = $('zoom'), musicBtn = $('musique');
+const askFull = $('demande-plein'); // fenêtre « plein écran ? » : le jeu attend
 const forkLow = $('chemin-bas'), forkHigh = $('chemin-haut'), turn = $('tourner');
 const hud = $('hud'), finish = $('fin'), fpsBox = $('fps'), info = $('info'), gauges = $('effets');
 const track = buildTrack();
@@ -436,7 +437,7 @@ function frame(now) {
   last = now;
   time += dt;
   // menu, écran d'arrivée, explication d'un bonus, téléphone en portrait : le jeu est en pause
-  const paused = menu.isOpen || portrait() || infoOpen || !finish.hidden;
+  const paused = menu.isOpen || portrait() || infoOpen || !finish.hidden || !askFull.hidden;
   turn.hidden = !portrait();
   newFrame();
   mark('images (chargement)');
@@ -444,6 +445,7 @@ function frame(now) {
   mark('mise à jour');
   if (!paused) update(dt);
   else {
+    sound.quiet(); // pas de bruit de boule derrière un menu, une fenêtre ou l'écran d'arrivée
     cam.update(dt, ball);
     // menu ouvert : on prépare d'avance les feuilles et le tour d'essai (pas pendant la partie)
     if (menu.isOpen) { prepare(); warmUp(); stockSpares(); }
@@ -557,7 +559,8 @@ function update(realDt) {
   prepare();
   mark('son, texte');
   const b = ball.biome();
-  sound.update(ball.speed(), ball.onTrack, { ice: b.snow > 0.5, rain: biomeAt(cam.x + cam.viewW / 2).rain, gust: b.wind * weather.wind() });
+  // parcours fini : la boule roule encore un peu, sans bruit
+  sound.update(run.finished ? 0 : ball.speed(), ball.onTrack && !run.finished, { ice: b.snow > 0.5, rain: biomeAt(cam.x + cam.viewW / 2).rain, gust: b.wind * weather.wind() });
   const sheet = Math.max(0, Math.min(SHEETS - 1, Math.floor(ball.x / SHEET))), bio = biomeOfSheet(sheet);
   const where = sheet === SHEETS - 1 ? 'Arrivée' : `Niv. ${sheet + 1} · ${bio.name} · ${'★'.repeat(game.starsIn(sheet))}${'☆'.repeat(3 - game.starsIn(sheet))}`;
   const combo = game.combo >= 2 ? ` · ×${game.combo}` : '';
