@@ -35,7 +35,10 @@ import { drawMountains } from './montagnes.js';
 import { moveNuages, drawNuages } from './nuages.js';
 
 const $ = (id) => document.getElementById(id);
-const canvas = $('jeu'), screenCtx = canvas.getContext('2d');
+// canevas opaque (alpha: false) : chaque image le recouvre en entier (ciel, ou papier hors du ciel ;
+// 0 pixel transparent mesuré sur 35 vues), le navigateur n'a donc ni à dessiner le fond de la page
+// dessous ni à mélanger le canevas avec lui
+const canvas = $('jeu'), screenCtx = canvas.getContext('2d', { alpha: false });
 let ctx = screenCtx; // (le tour d'essai dessine ailleurs, warmUp)
 profil.ctx = screenCtx;
 const hint = $('consigne'), zoomBtn = $('zoom'), musicBtn = $('musique');

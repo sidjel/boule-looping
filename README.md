@@ -204,6 +204,8 @@ par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même rob
     sont de petites images dessinées une fois ; le ciel d'un passage est un seul ciel
     déjà mélangé ;
   - les images d'une saison se chargent quand elle approche du bord de l'écran (pas du centre) ;
+  - le canevas du jeu est opaque (`alpha: false`) : chaque image le recouvre en entier (ciel, ou papier
+    hors du ciel), le navigateur n'a ni à dessiner le fond de la page dessous ni à mélanger les deux ;
   - l'écran d'arrivée met le jeu en pause ; en pause, une image identique n'est pas redessinée ;
   - les sauvegardes (et les fantômes) sont écrites au moment calme du navigateur, pas pendant le
     passage d'un niveau à l'autre ; le papier n'est pas dessiné sous le ciel ; l'herbe n'est dessinée
