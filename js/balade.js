@@ -227,8 +227,8 @@ export class Balade {
       if (ok(f) && fx < x1 && fx + fw > x0) g.drawImage(softLeft(f, FARM.blend / fw), fx, fy, fw, fh);
       // niveau 3 : la bande (ferme, lac, château) prend la suite, raccordée au bord droit de la ferme
       // par une couture qui suit le dessin (tools/decouper-niveau3.py) ; même plan que les champs
-      // (drapeaux qui flottent, eau qui ondule : chateau.js)
-      if (n3 && ox + n3.u0 < x1 && ox + n3.u0 + n3.w > x0) drawBande3(g, ox + n3.u0, y0 - p3y() + n3.y0, n3.w, n3.h, t, x0, x1);
+      // (chateau.js : le dessin seul, sans animation)
+      if (n3 && ox + n3.u0 < x1 && ox + n3.u0 + n3.w > x0) drawBande3(g, ox + n3.u0, y0 - p3y() + n3.y0, n3.w, n3.h);
       // puis le lac et les champs de foin, jusqu'au bout du parcours (aux couleurs des saisons)
       drawSuite(g, ox, y0 - p3y(), x0, x1, (u) => (u - Q.champs * ANCHOR) / (1 - Q.champs));
       if (ok(f) && ok(img.cochon) && fx < x1 && fx + fw > x0) {

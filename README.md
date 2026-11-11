@@ -14,8 +14,7 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
     la charrette et ses pailles qui s'envolent, le moulin aux ailes qui tournent.
   - Niveau 2 : tremplin au-dessus d'une fosse et looping, devant la ferme et ses trois cochons.
   - Niveau 3 : deux loopings devant la bande du lac et du château (`images/niveau3/`, raccordée à la
-    ferme par `tools/decouper-niveau3.py`). Les drapeaux du château flottent au vent et l'eau du lac
-    ondule doucement, avec des reflets de lumière (`js/chateau.js`, `tools/animer-niveau3.py`).
+    ferme par `tools/decouper-niveau3.py`), telle que dessinée, sans animation (`js/chateau.js`).
   - Niveaux 3 et 4, encore au crayon : deux loopings à la suite ; aiguillage entre un souterrain
     (grand looping) et une grande bosse (butte de terre pleine, galerie dessous).
   Images : `images/niveau0/` (dessins du niveau 1) et `images/balade/` (`tools/decouper-balade.py` :
