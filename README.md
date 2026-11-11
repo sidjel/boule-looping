@@ -132,8 +132,8 @@ HTML + Canvas 2D + JavaScript en modules natifs, sans dépendance ni outil de co
 - `js/scenery.js` (papier, soleil, panneaux), `js/clouds.js`, `js/pencil.js`, `js/ballArt.js`, `js/effects.js` : dessin au crayon, soleil, nuages, oiseaux, effets.
 - `js/game.js` : étoiles, enchaînements, médailles, bilan, fantôme, boules à débloquer.
 - `js/obstacles.js` : obstacles à sauter (contacts et dessin).
-- `js/ballArt.js` : la boule ; essai : la boule par défaut est la boule aux crayons de couleur dessinée
-  (`images/boule-crayons.webp`, préparée par `tools/preparer-boule.py`), qui tourne avec la boule.
+- `js/ballArt.js` : la boule ; la boule par défaut est la bille d'acier dessinée (`images/boule-metal.webp`,
+  préparée par `tools/preparer-boule.py`) : reflet fixe, fines rayures qui tournent avec elle.
 - `js/bonus.js` et `images/boule-*.png` : les boules bonus (la rouge vient du dessin, les autres sont recolorées).
 - `js/earth.js`, `images/sol1.webp` et `images/terre-*.webp` : le premier plan (terre du dessin), peint dans chaque feuille ; `tools/decouper-sol1.py` et `tools/decouper-terre.py` le refont à partir du dessin.
 - `js/ink.js` : le dessin fixe de chaque feuille, préparé petit à petit pendant le jeu.

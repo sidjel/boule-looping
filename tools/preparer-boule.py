@@ -1,8 +1,8 @@
 """
-Prépare la boule aux crayons de couleur (js/ballArt.js) à partir du dessin fourni (fond noir) :
+Prépare la boule dessinée (js/ballArt.js : bille d'acier au crayon) à partir du dessin fourni (fond noir) :
 le disque de la boule est repéré (tout ce qui n'est pas noir), découpé en rond avec un bord adouci
 (fond transparent), puis réduit à 192 × 192 : la boule fait 60 px du monde, soit 50 à 150 pixels à
-l'écran selon la vue et la résolution. Écrit images/boule-crayons.webp.
+l'écran selon la vue et la résolution. Écrit images/boule-metal.webp.
 Usage : python3 tools/preparer-boule.py boule.png
 """
 import os
@@ -25,6 +25,6 @@ c = SIZE * SS / 2
 mask = (((xx + 0.5 - c) ** 2 + (yy + 0.5 - c) ** 2) <= (c - SS * 0.5) ** 2).astype(np.uint8) * 255
 mask = Image.fromarray(mask).resize((SIZE, SIZE), Image.LANCZOS)
 disc.putalpha(mask)
-out = os.path.join(os.path.dirname(__file__), '..', 'images', 'boule-crayons.webp')
+out = os.path.join(os.path.dirname(__file__), '..', 'images', 'boule-metal.webp')
 disc.save(out, quality=90, method=6)
 print('centre', round(cx), round(cy), 'rayon', round(r), '→', out, os.path.getsize(out), 'octets')

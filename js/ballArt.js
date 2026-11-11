@@ -9,14 +9,14 @@ import { rng, range, pencilLine } from './pencil.js';
 const R = BALL_R;
 
 /**
- * Essai (demande de l'auteur) : la boule par défaut est la boule aux crayons de couleur dessinée
- * (images/boule-crayons.webp, 192 × 192, 17 Ko, préparée par tools/preparer-boule.py) ; elle tourne
- * avec la boule (on voit la spirale rouler). La bille d'acier dessinée au crayon reste en secours,
- * le temps que l'image arrive. La physique de la boule ne change pas.
+ * La boule par défaut est la bille d'acier dessinée par l'auteur (images/boule-metal.webp, 192 × 192,
+ * préparée par tools/preparer-boule.py). Comme sur une vraie bille polie, son reflet (ciel, arbres,
+ * sol) ne tourne pas ; de fines rayures gravées tournent avec elle pour qu'on la voie rouler. La bille
+ * dessinée par le jeu reste en secours le temps que l'image arrive. La physique ne change pas.
  */
-const CRAYONS = new Image();
-CRAYONS.src = 'images/boule-crayons.webp';
-const crayonsReady = () => CRAYONS.complete && CRAYONS.naturalWidth > 0;
+const METAL = new Image();
+METAL.src = 'images/boule-metal.webp';
+const metalReady = () => METAL.complete && METAL.naturalWidth > 0;
 
 /** Couleurs de chaque boule (reflet du ciel en haut, sol en bas). */
 const PALETTES = {
@@ -110,7 +110,7 @@ export function drawBall(ctx, body, ball, track, t, skin = 'acier') {
   const appear = Math.min(1, ball.age / 0.35);
   const sc = 0.55 + 0.45 * easeOutBack(appear);
   drawShadow(ctx, ball, track);
-  if (skin === 'acier' && crayonsReady()) return drawCrayons(ctx, ball, sc, appear);
+  if (skin === 'acier' && metalReady()) return drawMetal(ctx, ball, sc, appear);
   ctx.save();
   ctx.translate(ball.x, ball.y);
   ctx.globalAlpha = Math.min(1, appear * 1.5);
@@ -166,15 +166,27 @@ export function drawBall(ctx, body, ball, track, t, skin = 'acier') {
   ctx.restore();
 }
 
-/** La boule aux crayons de couleur : l'image qui tourne avec la boule, un trait de crayon autour, la teinte des bonus. */
-function drawCrayons(ctx, ball, sc, appear) {
+/** La bille d'acier dessinée : reflet fixe, rayures qui tournent, trait de crayon autour, teinte des bonus. */
+function drawMetal(ctx, ball, sc, appear) {
   ctx.save();
   ctx.translate(ball.x, ball.y);
   ctx.globalAlpha = Math.min(1, appear * 1.5);
   ctx.scale(sc, sc);
+  ctx.drawImage(METAL, -R, -R, R * 2, R * 2);
+  // rayures gravées : un seul tracé, qui tourne avec la bille
   ctx.save();
   ctx.rotate(ball.angle);
-  ctx.drawImage(CRAYONS, -R, -R, R * 2, R * 2);
+  ctx.strokeStyle = 'rgba(40,42,48,0.4)';
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 1.3;
+  ctx.beginPath();
+  for (const m of MARKS) {
+    const x = Math.cos(m.a) * m.d, y = Math.sin(m.a) * m.d;
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + Math.cos(m.a + 1.6) * m.len * R * 0.5 + m.curve * 6, y + Math.sin(m.a + 1.6) * m.len * R * 0.5,
+      x + Math.cos(m.a + 1.6) * m.len * R, y + Math.sin(m.a + 1.6) * m.len * R);
+  }
+  ctx.stroke();
   ctx.restore();
   ctx.strokeStyle = 'rgba(46,46,51,0.55)';
   ctx.lineWidth = 1.6;
