@@ -149,8 +149,9 @@ redescend en marche arrière, elle ne décroche plus) ; vitesse plafonnée à 1 
 (SPEED.cap), jusqu'à 1 950 px/s pendant l'effet de la boule rouge, retour au plafond en douceur.
 `node tools/verifier-niveaux.mjs` : contrôle la géométrie (place dans chaque feuille, hauteur,
 virages, étoiles à portée de saut) et fait jouer chaque niveau, et chaque chemin des aiguillages,
-par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même robot sans jamais sauter ; `SANS_BONUS=1` : sans
-utiliser aucun bonus (aucun niveau ne doit en dépendre).
+par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même robot sans jamais sauter  ; le robot garde ses
+bonus sans s'en servir, comme dans le jeu (aucun niveau ne doit en dépendre) ; `AVEC_BONUS=1` : il utilise chaque
+bonus dès qu'il le prend.
 
 ## Mesurer la fluidité
 - **Diagnostic automatique** (`js/diagnostic.js`) : pendant toute la partie, le jeu note l'intervalle
