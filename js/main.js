@@ -205,13 +205,10 @@ const wanted = () => wantedWithDistance().map(([k]) => k);
  * - calme : un morceau par image, et rien si l'image d'avant a été longue (le téléphone rattrape) ;
  * - pressé : plusieurs morceaux par image (au plus 2 ms de calcul), même après une image longue ;
  * - menu ouvert : autant qu'en tiennent 8 ms.
- * Après chaque image de préparation, un pixel de la feuille est posé sur l'écran, presque transparent
- * (render) : la carte graphique fait ce morceau tout de suite, au lieu de tout faire d'un coup quand la
- * feuille arrive à l'écran. Et une fois la feuille finie, un dernier pixel.
- * Essai (Options → Diagnostic, save.options.flushEnd) : seulement le dernier pixel. Sur le téléphone,
- * le pixel après chaque morceau coûtait 8 à 65 ms par image (rapport du 10 novembre) ; mais sans lui,
- * le navigateur de test prend du retard sur la carte graphique pendant plusieurs niveaux. Le rapport
- * du téléphone dira lequel garder.
+ * Une fois la feuille finie, un pixel de la feuille est posé sur l'écran, presque transparent
+ * (render) : la carte graphique la dessine maintenant, et non à son entrée à l'écran. Un seul : un
+ * pixel après chaque morceau coûtait 6 à 60 ms par image au téléphone (rapports du 10 novembre :
+ * 146 images longues avec, 110 sans), parce que la feuille lue puis modifiée est recopiée entière.
  */
 let lastView = '', redraw = true; // (redraw : redessiner même en pause, ex. après un réglage)
 let lastDt = 0, skipped = 0, toFlush = null, lastFrame = performance.now(), frameAvg = 1 / 60, stepsPerSheet = 14;
@@ -249,7 +246,6 @@ function prepare() {
         return;
       }
     } while (done < maxSteps && performance.now() - t0 < budget);
-    if (!save.options.flushEnd) toFlush = job.holder.canvas;
     return;
   }
 }
@@ -804,8 +800,8 @@ function render(dt) {
     ctx.globalAlpha = 1;
   }
   if (toFlush && !warming) {
-    // feuille en préparation (ou tout juste finie) : un pixel, à 1 % (invisible), pour que la carte
-    // graphique la dessine morceau par morceau, et non d'un coup à son entrée à l'écran (prepare)
+    // feuille tout juste finie : un pixel, à 1 % (invisible), pour que la carte graphique la dessine
+    // maintenant, et non à son entrée à l'écran (prepare)
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 0.01;
     ctx.drawImage(toFlush, 0, 0, 1, 1, 0, 0, 1, 1);
@@ -840,7 +836,6 @@ function diagEnv() {
     resolution_automatique_retenue: save.options.autoDpr,
     processeurs: navigator.hardwareConcurrency || null, memoire_appareil_go: navigator.deviceMemory || null,
     plein_ecran: !!document.fullscreenElement, vue_ensemble: !!cam.wide, images_decor_mo: Math.round(loadedMB()),
-    essai_feuilles_sans_pixel: !!save.options.flushEnd,
   };
 }
 function exportDiagnostic(previous = false) {
