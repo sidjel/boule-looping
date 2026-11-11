@@ -9,6 +9,7 @@
  */
 import { OBSTACLES, BALL_R } from './track.js';
 import { rng, range, pencilLine, hatch } from './pencil.js';
+import { warmCanvas } from './ressources.js';
 
 const R = BALL_R;
 const SOFT = { leaves: true, snow: true };
@@ -185,6 +186,20 @@ function sprite(o, q) {
   const out = { canvas: c, w, h, pad };
   sprites.set(key, out);
   return out;
+}
+
+/**
+ * Prépare à l'avance l'image d'un obstacle de [xa, xb] qui n'en a pas encore (un seul par appel) ;
+ * renvoie false s'il n'en reste aucun. Appelé quand la feuille vient d'être préparée (main.js) :
+ * avant, l'image se faisait à l'entrée de l'obstacle à l'écran (3,8 ms d'un coup, rapport du 10 novembre).
+ */
+export function prepareObstacle(track, xa, xb, q) {
+  for (const o of obstaclesOf(track)) {
+    if (o.x < xa || o.x >= xb || sprites.has(`${o.kind}-${Math.round(o.x)}`)) continue;
+    warmCanvas(sprite(o, q).canvas);
+    return true;
+  }
+  return false;
 }
 
 /** Obstacles visibles ; un tas écrasé par la pétanque s'efface puis revient. */

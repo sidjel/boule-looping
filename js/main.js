@@ -26,7 +26,7 @@ import * as diag from './diagnostic.js';
 import { save } from './save.js';
 import { Menu, scoreTable } from './menu.js';
 import { Game, skinPhys, medalTimes } from './game.js';
-import { drawObstacles, drawPlanks, obstaclesOf } from './obstacles.js';
+import { drawObstacles, drawPlanks, obstaclesOf, prepareObstacle } from './obstacles.js';
 import { Balade, baladeLoaded } from './balade.js';
 import { Grass } from './herbe.js';
 import { drawSky, skyReady } from './ciel.js';
@@ -212,7 +212,12 @@ const wanted = () => wantedWithDistance().map(([k]) => k);
  */
 let lastView = '', redraw = true; // (redraw : redessiner même en pause, ex. après un réglage)
 let lastDt = 0, skipped = 0, toFlush = null, lastFrame = performance.now(), frameAvg = 1 / 60, stepsPerSheet = 14;
+let obstacleSheet = -1; // feuille tout juste préparée : ses obstacles reçoivent leur image, un par image du jeu
 function prepare() {
+  if (obstacleSheet >= 0) {
+    if (prepareObstacle(track, obstacleSheet * SHEET, (obstacleSheet + 1) * SHEET, art.q)) return;
+    obstacleSheet = -1;
+  }
   frameAvg += (Math.min(0.1, lastDt || 1 / 60) - frameAvg) * 0.1;
   const t0 = performance.now(), v = Math.max(300, ball.speed());
   for (const [n, d] of wantedWithDistance()) {
@@ -243,6 +248,7 @@ function prepare() {
         art.pending.delete(n);
         evict(n);
         toFlush = r.value;
+        obstacleSheet = n;
         return;
       }
     } while (done < maxSteps && performance.now() - t0 < budget);
