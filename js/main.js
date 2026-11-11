@@ -32,6 +32,7 @@ import { drawSky, skyReady } from './ciel.js';
 import { drawSoleil } from './soleil.js';
 import { drawMountains } from './montagnes.js';
 import { moveNuages, drawNuages } from './nuages.js';
+import { moveAvion, drawAvion } from './avion.js';
 
 const $ = (id) => document.getElementById(id);
 // canevas opaque (alpha: false) : chaque image le recouvre en entier (ciel, ou papier hors du ciel ;
@@ -557,6 +558,7 @@ function update(realDt) {
   if (!run.finished && ball.x > FINISH.x) arrive();
   mark('décor (calcul)');
   moveNuages(dt);
+  moveAvion(dt, cam); // l'avion de l'automne
   summer.update(dt, cam);
   grass.update(dt);
   mark('météo (calcul)');
@@ -841,6 +843,8 @@ function render(dt) {
   drawSoleil(ctx, cam, time); // le soleil, qui descend vers les montagnes au fil des saisons
   mark('montagnes');
   drawMountains(ctx, cam); // les montagnes, de la couleur de la saison
+  mark('avion');
+  drawAvion(ctx, cam, time); // automne : un avion au loin, derrière les nuages
   mark('nuages');
   drawNuages(ctx, cam); // les nuages, deux rangs, de la couleur de la saison
   mark('champs et paysages');
