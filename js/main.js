@@ -549,6 +549,7 @@ function update(realDt) {
   grass.update(dt);
   mark('météo (calcul)');
   weather.update(dt, cam, ball.clock);
+  weather.updateGround(dt, cam, ball, track); // automne : feuilles mortes de la route
   mark('effets (calcul)');
   fx.follow(ball, dt);
   fx.update(dt);
@@ -786,6 +787,8 @@ function render(dt) {
   game.drawStars(ctx, x0, x1, time);
   game.drawGhost(ctx);
   bonuses.draw(ctx, time, x0, x1, save.options.labels);
+  mark('feuilles mortes');
+  weather.drawGround(ctx, x0, x1); // automne : sur la route, s'envolent au passage de la boule
   mark('boule et effets');
   fx.drawHeat(ctx, ball);
   fx.drawSpeed(ctx, ball);

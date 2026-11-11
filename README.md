@@ -56,8 +56,8 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
   se cache derrière un groupe de grands sapins enneigés ; au sol, la neige s'arrête en bord irrégulier
   sur l'herbe, comme une neige qui fond. Le paysage se répète ensuite (raccordé sur lui-même, lac contre
   lac) jusqu'au bout du parcours, aux couleurs grises de la pluie, puis du soir à l'arrivée.
-- **Automne (5 à 8)** : feuilles mortes qui volent (les seules particules de l'automne), vent en rafales
-  qui gêne l'avancée.
+- **Automne (5 à 8)** : des feuilles mortes posées sur la route, qui s'envolent quand la boule passe dessus
+  puis retombent (`js/weather.js` : `updateGround`) ; vent en rafales qui gêne l'avancée.
 - **Hiver (9 à 12)** : neige, route glacée : la boule glisse, va plus vite, répond moins aux
   gestes, et revenir en arrière est difficile.
 - **Pluie (13 à 16)** : flaques qui freinent, fosses pleines d'eau ; il pleut aux niveaux 13 à 15, la pluie
