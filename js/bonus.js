@@ -5,13 +5,13 @@
  * - bleue : la boule colle à la route pendant 6 s (elle ne tombe plus des loopings) ;
  * - verte : bond, la boule saute ;
  * - jaune : plume, gravité réduite pendant 6 s (sauts plus longs, montées plus faciles).
- * Une boule bonus touchée disparaît et revient quelques secondes après.
+ * Une boule bonus touchée va dans la réserve du joueur (main.js : stock) et ne revient pas : elle est
+ * prise pour la partie (↺ rend celles du niveau, voir main.js : restart).
  */
 import { BALL_R, BONUSES, sample } from './track.js';
 import { makeAtlas, twoAtlases, drawSprite } from './sprites.js';
 
 const SIZE = 36;          // rayon affiché
-const RESPAWN = 4;        // s avant que la boule bonus revienne
 const GLOW = { red: '240,120,70', blue: '90,150,240', green: '90,190,100', yellow: '245,205,70' };
 const INK = { red: '#b8452f', blue: '#2f62a8', green: '#2f7d3a', yellow: '#9a7410' };
 const HAND = '"Segoe Print", "Bradley Hand", "Chalkboard SE", "Comic Sans MS", "Comic Neue", cursive';
@@ -20,9 +20,11 @@ const HAND = '"Segoe Print", "Bradley Hand", "Chalkboard SE", "Comic Sans MS", "
 export const BONUS_INFO = {
   red: { word: 'élan', title: 'Bonus rouge : élan', text: 'Coup d’accélérateur dans le sens de la marche.' },
   blue: { word: 'colle', title: 'Bonus bleu : colle', text: 'Pendant 6 s, la boule colle à la route : elle ne tombe plus du haut des loopings.' },
-  green: { word: 'bond', title: 'Bonus vert : bond', text: 'La boule fait un grand saut.' },
+  green: { word: 'bond', title: 'Bonus vert : bond', text: 'La boule fait un grand saut, même en l’air (double saut).' },
   yellow: { word: 'plume', title: 'Bonus jaune : plume', text: 'Pendant 6 s, la boule devient légère : sauts plus longs, montées plus faciles.' },
 };
+/** Ordre des cases de la réserve, à l'écran et au clavier (touches 1 à 4). */
+export const RESERVE = ['red', 'green', 'yellow', 'blue'];
 
 export class Bonuses {
   constructor(track) {
@@ -31,7 +33,7 @@ export class Bonuses {
       let i = 0;
       while (i < pc.n - 1 && pc.x[i] < x) i++;
       const p = sample(pc, i * pc.step);
-      return { x: p.x, y: p.y, nx: p.nx, ny: p.ny, color, away: 0, seed: n * 7.3 };
+      return { x: p.x, y: p.y, nx: p.nx, ny: p.ny, color, taken: false, seed: n * 7.3 };
     });
     this.img = {};
   }
@@ -40,9 +42,9 @@ export class Bonuses {
   update(dt, ball) {
     let hit = null;
     for (const b of this.list) {
-      if (b.away > 0) { b.away -= dt; continue; }
+      if (b.taken) continue;
       if (Math.abs(ball.x - b.x) < 120 && Math.hypot(ball.x - b.x, ball.y - b.y) < BALL_R + SIZE * 0.7) {
-        b.away = RESPAWN;
+        b.taken = true;
         hit = b;
       }
     }
@@ -65,13 +67,13 @@ export class Bonuses {
   draw(ctx, t, x0, x1, labels = true) {
     let M = null, W = null;
     for (const b of this.list) {
-      if (b.x < x0 - 100 || b.x > x1 + 100 || b.away > 0.6) continue;
+      if (b.taken || b.x < x0 - 100 || b.x > x1 + 100) continue;
       const img = this.image(b.color);
       if (!img.complete || !img.naturalWidth) continue;
       if (!M) { ctx.save(); M = ctx.getTransform(); W = wordAtlas(Math.hypot(M.a, M.b)); }
-      const back = b.away > 0 ? Math.max(0, 1 - b.away / 0.6) : 1; // réapparition en douceur
+      const back = 1;
       const bob = Math.sin(t * 2.2 + b.seed) * 5, pulse = 1 + 0.06 * Math.sin(t * 4.1 + b.seed);
-      const x = b.x + b.nx * (8 + bob), y = b.y + b.ny * (8 + bob), r = SIZE * pulse * (b.away > 0 ? 0.6 + 0.4 * back : 1);
+      const x = b.x + b.nx * (8 + bob), y = b.y + b.ny * (8 + bob), r = SIZE * pulse;
       const ci = COLORS.indexOf(b.color);
       // lueur : dessinée à son plus fort (GLOW_MAX), posée plus ou moins transparente
       ctx.globalAlpha = (back * (0.28 + 0.1 * Math.sin(t * 4.1))) / GLOW_MAX;

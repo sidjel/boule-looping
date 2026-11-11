@@ -79,9 +79,13 @@ Une nouveauté à la fois : automne 5 = le vent, 6 = des bosses, 7 = tas de feui
 
 **Passages de saison en fondu** : herbe, neige, ciel, météo, vent et glace changent peu à peu.
 
-**Bonus** (petites boules de couleur dessinées au crayon) :
-rouge = élan · bleue = la boule colle à la route 6 s (elle ne tombe plus des loopings) ·
-verte = bond · jaune = plume (gravité réduite 6 s).
+**Bonus** (petites boules de couleur dessinées au crayon) : un bonus touché n'agit pas tout de suite, il
+va dans la réserve (sans limite), visible en bas à gauche, une case par couleur avec leur nombre ; le joueur
+touche une case (ou 1 à 4 au clavier) pour l'utiliser quand il veut. Un bonus pris l'est pour la partie ;
+↺ (ou une chute) rend la réserve de l'entrée du niveau et les bonus du niveau situés après le point de
+reprise. La réserve est gardée avec la partie (« Continuer »).
+rouge = élan · verte = bond (aussi en l'air : double saut) · jaune = plume (gravité réduite 6 s) ·
+bleue = la boule colle à la route 6 s.
 
 **Aiguillages** (un par saison) : à l'approche, le temps ralentit fortement (la boule avance encore
 un peu), l'écran bleuit, le son s'étouffe ; deux boutons posés au début de chaque chemin permettent
@@ -107,8 +111,9 @@ tout est fabriqué dans le navigateur (Web Audio), sans fichier son, donc sans d
   ajouter le jeu à l'écran d'accueil (Partager → « Sur l'écran d'accueil »), il s'ouvre alors en plein écran.
 - **Note de musique** (en haut à droite) : couper ou remettre la musique.
 - **Aiguillage** : toucher le bouton posé au début du chemin voulu (en haut ou en bas).
+- **Bonus** : toucher sa case, en bas à gauche, pour l'utiliser (il est gardé en réserve quand on le prend).
 - **☰** : menu et pause.
-- **PC** : glisser à la souris, flèches ← → pour pousser, Espace pour lancer, R pour recommencer, ↑ pour sauter, Z pour zoomer, M pour la musique, A pour l'aiguillage, Échap pour le menu, F pour le compteur d'images par seconde.
+- **PC** : glisser à la souris, flèches ← → pour pousser, Espace pour lancer, R pour recommencer, ↑ pour sauter, Z pour zoomer, M pour la musique, A pour l'aiguillage, 1 à 4 pour les bonus de la réserve, Échap pour le menu, F pour le compteur d'images par seconde.
 
 ## Technique
 HTML + Canvas 2D + JavaScript en modules natifs, sans dépendance ni outil de construction.
@@ -144,7 +149,8 @@ redescend en marche arrière, elle ne décroche plus) ; vitesse plafonnée à 1 
 (SPEED.cap), jusqu'à 1 950 px/s pendant l'effet de la boule rouge, retour au plafond en douceur.
 `node tools/verifier-niveaux.mjs` : contrôle la géométrie (place dans chaque feuille, hauteur,
 virages, étoiles à portée de saut) et fait jouer chaque niveau, et chaque chemin des aiguillages,
-par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même robot sans jamais sauter.
+par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même robot sans jamais sauter ; `SANS_BONUS=1` : sans
+utiliser aucun bonus (aucun niveau ne doit en dépendre).
 
 ## Mesurer la fluidité
 - **Diagnostic automatique** (`js/diagnostic.js`) : pendant toute la partie, le jeu note l'intervalle

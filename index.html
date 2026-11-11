@@ -162,8 +162,19 @@
     @keyframes bulle { from { scale: 1; } to { scale: 1.06; } }
     #astuce-saut[hidden] { display: none; }
     #astuce-saut small { display: block; font-size: 12px; font-weight: 600; opacity: .7; }
+    /* réserve de bonus : une case par couleur, en bas à gauche (le bas à droite : loupe et ↺) */
+    #reserve { position: absolute; left: max(10px, env(safe-area-inset-left)); bottom: max(10px, env(safe-area-inset-bottom)); display: flex; gap: 8px; }
+    #reserve .case { position: relative; width: 52px; height: 52px; padding: 0; border-radius: 50%; border: 2px solid rgba(60,60,66,.55);
+      background: rgba(236,235,231,.8); cursor: pointer; touch-action: manipulation; display: grid; place-items: center; transition: opacity .2s; }
+    #reserve .case img { width: 40px; height: 40px; pointer-events: none; }
+    #reserve .case b { position: absolute; right: -4px; top: -4px; min-width: 20px; height: 20px; border-radius: 10px; background: #3d3d42;
+      color: #fff; font: 700 13px/20px sans-serif; pointer-events: none; }
+    #reserve .case.vide { opacity: .35; cursor: default; }
+    #reserve .case.vide b { display: none; }
+    .vers-reserve { position: absolute; left: 0; top: 0; width: 44px; height: 44px; pointer-events: none; z-index: 5;
+      transition: transform .55s ease-in, opacity .55s ease-in; }
     #fps {
-      position: absolute; left: 8px; bottom: 8px; padding: 4px 8px; border-radius: 6px; background: rgba(0,0,0,.55);
+      position: absolute; left: 8px; bottom: 72px; padding: 4px 8px; border-radius: 6px; background: rgba(0,0,0,.55);
       color: #fff; font: 12px/1.3 monospace; pointer-events: none;
     }
     /* la question du plein écran, au lancement, par-dessus le menu */
@@ -206,6 +217,12 @@
   <button id="chemin-bas" class="chemin" type="button" hidden>↘ en bas</button>
   <button id="chemin-haut" class="chemin" type="button" hidden>↗ en haut</button>
   <div id="effets"></div>
+  <div id="reserve">
+    <button class="case vide" type="button" data-bonus="red" aria-label="Utiliser un bonus élan (1)" title="Élan (1)"><img src="images/boule-red.png" alt=""><b>0</b></button>
+    <button class="case vide" type="button" data-bonus="green" aria-label="Utiliser un bonus bond (2)" title="Bond (2)"><img src="images/boule-green.png" alt=""><b>0</b></button>
+    <button class="case vide" type="button" data-bonus="yellow" aria-label="Utiliser un bonus plume (3)" title="Plume (3)"><img src="images/boule-yellow.png" alt=""><b>0</b></button>
+    <button class="case vide" type="button" data-bonus="blue" aria-label="Utiliser un bonus colle (4)" title="Colle (4)"><img src="images/boule-blue.png" alt=""><b>0</b></button>
+  </div>
   <div id="info"></div>
   <div id="bilan"></div>
   <div id="astuce-saut" hidden>👆 Touche l'écran pour sauter&nbsp;!<small>ou fonce : avec de l'élan, la boule passe d'elle-même</small></div>

@@ -113,6 +113,9 @@ export class Ball {
       this.takeOff(p);
       this.vx += p.nx * BOND;
       this.vy += p.ny * BOND;
+    } else if (kind === 'green') {
+      // en l'air (bonus gardé en réserve, utilisé quand on veut) : un second saut, vers le haut
+      this.vy = Math.min(this.vy, 0) - BOND * 0.8;
     }
   }
 

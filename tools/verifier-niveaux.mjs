@@ -7,6 +7,7 @@
  *   node tools/verifier-niveaux.mjs
  * Réglages (variables d'environnement) :
  *   SANS_SAUT=1      le robot ne saute jamais
+ *   SANS_BONUS=1     le robot n'utilise aucun bonus (aucun niveau ne doit en dépendre)
  *   VITESSE=1590     plafond de vitesse (px/s) à essayer (physics.js : SPEED.cap) ; 0 = sans plafond
  *   ELAN=2700        élan des relances (1300 par défaut ; 2700 = le geste le plus fort d'un joueur)
  *   LOOPINGS=chute   ancienne règle (la boule tombe d'un looping si elle n'a pas assez d'élan)
@@ -81,7 +82,9 @@ function play(k, routes) {
       if (need && !process.env.SANS_SAUT) { ball.hop(); stats.hops++; lastHop = t; }
     }
     const hit = bonuses.update(1 / 60, ball);
-    if (hit) { ball.bonus(hit.color); stats.bonus.push(hit.color); }
+    // bonus pris : utilisé tout de suite (le jeu le garde en réserve ; SANS_BONUS=1 : jamais utilisé,
+    // pour vérifier qu'aucun niveau n'en dépend)
+    if (hit) { if (!process.env.SANS_BONUS) ball.bonus(hit.color); stats.bonus.push(hit.color); }
     if (ball.x > goal) {
       stats.time = t;
       // loopings du niveau sur les tronçons parcourus : chacun doit avoir été franchi

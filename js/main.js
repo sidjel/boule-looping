@@ -14,7 +14,7 @@ import { makePaper, drawTable, drawForks, drawWindsocks } from './scenery.js';
 import { drawBirds } from './clouds.js';
 import { buildBallBody, drawBall } from './ballArt.js';
 import { Effects } from './effects.js';
-import { Bonuses, BONUS_INFO } from './bonus.js';
+import { Bonuses, BONUS_INFO, RESERVE } from './bonus.js';
 import { Weather } from './weather.js';
 import { mark, profil, countDraws } from './profil.js';
 import { newFrame } from './avance.js';
@@ -403,7 +403,9 @@ const clock = (t) => `${Math.floor(t / 60)} min ${String(Math.floor(t % 60)).pad
 
 function saveProgress() {
   if (run.finished) return;
-  save.setProgress({ level: level(), time: run.time, loops: run.loops, bonuses: run.bonuses, score: game.score });
+  // la réserve du début du niveau : « Continuer » reprend au début du niveau, ses bonus y sont rendus
+  const lv = level(), kept = levelStock.k === lv ? levelStock.stock : stock;
+  save.setProgress({ level: lv, time: run.time, loops: run.loops, bonuses: run.bonuses, score: game.score, stock: { ...kept } });
 }
 
 /**
@@ -418,6 +420,7 @@ function retryPoint() {
 function restart(fromStart = false) {
   const lv = fromStart ? 0 : level(), point = fromStart ? null : retryPoint();
   ball.respawn(lv, point);
+  restoreReserve(lv, fromStart ? null : point ? point.x : lv * SHEET);
   if (fromStart) game.reset();
   else if (!point || point.x < lv * SHEET + 60) game.enterLevel(lv);
   if (fromStart) {
@@ -532,14 +535,15 @@ function update(realDt) {
   }
   const hit = bonuses.update(dt, ball);
   if (hit) {
-    ball.bonus(hit.color);
+    // le bonus pris va dans la réserve : le joueur l'utilise quand il veut (useBonus)
+    stock[hit.color]++;
     run.bonuses++;
     feat('bonus');
-    const c = BONUS[hit.color].color;
-    fx.burst(ball.x, ball.y, [`rgb(${c})`, `rgb(${c.map((v) => Math.min(255, v + 50))})`]);
-    fx.text(WORDS[hit.color], ball.x, ball.y - 90);
-    sound.bonus(hit.color);
-    vibrate(20);
+    fx.text(`+ ${BONUS_INFO[hit.color].word}`, ball.x, ball.y - 90);
+    sound.clink(1100);
+    vibrate(12);
+    flyToReserve(hit.color);
+    refreshReserve();
     showInfo(hit.color);
   }
   if (!run.finished && ball.x > FINISH.x) arrive();
@@ -569,6 +573,76 @@ function update(realDt) {
   drawGauges();
 }
 
+/* ---------- réserve de bonus : pris, ils sont gardés (sans limite), visibles en bas à gauche ; le
+   joueur touche une case (ou 1 à 4 au clavier) pour en utiliser un quand il veut ---------- */
+const stock = { red: 0, green: 0, yellow: 0, blue: 0 };
+let levelStock = { k: 0, stock: { ...stock } }; // la réserve à l'entrée du niveau en cours (↺, sauvegarde)
+const reserveBtns = {};
+for (const c of RESERVE) {
+  const btn = document.querySelector(`#reserve [data-bonus=${c}]`);
+  reserveBtns[c] = { btn, n: btn.querySelector('b'), shown: -1 };
+  btn.addEventListener('click', () => useBonus(c));
+}
+/** Les cases de la réserve : seulement quand un nombre change (rien à chaque image). */
+function refreshReserve() {
+  for (const c of RESERVE) {
+    const r = reserveBtns[c], n = stock[c];
+    if (r.shown === n) continue;
+    r.shown = n;
+    r.n.textContent = n;
+    r.btn.classList.toggle('vide', n === 0);
+  }
+}
+/** Utilise un bonus de la réserve (case touchée, ou touches 1 à 4). */
+function useBonus(c) {
+  if (!stock[c] || menu.isOpen || infoOpen || !finish.hidden || !askFull.hidden || portrait()) return;
+  stock[c]--;
+  refreshReserve();
+  ball.bonus(c);
+  const col = BONUS[c].color;
+  fx.burst(ball.x, ball.y, [`rgb(${col})`, `rgb(${col.map((v) => Math.min(255, v + 50))})`]);
+  fx.text(WORDS[c], ball.x, ball.y - 90);
+  sound.bonus(c);
+  vibrate(20);
+  if (!launched) { launched = true; hint.classList.add('cache'); }
+  run.running = run.running || !run.finished;
+}
+/**
+ * ↺ ou chute : la réserve revient à celle de l'entrée du niveau, plus les bonus du niveau pris avant le
+ * point de reprise (ils restent pris : la boule est déjà passée) ; ceux d'après sont rendus.
+ * x0 = null : nouvelle partie (réserve vide, tous les bonus rendus).
+ */
+function restoreReserve(lv, x0) {
+  if (x0 === null) {
+    for (const c of RESERVE) stock[c] = 0;
+    for (const b of bonuses.list) b.taken = false;
+    levelStock = { k: 0, stock: { ...stock } };
+  } else if (levelStock.k === lv) {
+    Object.assign(stock, levelStock.stock);
+    for (const b of bonuses.list) {
+      if (Math.floor(b.x / SHEET) !== lv) continue;
+      if (b.x >= x0) b.taken = false;
+      else if (b.taken) stock[b.color]++;
+    }
+  } // (revenu en arrière dans un niveau d'avant : la réserve ne change pas)
+  refreshReserve();
+}
+/** Petite boule qui vole de la boule jusqu'à sa case (élément de la page, animé par le navigateur). */
+function flyToReserve(c) {
+  const to = reserveBtns[c].btn.getBoundingClientRect();
+  const sx = ((ball.x - cam.x) * cam.scale) / cam.dpr, sy = ((ball.y - cam.y) * cam.scale) / cam.dpr;
+  const img = document.createElement('img');
+  img.src = `images/boule-${c}.png`;
+  img.className = 'vers-reserve';
+  img.style.transform = `translate(${sx - 22}px, ${sy - 22}px)`;
+  document.body.appendChild(img);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    img.style.transform = `translate(${to.left + to.width / 2 - 22}px, ${to.top + to.height / 2 - 22}px) scale(0.6)`;
+    img.style.opacity = '0.4';
+  }));
+  setTimeout(() => img.remove(), 700);
+}
+
 /**
  * Explication d'un bonus, la première fois seulement qu'on le prend : le jeu se met en pause
  * (elle ne cache plus rien pendant qu'on joue) ; « Compris ! » ou une touche pour repartir.
@@ -577,7 +651,7 @@ function showInfo(color) {
   if (save.hasSeen(color)) return;
   save.markSeen(color);
   const b = BONUS_INFO[color];
-  info.innerHTML = `<img src="images/boule-${color}.png" alt=""><span><b>${b.title}</b><br>${b.text}</span><button type="button" id="compris">Compris !</button>`;
+  info.innerHTML = `<img src="images/boule-${color}.png" alt=""><span><b>${b.title}</b><br>${b.text}<br><small>Il est gardé : touche sa case en bas à gauche pour l’utiliser quand tu veux.</small></span><button type="button" id="compris">Compris !</button>`;
   info.className = `visible ${color}`;
   infoOpen = true;
   $('compris').addEventListener('click', closeInfo);
@@ -683,6 +757,7 @@ function onEvent(e) {
     fx.text(label, ball.x + 180, Math.max(260, ball.y - 220));
     showRecap(game.finishLevel(k - 1));
     game.enterLevel(k, false);
+    levelStock = { k, stock: { ...stock } };
     saveProgress();
     save.prefetchGhost(k + 1); // le fantôme du niveau suivant, lu à l'avance
   } else if (e.type === 'clink') {
@@ -990,6 +1065,10 @@ function continueSaved() {
   game.enterLevel(p.level);
   game.score = p.score || 0;
   Object.assign(run, { time: p.time, running: false, finished: false, loops: p.loops, bonuses: p.bonuses });
+  for (const b of bonuses.list) b.taken = false;
+  for (const c of RESERVE) stock[c] = (p.stock && p.stock[c]) || 0;
+  levelStock = { k: p.level, stock: { ...stock } };
+  refreshReserve();
   launched = false;
   hint.classList.remove('cache');
 }
@@ -1070,6 +1149,7 @@ addEventListener('keydown', (e) => {
   if (k === 'a') toggleFork();
   if ((k === 'enter' || k === ' ') && infoOpen) closeInfo();
   if (k === 'f') { meterOn = !meterOn; fpsBox.hidden = !meterOn; }
+  if (k >= '1' && k <= '4') useBonus(RESERVE[+k - 1]); // bonus de la réserve au clavier
   sound.unlock();
 });
 // Le son ne peut démarrer qu'après un geste : premier toucher, clic ou touche.

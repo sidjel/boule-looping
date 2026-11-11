@@ -68,7 +68,7 @@ export class Menu {
         <li><b>Aiguillage</b> : à l'approche, le temps ralentit fortement ; touche le bouton posé au début du chemin que tu veux (en haut ou en bas). Sans choix, le temps s'arrête au bord de l'embranchement. Le chemin difficile rapporte deux étoiles, le facile une.</li>
         <li><b>↺</b> : recommencer le niveau ; appui long : niveau 1. <b>Loupe</b> : vue d'ensemble ou zoom.</li>
         <li><b>Au clavier</b> : ← → pousser, Espace lancer, ↑ sauter, R recommencer, Z zoom, M musique, Échap menu ; à un aiguillage, ↑ chemin du haut, ↓ chemin du bas.</li></ul>
-        <h3>Les bonus</h3><ul class="bonus">${Object.entries(BONUS_INFO).map(([c, b]) => `<li><img src="images/boule-${c}.png" alt=""><span><b>${b.title}</b><br>${b.text}</span></li>`).join('')}</ul>
+        <h3>Les bonus</h3><p>Un bonus touché est gardé : touche sa case en bas à gauche (ou 1 à 4 au clavier) pour l’utiliser quand tu veux.</p><ul class="bonus">${Object.entries(BONUS_INFO).map(([c, b]) => `<li><img src="images/boule-${c}.png" alt=""><span><b>${b.title}</b><br>${b.text}</span></li>`).join('')}</ul>
         <h3>Les saisons</h3><ul class="aide"><li><b>Automne</b> : le vent souffle en rafales, surtout de face.</li>
         <li><b>Hiver</b> : route glacée, la boule glisse, va plus vite et se contrôle moins bien.</li>
         <li><b>Pluie</b> : les flaques et l'eau freinent la boule.</li></ul>`);
