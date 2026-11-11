@@ -14,6 +14,7 @@ import { save } from './save.js';
 import { twoAtlases, drawSprite } from './sprites.js';
 
 const R = BALL_R;
+const MAGNET = 450; // px : portée de l'aimant (bonus jaune)
 const COMBO_WINDOW = 3;     // s
 export const POINTS = { loop: 100, jump: 150, over: 60, bonus: 50, star: 200, perfect: 80 };
 const WORDS = { loop: 'looping', jump: 'saut', over: 'obstacle', bonus: 'bonus', star: 'étoile', perfect: 'parfait' };
@@ -48,7 +49,8 @@ export function totalStars() {
 
 export class Game {
   constructor() {
-    this.stars = STARS.map((s) => ({ ...s, level: Math.floor(s.x / SHEET), got: false, t: 0 }));
+    // dx, dy : décalage d'une étoile attirée par l'aimant (bonus jaune) ; elle revient ensuite à sa place
+    this.stars = STARS.map((s) => ({ ...s, level: Math.floor(s.x / SHEET), got: false, t: 0, dx: 0, dy: 0 }));
     this.reset();
   }
 
@@ -62,7 +64,7 @@ export class Game {
     this.levelTime = 0;
     this.ghostRec = [];
     this.ghostClock = 0;
-    for (const s of this.stars) s.got = false;
+    for (const s of this.stars) { s.got = false; s.dx = s.dy = 0; }
     this.loadGhost(0);
   }
 
@@ -73,7 +75,7 @@ export class Game {
     this.levelBestCombo = 0;
     this.ghostRec = [];
     this.ghostClock = 0;
-    if (fresh) for (const s of this.stars) if (s.level === k) s.got = false;
+    if (fresh) for (const s of this.stars) if (s.level === k) { s.got = false; s.dx = s.dy = 0; }
     this.loadGhost(k);
   }
 
@@ -105,11 +107,29 @@ export class Game {
       if (this.comboTime <= 0 || (ball.onTrack && Math.abs(ball.v) < 40)) { this.comboTime = 0; this.combo = 0; }
     }
     let got = null;
+    const magnet = ball.fx.yellow > 0; // bonus jaune : les étoiles proches viennent à la boule
     for (const s of this.stars) {
       s.t += dt;
-      if (!s.got && Math.abs(ball.x - s.x) < 80 && Math.hypot(ball.x - s.x, ball.y - s.y) < R + 34) {
+      if (s.got) continue;
+      if (magnet) {
+        const tx = ball.x - (s.x + s.dx), ty = ball.y - (s.y + s.dy), d = Math.hypot(tx, ty);
+        if (d > 1 && d < MAGNET) {
+          const step = Math.min(d, (500 + 1300 * (1 - d / MAGNET)) * dt); // de plus en plus vite en approchant
+          s.dx += (tx / d) * step;
+          s.dy += (ty / d) * step;
+        }
+      } else if (s.dx || s.dy) {
+        // l'aimant n'agit plus : l'étoile non prise revient doucement à sa place
+        const k = Math.min(1, dt * 1.5);
+        s.dx -= s.dx * k;
+        s.dy -= s.dy * k;
+        if (Math.abs(s.dx) + Math.abs(s.dy) < 0.5) s.dx = s.dy = 0;
+      }
+      const x = s.x + s.dx, y = s.y + s.dy;
+      if (Math.abs(ball.x - x) < 80 && Math.hypot(ball.x - x, ball.y - y) < R + 34) {
         s.got = true;
-        got = s;
+        s.t = 0; // (l'étoile prise monte et s'efface en 0,8 s : drawStars)
+        got = { x, y };
       }
     }
     this.ghostClock += dt;
@@ -150,12 +170,12 @@ export class Game {
   drawStars(ctx, x0, x1, t) {
     let M = null, A = null;
     for (const s of this.stars) {
-      if (s.x < x0 - 60 || s.x > x1 + 60) continue;
+      if (s.x + s.dx < x0 - 60 || s.x + s.dx > x1 + 60) continue;
       if (s.got && s.t > 0.8) continue;
       if (!M) { ctx.save(); M = ctx.getTransform(); A = starAtlas(Math.hypot(M.a, M.b)); }
       const k = 1 + 0.08 * Math.sin(t * 4 + s.x);
       ctx.globalAlpha = s.got ? Math.max(0, 1 - s.t / 0.8) : 1;
-      drawSprite(ctx, M, A, 0, s.x, s.y - (s.got ? s.t * 120 : 0), Math.sin(t * 1.3 + s.x) * 0.25 + (s.got ? s.t * 6 : 0), k, k);
+      drawSprite(ctx, M, A, 0, s.x + s.dx, s.y + s.dy - (s.got ? s.t * 120 : 0), Math.sin(t * 1.3 + s.x) * 0.25 + (s.got ? s.t * 6 : 0), k, k);
     }
     if (M) ctx.restore();
   }

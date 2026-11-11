@@ -11,8 +11,8 @@
  * - Saisons : sur la glace elle glisse (accélère davantage, presque sans frottement, répond
  *   moins aux gestes, surtout pour revenir en arrière) ; le vent d'automne la pousse ;
  *   les flaques et l'eau la freinent.
- * - Bonus : rouge = élan, vert = bond (aussi en l'air), jaune = plume (gravité réduite) ; le bleu (ralenti)
- *   ne touche pas la physique : main.js ralentit le temps.
+ * - Bonus : rouge = élan, vert = bond (aussi en l'air) ; jaune (aimant à étoiles, game.js) et bleu (ralenti)
+ *   ne touchent pas la physique : game.js attire les étoiles, main.js ralentit le temps.
  * - Au bout d'un tronçon, elle passe au suivant (à un aiguillage : le chemin choisi).
  */
 import { WORLD, SHEET, JUMPS, BALL_R, sample, segmentsNear } from './track.js';
@@ -41,7 +41,7 @@ export const BONUS = {
   red: { time: 2.6, color: [230, 75, 52] },
   blue: { time: 5, color: [70, 130, 225] }, // ralenti (compté en vrai temps par main.js)
   green: { time: 1.6, color: [70, 175, 80] },
-  yellow: { time: 6, color: [235, 190, 40] },
+  yellow: { time: 6, color: [235, 190, 40] }, // aimant : les étoiles proches viennent à la boule (game.js)
 };
 
 export class Ball {
@@ -188,7 +188,7 @@ export class Ball {
   }
 
   stepTrack(dt, push) {
-    const tr = this.tr, b = this.biome(), grav = this.fx.yellow > 0 ? 0.45 : 1;
+    const tr = this.tr, b = this.biome(), grav = 1; // (le bonus jaune est devenu l'aimant : pesanteur normale)
     let p = this.frame();
     // Réaction de la route (par unité de masse).
     let N = this.v * this.v * p.k - G * grav * p.ny;
@@ -288,7 +288,7 @@ export class Ball {
   }
 
   stepAir(dt) {
-    const b = this.biome(), grav = this.fx.yellow > 0 ? 0.45 : 1;
+    const b = this.biome(), grav = 1;
     const sp = Math.hypot(this.vx, this.vy);
     const drag = 1 - AIR * sp * dt;
     this.vx = this.vx * drag + (b.wind ? windAt(this.clock) * 0.6 * b.wind * this.skin.wind * windCalm(this.tr, this.x) * dt : 0);

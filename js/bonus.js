@@ -4,7 +4,7 @@
  * - rouge : coup d'élan ;
  * - bleue : ralenti, le temps passe deux fois moins vite pendant 5 s ;
  * - verte : bond, la boule saute ;
- * - jaune : plume, gravité réduite pendant 6 s (sauts plus longs, montées plus faciles).
+ * - jaune : aimant, pendant 6 s les étoiles proches viennent à la boule.
  * Une boule bonus touchée va dans la réserve du joueur (main.js : stock) et ne revient pas : elle est
  * prise pour la partie (↺ rend celles du niveau, voir main.js : restart).
  */
@@ -21,7 +21,7 @@ export const BONUS_INFO = {
   red: { word: 'élan', title: 'Bonus rouge : élan', text: 'Coup d’accélérateur dans le sens de la marche.' },
   blue: { word: 'ralenti', title: 'Bonus bleu : ralenti', text: 'Pendant 5 s, le temps passe deux fois moins vite : le temps de viser un saut, une plateforme, une étoile.' },
   green: { word: 'bond', title: 'Bonus vert : bond', text: 'La boule fait un grand saut, même en l’air (double saut).' },
-  yellow: { word: 'plume', title: 'Bonus jaune : plume', text: 'Pendant 6 s, la boule devient légère : sauts plus longs, montées plus faciles.' },
+  yellow: { word: 'aimant', title: 'Bonus jaune : aimant', text: 'Pendant 6 s, les étoiles proches (jusqu’à environ un quart d’écran) viennent à la boule.' },
 };
 /** Ordre des cases de la réserve, à l'écran et au clavier (touches 1 à 4). */
 export const RESERVE = ['red', 'green', 'yellow', 'blue'];

@@ -62,7 +62,7 @@ const SLOW = 0.12;            // devant un aiguillage, le temps passe 8 fois moi
 const FORK_ZONE = 750;        // px avant l'embranchement où le temps ralentit
 const FORK_SHOW = 1500;       // px avant l'embranchement où les boutons apparaissent
 const FORK_STOP = 90;         // px : sans choix, le temps s'arrête tout au bord de l'embranchement
-const WORDS = { red: 'Boost !', blue: 'Ralenti !', green: 'Bond !', yellow: 'Plume !' };
+const WORDS = { red: 'Boost !', blue: 'Ralenti !', green: 'Bond !', yellow: 'Aimant !' };
 const SLOW_BONUS = 0.5;       // bonus bleu : le temps passe deux fois moins vite…
 const SLOW_BONUS_S = 5;       // …pendant 5 s de vrai temps
 const vibrate = (ms) => save.options.vibrate && navigator.vibrate?.(ms);
@@ -1182,4 +1182,4 @@ applyOptions();
 resize();
 menu.open(false);
 requestAnimationFrame(frame);
-window.__boule = { inkLate: () => inkLate, ball, track, cam, sound, bonuses, weather, summer, art: () => art, restart, menu, run, pick };
+window.__boule = { inkLate: () => inkLate, ball, game, track, cam, sound, bonuses, weather, summer, art: () => art, restart, menu, run, pick };
