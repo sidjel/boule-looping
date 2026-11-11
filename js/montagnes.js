@@ -6,7 +6,8 @@
  * colonne par colonne, comme le paysage sous elle : sans fondu ni jonction. Leur pied s'efface dans
  * la brume de l'horizon (aux niveaux 1 et 2, les champs passent devant).
  */
-import { biomeMix } from './biomes.js';
+import { biomeMix, BLEND } from './biomes.js';
+import { SHEET } from './levels.js';
 import { ahead } from './avance.js';
 import { picture, ready, warmed, viewHalf, NEAR, FAR, BEHIND, FAR_BEHIND } from './ressources.js';
 import { mixTwo, mixStart, mixAdvance, mixFinish, mixCancel, mixBusy, mixRecycle, junctionNear } from './melange.js';
@@ -19,8 +20,21 @@ const PEAKS = 500;              // haut de la bande (monde), quand la caméra es
 
 /** Plan des montagnes ↔ monde : la saison en u est celle du sol sous la caméra quand elles y passent. */
 const worldOf = (u) => (u - Q * ANCHOR) / (1 - Q);
+/**
+ * À l'arrivée de l'hiver, les montagnes sont déjà enneigées (demande de l'auteur) : leur passage à
+ * l'hiver est avancé de LEAD px du monde. Quand la caméra arrive au début de l'hiver, le bord gauche
+ * de l'écran montre les montagnes de x − 2 290 en vue d'ensemble (x − 1 430 en vue suivie) : avec
+ * 2 700, tout l'écran est déjà en hiver. Le décalage vaut pour tout un morceau (linéaire dans le
+ * morceau, pour le mélange de melange.js) : les morceaux qui touchent la zone avancée sont décalés ;
+ * à leurs bords, les saisons sont pures (automne avant, hiver après), donc aucun raccord visible.
+ */
+const WINTER = 8 * SHEET, LEAD = 2700;
+const shiftOf = (k) => {
+  const a = worldOf(k * TW), b = worldOf((k + 1) * TW);
+  return b > WINTER - BLEND - LEAD && a < WINTER + BLEND ? LEAD : 0;
+};
 /** Les saisons d'un morceau (les mêmes que tileImage). */
-const marksOf = (k) => [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1].map((f) => biomeMix(worldOf(k * TW + f * TW)));
+const marksOf = (k) => [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1].map((f) => biomeMix(worldOf(k * TW + f * TW) + shiftOf(k)));
 function seasonsOfTiles(u0, u1) {
   const out = new Set();
   for (let k = Math.floor(u0 / TW); k <= Math.floor(u1 / TW); k++) for (const m of marksOf(k)) out.add(m.a.name).add(m.b.name);
@@ -84,7 +98,7 @@ function tileImage(k, now = true) {
   const i0 = pic[[...kinds][0]], W = i0.w, H = i0.h;
   if (two) {
     // deux saisons : deux dégradés (melange.js)
-    const xs = (x) => worldOf(u0 + (x / W) * TW);
+    const sh = shiftOf(k), xs = (x) => worldOf(u0 + (x / W) * TW) + sh;
     const J = junctionNear(xs(W * (marks.indexOf(mid) / 10)));
     const A = pic[KIND[mid.a.name]].img, B = pic[KIND[mid.b.name]].img;
     if (now) { t = { canvas: mixTwo(A, B, 0, W, W, H, xs, J) }; tiles.set(k, t); return t; }
@@ -99,7 +113,7 @@ function tileImage(k, now = true) {
   g.globalCompositeOperation = 'lighter';
   const STEP = 4;
   for (let x = 0; x < W; x += STEP) {
-    const m = biomeMix(worldOf(u0 + ((x + STEP / 2) / W) * TW));
+    const m = biomeMix(worldOf(u0 + ((x + STEP / 2) / W) * TW) + shiftOf(k));
     for (const [bio, w] of [[m.a, 1 - m.t], [m.b, m.t]]) {
       if (w < 0.004) continue;
       g.globalAlpha = w;
