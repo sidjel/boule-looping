@@ -285,6 +285,57 @@ export function report(env = {}) {
   };
 }
 
+/**
+ * Le résumé court d'un rapport (texte, environ 2 000 caractères) : ce qu'il faut pour comprendre une
+ * partie, facile à copier dans un message. Le rapport complet (plus de 100 000 caractères avec ses
+ * historiques image par image) se copiait mal et arrivait tronqué.
+ * Pour chaque événement : les pires images (intervalle, calcul, étapes les plus longues), les calculs
+ * les plus longs, la moyenne des étapes les plus coûteuses, et le journal regroupé.
+ */
+export function summaryText(r) {
+  if (!r || !r.statistiques) return '';
+  const S = r.statistiques, e = r.session || {}, L = [];
+  const f1 = (v) => (Math.round(v * 10) / 10).toString();
+  const top = (steps, n) => Object.entries(steps || {}).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => `${k} ${f1(v)}`).join(', ');
+  const ua = /Android [\d.]+|iPhone OS [\d_]+|Windows NT [\d.]+|Mac OS X [\d_.]+/.exec(e.appareil || '') || [''];
+  const br = /(Chrome|Firefox|Version)\/(\d+)/.exec(e.appareil || '') || ['', '', ''];
+  const lg = Object.values(S.images_longues || {});
+  L.push(`BOULE résumé v1 · ${(e.debut || '').slice(0, 16)} · ${e.duree_s} s · ${S.images_en_jeu} images · ${S.images_par_seconde_moyennes} ips · calcul ${S.calcul_js_moyen_ms} ms · p50 ${S.intervalle_median_ms} p95 ${S.intervalle_95_pourcent_ms} p99 ${S.intervalle_99_pourcent_ms}`);
+  L.push(`Appareil : ${ua[0]} ${br[1]} ${br[2]} · canevas ${e.canevas} rés. ${e.resolution_du_jeu} (${e.qualite}) · plein écran ${e.plein_ecran ? 'oui' : 'non'} · vue d'ensemble ${e.vue_ensemble ? 'oui' : 'non'} · décor ${e.images_decor_mo} Mo`);
+  L.push(`Longues : >20 ${lg[0]} · >25 ${lg[1]} · >33 ${lg[2]} · >50 ${lg[3]} | secondes ${S.secondes.en_jeu} : <57 ${S.secondes.sous_57_ips} · <50 ${S.secondes.sous_50_ips} · <40 ${S.secondes.sous_40_ips}`);
+  L.push('Contexte (longues/images) : ' + Object.entries(S.par_contexte || {}).map(([k, v]) => `${k} ${v.images_longues}/${v.images}`).join(' · '));
+  L.push('Niveaux (longues/retard ms) : ' + (S.par_niveau || []).map((n) => `${n.niveau === 'arrivée' ? 'A' : n.niveau}:${n.images_longues}/${n.retard_ms}`).join(' '));
+  L.push('Intervalles ms (nombre) : ' + Object.entries(S.histogramme_intervalles_ms || {}).map(([k, v]) => `${k}:${v}`).join(' '));
+  for (const ev of r.evenements || []) {
+    const h = ev.historique || [], g = ev.par_gravite || {};
+    L.push(`#${ev.rang} niv ${ev.au_debut?.niveau}→${ev.au_pire?.niveau} ${ev.au_pire?.saison} · t ${ev.debut_ms} +${ev.duree_ms} ms · ${ev.images_longues} longues (${g['sévère'] || 0} sév., ${g.critique || 0} crit.) · pire ${ev.pire_intervalle_ms} · retard ${ev.retard_total_ms}${ev.au_pire?.looping ? ' · looping' : ''}`);
+    if (!h.length) continue;
+    const one = (x) => `t${x.t_ms} ${Math.round(x.intervalle_ms)}/${f1(x.calcul_js_ms)} [${top(x.etapes_js_ms, 2)}]`;
+    L.push('  pires (intervalle/calcul) : ' + [...h].sort((a, b) => b.intervalle_ms - a.intervalle_ms).slice(0, 4).sort((a, b) => a.t_ms - b.t_ms).map(one).join(' | '));
+    const heavy = [...h].filter((x) => x.calcul_js_ms > 14).sort((a, b) => b.calcul_js_ms - a.calcul_js_ms).slice(0, 4).sort((a, b) => a.t_ms - b.t_ms);
+    if (heavy.length) L.push('  calculs longs : ' + heavy.map(one).join(' | '));
+    const mean = {};
+    for (const x of h) for (const [k, v] of Object.entries(x.etapes_js_ms || {})) mean[k] = (mean[k] || 0) + v / h.length;
+    L.push(`  moyennes sur ${h.length} images : calcul ${f1(h.reduce((s, x) => s + x.calcul_js_ms, 0) / h.length)} [${top(mean, 5)}] · dessins ${Math.round(h.reduce((s, x) => s + (x.dessins || 0), 0) / h.length)} · particules ${Math.round(h.reduce((s, x) => s + (x.particules || 0), 0) / h.length)}`);
+    // journal regroupé : chargements et images prêtes comptés, le reste tel quel
+    let loads = 0, readyN = 0, dec = 0, freed = 0;
+    const other = [];
+    for (const x of h) for (const n of x.journal || []) {
+      if (n.startsWith('chargement ')) loads++;
+      else if (n.startsWith('libérée ')) freed++;
+      else if (n.startsWith('image prête ')) { readyN++; dec = Math.max(dec, +(/décodée (\d+) ms/.exec(n) || [0, 0])[1]); }
+      else if (other.length < 8) other.push(`t${x.t_ms} ${n}`);
+    }
+    const j = [loads ? `${loads} chargements` : '', readyN ? `${readyN} images prêtes (décodage ≤ ${dec} ms)` : '', freed ? `${freed} libérées` : '', ...other].filter(Boolean);
+    if (j.length) L.push('  journal : ' + j.join(' ; '));
+  }
+  // (seulement pendant la partie : après la première feuille montrée)
+  const jr = r.journal || [], from = jr.findIndex((n) => / à l'écran$/.test(n.quoi));
+  const made = jr.slice(Math.max(0, from)).filter((n) => /^canevas \d|préparation,|d'un coup|préparation à l'avance/.test(n.quoi) && !/réutilisé/.test(n.quoi));
+  if (made.length) L.push('À noter : ' + made.slice(0, 14).map((n) => `t${n.t_ms} ${n.quoi}`).join(' ; ') + (made.length > 14 ? ` ; … (${made.length})` : ''));
+  return L.join('\n');
+}
+
 /** Garde un résumé (sans les historiques des 10 s) en quittant la page. */
 export function keepSummary(env) {
   try {

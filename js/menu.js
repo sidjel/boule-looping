@@ -94,11 +94,11 @@ export class Menu {
         <label class="ligne">Qualité d’image <select data-opt="quality">${[[0, 'Automatique'], [2, 'Haute'], [1.5, 'Moyenne'], [1, 'Économique']].map(([v, t]) => `<option value="${v}"${o.quality === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
         ${check('fps', 'Afficher le compteur d’images par seconde (fluidité)')}
         <h3>Diagnostic de fluidité</h3>
-        <p class="petit-texte">Le jeu note tout seul chaque ralentissement pendant la partie. Après une partie, exporte le rapport et envoie-le.</p>
+        <p class="petit-texte">Le jeu note tout seul chaque ralentissement pendant la partie. Après une partie, copie le résumé (court) et colle-le dans un message.</p>
         <p class="petit-texte"><b>${this.actions.diagInfo?.() || ''}</b></p>
-        <button data-do="diag-export" class="petit">Exporter le diagnostic</button>
-        <button data-do="diag-copy" class="petit">Copier</button>
-        <button data-do="diag-show" class="petit">Afficher</button>
+        <button data-do="diag-copy" class="petit">Copier le résumé</button>
+        <button data-do="diag-show" class="petit">Afficher le résumé</button>
+        <button data-do="diag-export" class="petit">Exporter le rapport complet (fichier)</button>
         <button data-do="diag-reset" class="petit">Remettre à zéro</button>
         ${this.actions.diagPrevious?.() ? '<button data-do="diag-previous" class="petit">Exporter la session précédente</button>' : ''}
         <p id="diag-msg" class="petit-texte"></p>`);
@@ -131,7 +131,7 @@ export class Menu {
         msg?.after(box);
         box.focus();
         box.select();
-        say('Rapport affiché : tout est sélectionné, copie-le.');
+        say('Résumé affiché : tout est sélectionné, copie-le.');
         return;
       }
       Promise.resolve(this.actions.diag(what.slice(5))).then(say);

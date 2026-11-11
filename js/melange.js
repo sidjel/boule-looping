@@ -10,6 +10,7 @@
 import { SHEET } from './levels.js';
 import { BLEND } from './biomes.js';
 import { warmCanvas } from './ressources.js';
+import { note } from './diagnostic.js';
 
 // canevas de travail des mélanges, créé au chargement à la plus grande taille utile (montagnes :
 // 2150 de large ; champs : 829 de haut) : un grand canevas neuf, ou agrandi, coûte cher à son premier
@@ -26,6 +27,7 @@ let current = null;
  * l'écran) ; le mélange par étapes en cours, s'il y en a un, est d'abord fini.
  */
 export function mixTwo(A, B, sx, sw, W, H, worldAt, J) {
+  note(`mélange d'un coup ${W}×${H} (morceau déjà à l'écran)`);
   if (current) mixFinish(current);
   const steps = mixSteps(A, B, sx, sw, W, H, worldAt, J);
   let r;

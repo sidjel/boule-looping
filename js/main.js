@@ -893,8 +893,14 @@ function download(blob, name) {
   a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
 }
+/** Le résumé court (texte) de la partie en cours, ou de la précédente si rien n'a été joué depuis l'ouverture. */
+function diagSummary() {
+  let r = diag.report(diagEnv());
+  if (!r.statistiques.images_en_jeu) r = diag.previousReport() || r;
+  return diag.summaryText(r);
+}
 function copyDiagnostic() {
-  const text = JSON.stringify(diag.report(diagEnv()));
+  const text = diagSummary();
   return navigator.clipboard?.writeText(text).then(() => true, () => false) ?? Promise.resolve(false);
 }
 
@@ -1004,7 +1010,7 @@ const menu = new Menu($('menu'), {
     const now = diag.report(diagEnv()).statistiques.images_en_jeu, prev = diag.previousReport();
     return `Partie en cours : ${now} images de jeu enregistrées.${prev ? ` Partie précédente : ${prev.statistiques.images_en_jeu} images (${prev.session.debut.slice(11, 16)}).` : ''}`;
   },
-  diagText: () => JSON.stringify(diag.report(diagEnv())),
+  diagText: diagSummary,
   diag: (what) => {
     if (what === 'export') {
       if (!exportDiagnostic()) return 'Rien à exporter.';
@@ -1013,7 +1019,7 @@ const menu = new Menu($('menu'), {
         : 'Rapport créé : choisis où l’enregistrer ou l’envoyer.';
     }
     if (what === 'previous') return exportDiagnostic(true) ? 'Rapport de la session précédente créé.' : 'Pas de session précédente.';
-    if (what === 'copy') return copyDiagnostic().then((ok) => (ok ? 'Rapport copié : colle-le dans un message.' : 'Copie impossible ici : utilise « Exporter ».'));
+    if (what === 'copy') return copyDiagnostic().then((ok) => (ok ? 'Résumé copié : colle-le dans un message.' : 'Copie impossible ici : utilise « Exporter ».'));
     if (what === 'reset') { diag.resetDiagnostic(); return 'Statistiques remises à zéro.'; }
     return '';
   },
