@@ -803,18 +803,19 @@ function render(dt) {
   mark('météo');
   weather.draw(ctx);
   mark('ralenti, trace');
-  // ralenti : écran légèrement bleuté, bords assombris
+  // ralenti : écran bleuté, bords assombris de bleu nuit (plus marqué depuis le 11 novembre, à la
+  // demande de l'auteur : voile 0,24 au lieu de 0,13, bords 0,45 au lieu de 0,35 ; toujours 2 remplissages)
   const k = Math.max(0, Math.min(1, (1 - timeScale) / (1 - SLOW)));
   if (k > 0.01) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = `rgba(70,95,150,${0.13 * k})`;
+    ctx.fillStyle = `rgba(50,90,190,${0.24 * k})`;
     ctx.fillRect(0, 0, W, H);
     // bords assombris : le dégradé est fait une fois par taille d'écran, à son plus fort, puis posé
     // plus ou moins transparent (avant : recréé à chaque image du ralenti)
     if (!veilGrad || veilGrad.W !== W || veilGrad.H !== H) {
       const v = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
-      v.addColorStop(0, 'rgba(30,35,60,0)');
-      v.addColorStop(1, 'rgba(30,35,60,0.35)');
+      v.addColorStop(0, 'rgba(20,40,110,0)');
+      v.addColorStop(1, 'rgba(20,40,110,0.45)');
       veilGrad = { v, W, H };
     }
     ctx.globalAlpha = k;
