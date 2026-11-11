@@ -5,7 +5,7 @@
 import { biomeShare, rainAt, windAt } from './biomes.js';
 import { makeAtlas, drawSprite } from './sprites.js';
 
-const MAX = { leaf: 45, snow: 130, rain: 220 };
+const MAX = { leaf: 45, snow: 90, rain: 220 };
 const LEAF = ['#c9772d', '#b5502a', '#d9a23a', '#8f5a2a'];
 
 // feuilles (une par couleur) et flocon, dessinés une fois sur une planche
@@ -28,13 +28,15 @@ function sheet() {
     g.lineTo(12, 0);
     g.stroke();
   } }));
-  cells.push({ w: 12, h: 12, draw: (g) => {
-    g.fillStyle = 'rgba(255,255,255,0.95)';
+  // flocon : 1,5 fois plus grand qu'avant le 11 novembre, blanc à peine bleuté, bord gris-bleu plus
+  // marqué (on le voit mieux sur le ciel pâle et sur la neige)
+  cells.push({ w: 18, h: 18, draw: (g) => {
+    g.fillStyle = 'rgba(238,244,252,0.97)';
     g.beginPath();
-    g.arc(0, 0, 4.5, 0, Math.PI * 2);
+    g.arc(0, 0, 6.75, 0, Math.PI * 2);
     g.fill();
-    g.strokeStyle = 'rgba(150,170,190,0.5)';
-    g.lineWidth = 1;
+    g.strokeStyle = 'rgba(105,130,165,0.75)';
+    g.lineWidth = 1.4;
     g.stroke();
   } });
   atlas = makeAtlas(cells, 3);
@@ -74,7 +76,7 @@ export class Weather {
         if (Math.random() > (kind === 'rain' ? rainAt(x) : biomeShare(x, kind === 'leaf' ? 'wind' : kind))) continue; // moins de flocons au début de l'hiver
         this.parts.push({
           kind, x, y: kind === 'leaf' ? y0 + Math.random() * (y1 - y0) : y0 - Math.random() * 200,
-          vx: 0, vy: kind === 'rain' ? 1500 + Math.random() * 400 : kind === 'snow' ? 60 + Math.random() * 70 : 40,
+          vx: 0, vy: kind === 'rain' ? 1500 + Math.random() * 400 : kind === 'snow' ? 90 + Math.random() * 105 : 40, // flocons : 1,5 fois plus vite
           a: Math.random() * 6.3, spin: (Math.random() - 0.5) * 6, s: 0.6 + Math.random() * 0.8,
           ci: Math.floor(Math.random() * LEAF.length),
         });
@@ -86,7 +88,7 @@ export class Weather {
         p.vy = 35 + Math.sin(this.clock * 2 + p.a) * 45;
         p.a += p.spin * dt;
       } else if (p.kind === 'snow') {
-        p.vx = Math.sin(this.clock * 0.9 + p.a) * 30 - 10;
+        p.vx = Math.sin(this.clock * 0.9 + p.a) * 45 - 15; // 1,5 fois plus vite
       } else {
         p.vx = -260;
       }
