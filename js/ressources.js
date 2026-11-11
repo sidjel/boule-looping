@@ -17,7 +17,7 @@ import { biomeMix } from './biomes.js';
 import { SHEET, SHEETS } from './levels.js';
 import { note } from './diagnostic.js';
 
-export const NEAR = 3200, FAR = 6500, BEHIND = 800, FAR_BEHIND = 2500;
+export const NEAR = 3600, FAR = 6500, BEHIND = 800, FAR_BEHIND = 2500;
 const all = [];
 
 /** Une image du décor ; need(cx) : voir plus haut ; onRelease(p, image) : appelé quand elle est libérée. */
@@ -35,16 +35,43 @@ export const ready = (p) => !!p && p.state === 'on';
  */
 export const warmed = (p) => ready(p) && p.sentAt > 0 && performance.now() - p.sentAt > 12;
 
+/**
+ * Chargement échelonné : au plus `limit` images à la fois (2 en jeu). Douze images d'une saison
+ * demandées au même instant se décodaient toutes ensemble : pendant 100 à 250 ms, le téléphone
+ * sautait 1 à 3 images à chaque passage de saison (rapports du 10 novembre). Menu ouvert ou reprise
+ * (updateResources forcé) : toutes à la fois, rien ne bouge à l'écran.
+ */
+const queue = [];
+let active = 0, limit = 2;
 function load(p) {
+  p.img = null;
+  p.state = 'loading'; // en file : rien n'est encore demandé au réseau
+  queue.push(p);
+  pump();
+}
+function pump() {
+  while (active < limit && queue.length) {
+    const p = queue.shift();
+    if (p.state === 'loading' && !p.img) start(p);
+  }
+}
+function finish(p, i) {
+  if (p.img === i && p.busy) { p.busy = false; active--; }
+  pump();
+}
+function start(p) {
   const i = new Image();
   i.decoding = 'async';
   p.img = i;
-  p.state = 'loading';
+  p.busy = true;
+  active++;
   const name = p.src.split('/').slice(-2).join('/'), t0 = performance.now();
   note(`chargement ${name}`);
   let tl = 0;
   const done = () => {
-    if (p.img !== i || !i.naturalWidth) return;
+    if (p.img !== i) return;
+    finish(p, i);
+    if (!i.naturalWidth) return;
     p.w = i.naturalWidth;
     p.h = i.naturalHeight;
     p.state = 'on';
@@ -53,17 +80,19 @@ function load(p) {
     note(`image prête ${name} ${p.w}×${p.h} (${((p.w * p.h * 4) / 1048576).toFixed(1)} Mo ; reçue ${Math.round(tl - t0)} ms, décodée ${Math.round(performance.now() - tl)} ms)`);
   };
   i.onload = () => { tl = performance.now(); if (i.decode) i.decode().then(done, done); else done(); };
-  i.onerror = () => { if (p.img === i) { p.img = null; p.state = 'off'; p.failed = true; } };
+  i.onerror = () => { if (p.img === i) { finish(p, i); p.img = null; p.state = 'off'; p.failed = true; } };
   i.src = p.src;
 }
 
 function release(p) {
   const i = p.img;
   note(`libérée ${p.src.split('/').slice(-2).join('/')}`);
+  if (p.busy) { p.busy = false; active--; } // abandonnée en cours de chargement : sa place est libre
   p.img = null;
   p.state = 'off';
   if (p.onRelease) p.onRelease(p, i);
   if (i) { i.onload = i.onerror = null; i.removeAttribute('src'); } // le navigateur libère l'image décodée
+  pump();
 }
 
 let last = -1e9, lastT = 0, half = 1000;
@@ -72,16 +101,18 @@ let last = -1e9, lastT = 0, half = 1000;
  * cx : centre de la caméra ; halfW : demi-largeur de ce qu'elle montre (les distances se comptent
  * depuis les bords de l'écran : en vue d'ensemble, le bord est bien plus loin que le centre).
  */
-export function updateResources(cx, now, force = false, halfW = 1000) {
+export function updateResources(cx, now, force = false, halfW = 1000, calm = false) {
   if (!force && now - lastT < 250 && Math.abs(cx - last) < 1500 && Math.abs(halfW - half) < 200) return;
   last = cx;
   lastT = now;
   half = halfW;
+  limit = force || calm ? 99 : 2; // calm : jeu en pause (menu), tout peut se charger ensemble
   for (const p of all) {
     const n = p.need(cx);
     if (n >= 2 && p.state === 'off' && !p.failed) load(p);
     else if (n <= 0 && p.state !== 'off') release(p);
   }
+  pump();
 }
 
 /** Toutes les images qui servent en cx sont-elles prêtes ? (le fondu attend un peu avant de s'ouvrir) */

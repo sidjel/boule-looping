@@ -419,7 +419,7 @@ function frame(now) {
   turn.hidden = !portrait();
   newFrame();
   mark('images (chargement)');
-  updateResources(cam.x + cam.viewW / 2, now, false, cam.viewW / 2); // images du décor : celles des saisons proches seulement
+  updateResources(cam.x + cam.viewW / 2, now, false, cam.viewW / 2, paused); // images du décor : celles des saisons proches seulement
   mark('mise à jour');
   if (!paused) update(dt);
   else {
