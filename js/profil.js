@@ -45,7 +45,13 @@ export function mark(name) {
   if (profil.sync && profil.ctx) profil.ctx.getImageData(0, 0, 1, 1);
   const t = now();
   if (profil.cur) profil.frame[profil.cur] = (profil.frame[profil.cur] || 0) + t - profil.t;
-  else if (name) { profil.start = t; profil.frame = {}; profil.frameDraws = {}; profil.frameImages = {}; }
+  else if (name) {
+    // début d'une image : les trois tableaux sont remis à zéro, pas recréés (pas de déchets à chaque image)
+    profil.start = t;
+    for (const k in profil.frame) profil.frame[k] = 0;
+    for (const k in profil.frameDraws) profil.frameDraws[k] = 0;
+    for (const k in profil.frameImages) profil.frameImages[k] = 0;
+  }
   profil.cur = name;
   profil.t = t;
   if (name) return;
@@ -54,11 +60,12 @@ export function mark(name) {
   profil.frames++;
   profil.total += ms;
   profil.worst = Math.max(profil.worst, ms);
-  for (const [k, v] of Object.entries(profil.frame)) {
+  for (const k in profil.frame) {
+    const v = profil.frame[k];
     profil.sum[k] = (profil.sum[k] || 0) + v;
-    profil.max[k] = Math.max(profil.max[k] || 0, v);
+    if (v > (profil.max[k] || 0)) profil.max[k] = v;
   }
-  for (const [k, v] of Object.entries(profil.frameDraws)) profil.draws[k] = (profil.draws[k] || 0) + v;
+  for (const k in profil.frameDraws) profil.draws[k] = (profil.draws[k] || 0) + profil.frameDraws[k];
   if (profil.onFrame) profil.onFrame(ms, profil.frame);
 }
 

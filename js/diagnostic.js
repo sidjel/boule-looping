@@ -141,8 +141,7 @@ export function frame(dt, js, playing, info) {
     for (const c of resized) if (c.width > 256 || c.height > 256) note(`canevas ${c.width}×${c.height}${c.id ? ` (${c.id})` : ''}`);
     resized.clear();
   }
-  H.notes[i] = pending.length ? pending : null;
-  pending = [];
+  if (pending.length) { H.notes[i] = pending; pending = []; } else H.notes[i] = null;
 
   const S = session;
   S.frames++;
