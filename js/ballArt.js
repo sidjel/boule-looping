@@ -8,6 +8,16 @@ import { rng, range, pencilLine } from './pencil.js';
 
 const R = BALL_R;
 
+/**
+ * Essai (demande de l'auteur) : la boule par défaut est la boule aux crayons de couleur dessinée
+ * (images/boule-crayons.webp, 192 × 192, 17 Ko, préparée par tools/preparer-boule.py) ; elle tourne
+ * avec la boule (on voit la spirale rouler). La bille d'acier dessinée au crayon reste en secours,
+ * le temps que l'image arrive. La physique de la boule ne change pas.
+ */
+const CRAYONS = new Image();
+CRAYONS.src = 'images/boule-crayons.webp';
+const crayonsReady = () => CRAYONS.complete && CRAYONS.naturalWidth > 0;
+
 /** Couleurs de chaque boule (reflet du ciel en haut, sol en bas). */
 const PALETTES = {
   acier: ['#f3f3f1', '#c9cacd', '#5d5f64', '#8f9a86', '#5f6a58'],
@@ -100,6 +110,7 @@ export function drawBall(ctx, body, ball, track, t, skin = 'acier') {
   const appear = Math.min(1, ball.age / 0.35);
   const sc = 0.55 + 0.45 * easeOutBack(appear);
   drawShadow(ctx, ball, track);
+  if (skin === 'acier' && crayonsReady()) return drawCrayons(ctx, ball, sc, appear);
   ctx.save();
   ctx.translate(ball.x, ball.y);
   ctx.globalAlpha = Math.min(1, appear * 1.5);
@@ -152,6 +163,43 @@ export function drawBall(ctx, body, ball, track, t, skin = 'acier') {
   ctx.beginPath();
   ctx.arc(R * 0.08, -R * 0.62, R * 0.06, 0, Math.PI * 2);
   ctx.fill();
+  ctx.restore();
+}
+
+/** La boule aux crayons de couleur : l'image qui tourne avec la boule, un trait de crayon autour, la teinte des bonus. */
+function drawCrayons(ctx, ball, sc, appear) {
+  ctx.save();
+  ctx.translate(ball.x, ball.y);
+  ctx.globalAlpha = Math.min(1, appear * 1.5);
+  ctx.scale(sc, sc);
+  ctx.save();
+  ctx.rotate(ball.angle);
+  ctx.drawImage(CRAYONS, -R, -R, R * 2, R * 2);
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(46,46,51,0.55)';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.arc(0, 0, R - 0.5, 0, Math.PI * 2);
+  ctx.stroke();
+  const tint = ball.tint();
+  if (tint) {
+    // bonus : la boule prend la couleur du bonus (teinte multipliée), halo
+    const [r, g, b, h] = tint;
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = `rgba(${r},${g},${b},${0.6 * h})`;
+    ctx.beginPath();
+    ctx.arc(0, 0, R - 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    const halo = ctx.createRadialGradient(0, 0, R * 0.8, 0, 0, R * 1.9);
+    halo.addColorStop(0, `rgba(${r},${g},${b},${0.35 * h})`);
+    halo.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 1.9, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
 }
 
