@@ -169,7 +169,8 @@ par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même rob
   vraie carte graphique : il est bien plus lent qu'un téléphone, mais il montre où et pourquoi ça coince.
 - **Images selon l'endroit** (`js/ressources.js`) : chaque image du décor dit où elle sert (sa saison,
   ou une zone du parcours) ; elle est chargée et décodée hors du jeu quand la caméra en approche
-  (3 200 px), gardée jusqu'à 6 500 px, puis libérée, et les copies préparées à partir d'elle sont
+  (3 600 px), deux à la fois au plus pendant la partie (douze décodées ensemble faisaient sauter des
+  images à chaque passage de saison), gardée jusqu'à 6 500 px, puis libérée, et les copies préparées à partir d'elle sont
   oubliées avec elle. Les niveaux eux-mêmes (route, bonus, obstacles) restent tous en mémoire.
   Mémoire des images : 41 à 74 Mo selon l'endroit, au lieu de 130 Mo (affichée dans le compteur).
   Le fondu attend (1,5 s au plus) que les images du nouvel endroit soient prêtes.
@@ -185,8 +186,9 @@ par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même rob
     par morceau, la terre et le grain du papier en 4 bandes). L'ordre suit ce que la caméra montre et
     va montrer dans le sens de la marche (1,6 s de route à la vitesse de la boule, au moins 900 px), au
     plus 5 feuilles en mémoire. L'effort suit l'urgence : au calme, un morceau par image et rien après
-    une image longue ; pressé, plusieurs morceaux (2 ms au plus), même après une image longue ; un pixel de la feuille en cours, invisible, est posé sur l'écran pour que la carte
-    graphique fasse chaque morceau tout de suite (essai sans ce pixel : Options → Diagnostic) ; les
+    une image longue ; pressé, plusieurs morceaux (2 ms au plus), même après une image longue ; un pixel de la feuille finie, invisible, est posé sur l'écran pour que la carte
+    graphique la dessine avant son entrée à l'écran (un seul : un pixel après chaque morceau coûtait
+    6 à 60 ms par image au téléphone) ; les obstacles d'une feuille reçoivent leur image juste après elle ; les
     canevas des feuilles sont créés menu ouvert puis réutilisés : aucun n'est créé en pleine partie ;
     traits au crayon allégés (un point tous les 5 px) ; menu ouvert, les premières sont préparées ; une petite tuile dont on lit les pixels (grain du papier, soleil) est en
     mémoire (`willReadFrequently`), jamais lue depuis la carte graphique ;
@@ -194,9 +196,12 @@ par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même rob
     château déjà prêts) ;
   - les morceaux de paysage aux couleurs mêlées (passages de saison) sont préparés à l'avance, un par
     image au plus (`js/avance.js`), par deux dégradés (`js/melange.js` : 4 dessins au lieu d'un par
-    colonne), puis passent tout de suite par la carte graphique ; les montagnes, en trois étapes sur
-    trois images, une fois leurs images passées par la carte graphique, et chargées d'après leur propre
-    plan (elles annoncent la saison bien avant le sol) ; le ciel d'un passage est un seul ciel
+    colonne), puis passent tout de suite par la carte graphique ; chaque mélange (montagnes, herbe,
+    champs, pluie) se fait en trois étapes sur trois images, une fois ses deux images passées par la
+    carte graphique, un seul à la fois, sur des canevas réutilisés ; les montagnes sont chargées
+    d'après leur propre plan (elles annoncent la saison bien avant le sol) ; les canevas qui ne
+    servent plus sont rendus tout de suite à la carte graphique ; étoiles, lueurs et mots des bonus
+    sont de petites images dessinées une fois ; le ciel d'un passage est un seul ciel
     déjà mélangé ;
   - les images d'une saison se chargent quand elle approche du bord de l'écran (pas du centre) ;
   - l'écran d'arrivée met le jeu en pause ; en pause, une image identique n'est pas redessinée ;

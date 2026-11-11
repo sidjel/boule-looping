@@ -8,7 +8,7 @@
  * de saison) ; rien ailleurs.
  */
 import { biomeShare } from './biomes.js';
-import { makeAtlas, drawSprite } from './sprites.js';
+import { makeAtlas } from './sprites.js';
 
 const FAR = 360, NEAR = 64; // particules au plus, pour tout l'écran en automne
 // des pailles claires (presque crème) et quelques-unes plus foncées : elles se voient sur le jaune des champs
@@ -101,23 +101,44 @@ export class Hay {
     }
   }
 
+  /**
+   * Même nombre de brins et de grains, moins d'appels au canevas : les brins d'abord (une
+   * transformation et une image chacun), puis les grains, qui ne tournent pas, sous la transformation
+   * du monde posée une seule fois (une image chacun). La case de chaque particule est cherchée une
+   * fois (p.cell), et non recomposée à chaque image (4,6 ms par image en automne, rapport du 10 novembre).
+   */
   drawLayer(ctx, list) {
     if (!list.length) return;
-    const A = sheet(), M = ctx.getTransform();
+    const A = sheet(), M = ctx.getTransform(), rects = A.rects, img = A.canvas, k = 1 / A.res;
+    const ma = M.a, mb = M.b, mc = M.c, md = M.d, me = M.e, mf = M.f;
+    let dust = 0;
     ctx.save();
     for (const p of list) {
+      if (p.dust) { dust++; continue; }
       const a = p.alpha * Math.min(1, p.life / 0.6, (p.max - p.life) / 1.2);
       if (a <= 0.01) continue;
-      ctx.globalAlpha = a;
-      if (p.dust) {
-        // un grain de poussière de foin : un petit point clair cerné
-        drawSprite(ctx, M, A, cell.dust[p.ci], p.x, p.y, 0, p.r / DUST, p.r / DUST);
-        continue;
-      }
       // un brin de paille courbé qui tourne sur lui-même (vu de biais, il raccourcit)
       const fore = 0.35 + 0.65 * Math.abs(Math.cos(p.a * 0.7 + p.ph));
-      const kind = p.fine ? 'fine' : 'normal';
-      drawSprite(ctx, M, A, cell.straw[kind + p.ci], p.x, p.y, p.a, (p.len / LEN) * fore, p.wid / WID[kind]);
+      if (p.cell === undefined) p.cell = cell.straw[(p.fine ? 'fine' : 'normal') + p.ci];
+      const r = rects[p.cell], sx = (p.len / LEN) * fore * k, sy = (p.wid / WID[p.fine ? 'fine' : 'normal']) * k;
+      const c = Math.cos(p.a), sn = Math.sin(p.a);
+      const ta = c * sx, tb = sn * sx, tc = -sn * sy, td = c * sy;
+      ctx.globalAlpha = a;
+      ctx.setTransform(ma * ta + mc * tb, mb * ta + md * tb, ma * tc + mc * td, mb * tc + md * td, ma * p.x + mc * p.y + me, mb * p.x + md * p.y + mf);
+      ctx.drawImage(img, r[0], r[1], r[2], r[3], -r[2] / 2, -r[3] / 2, r[2], r[3]);
+    }
+    if (dust) {
+      ctx.setTransform(M);
+      for (const p of list) {
+        if (!p.dust) continue;
+        const a = p.alpha * Math.min(1, p.life / 0.6, (p.max - p.life) / 1.2);
+        if (a <= 0.01) continue;
+        // un grain de poussière de foin : un petit point clair cerné
+        if (p.cell === undefined) p.cell = cell.dust[p.ci];
+        const r = rects[p.cell], s = (p.r / DUST) * k, w = r[2] * s, h = r[3] * s;
+        ctx.globalAlpha = a;
+        ctx.drawImage(img, r[0], r[1], r[2], r[3], p.x - w / 2, p.y - h / 2, w, h);
+      }
     }
     ctx.restore();
   }
