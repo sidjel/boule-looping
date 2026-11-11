@@ -56,8 +56,8 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
   se cache derrière un groupe de grands sapins enneigés ; au sol, la neige s'arrête en bord irrégulier
   sur l'herbe, comme une neige qui fond. Le paysage se répète ensuite (raccordé sur lui-même, lac contre
   lac) jusqu'au bout du parcours, aux couleurs grises de la pluie, puis du soir à l'arrivée.
-- **Automne (5 à 8)** : feuilles mortes qui volent, vent en rafales qui gêne l'avancée ; poussière et
-  fins brins de foin emportés par le vent au-dessus des champs et tout près (`js/foin.js`).
+- **Automne (5 à 8)** : feuilles mortes qui volent (les seules particules de l'automne), vent en rafales
+  qui gêne l'avancée.
 - **Hiver (9 à 12)** : neige, route glacée : la boule glisse, va plus vite, répond moins aux
   gestes, et revenir en arrière est difficile.
 - **Pluie (13 à 16)** : flaques qui freinent, fosses pleines d'eau ; il pleut aux niveaux 13 à 15, la pluie
@@ -179,7 +179,7 @@ par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même rob
   la résolution baisse d'un cran, et ce choix est gardé pour la fois suivante. Seuls les pixels du
   canevas changent : cadrage, physique et gestes sont les mêmes.
 - **Règles qui évitent les saccades** :
-  - les particules nombreuses (foin, feuilles mortes, flocons) sont de petites images dessinées une
+  - les particules (feuilles mortes, flocons) sont de petites images dessinées une
     fois (`js/sprites.js`) puis posées, jamais des centaines de traits par image ; la pluie est un seul
     tracé ;
   - les feuilles (terre, route) sont dessinées sur la carte graphique, par morceaux (la route morceau

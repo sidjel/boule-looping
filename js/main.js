@@ -16,7 +16,6 @@ import { buildBallBody, drawBall } from './ballArt.js';
 import { Effects } from './effects.js';
 import { Bonuses, BONUS_INFO } from './bonus.js';
 import { Weather } from './weather.js';
-import { Hay } from './foin.js';
 import { mark, profil, countDraws } from './profil.js';
 import { newFrame } from './avance.js';
 import { updateResources, readyAt, loadedMB, nextToWarm } from './ressources.js';
@@ -53,7 +52,6 @@ const cam = new Camera();
 const sound = new Sound();
 const bonuses = new Bonuses(track);
 const weather = new Weather();
-const hay = new Hay();
 const summer = new Balade();
 const grass = new Grass();
 const game = new Game();
@@ -551,7 +549,6 @@ function update(realDt) {
   grass.update(dt);
   mark('météo (calcul)');
   weather.update(dt, cam, ball.clock);
-  hay.update(dt, cam, weather.wind());
   mark('effets (calcul)');
   fx.follow(ball, dt);
   fx.update(dt);
@@ -763,8 +760,6 @@ function render(dt) {
   drawNuages(ctx, cam); // les nuages, deux rangs, de la couleur de la saison
   mark('champs et paysages');
   summer.drawFar(ctx, cam); // la balade en couleurs : ciel, soleil, nuages, montagnes, champs, moulin, ferme
-  mark('foin');
-  hay.drawFar(ctx); // automne : poussière et brins de foin au-dessus des champs
   mark('oiseaux');
   drawBirds(ctx, time, dt, x0, x1);
   mark('feuilles (terre, route)');
@@ -796,8 +791,6 @@ function render(dt) {
   fx.drawSpeed(ctx, ball);
   drawBall(ctx, art.body, ball, track, time, save.skin);
   fx.draw(ctx);
-  mark('foin');
-  hay.drawNear(ctx); // automne : brins de foin qui passent tout près
   mark('herbe');
   grass.draw(ctx, cam); // l'herbe fleurie du premier plan, au vent, sur tout le parcours
   mark('météo');
@@ -855,7 +848,7 @@ function record(dtMs, js, playing) {
   frameInfo.biome = m.t > 0 ? `${m.a.name} → ${m.b.name}` : m.a.name;
   frameInfo.bx = ball.x; frameInfo.by = ball.y; frameInfo.bv = ball.speed();
   frameInfo.cx = cam.x; frameInfo.cy = cam.y; frameInfo.cs = cam.scale;
-  frameInfo.parts = weather.parts.length + hay.far.length + hay.near.length + fx.items.length;
+  frameInfo.parts = weather.parts.length + fx.items.length;
   frameInfo.loop = loopNear(ball.x);
   frameInfo.season = m.t > 0;
   frameInfo.sheet = local < 600 || local > SHEET - 300 || art.pending.size > 0;
@@ -1097,4 +1090,4 @@ applyOptions();
 resize();
 menu.open(false);
 requestAnimationFrame(frame);
-window.__boule = { inkLate: () => inkLate, ball, track, cam, sound, bonuses, weather, hay, summer, art: () => art, restart, menu, run, pick };
+window.__boule = { inkLate: () => inkLate, ball, track, cam, sound, bonuses, weather, summer, art: () => art, restart, menu, run, pick };
