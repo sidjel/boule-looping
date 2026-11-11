@@ -11,7 +11,7 @@
  * peu, vers celle qui le ramènerait en 8 s là où on s'attend à le voir à l'écran.
  * Sa montée suit sa propre avancée (u, de son départ derrière la butte au bout de l'automne).
  *
- * Dessin : une image (16 Ko, 320 × 123) et un disque (l'hélice qui tourne), seulement quand il est à
+ * Dessin : une seule image (320 × 123, hélice comprise, telle que dessinée), seulement quand il est à
  * l'écran ; l'image est chargée bien avant (ressources.js : dès le niveau 2), libérée après l'automne.
  */
 import { picture, ready, rangeNeed } from './ressources.js';
@@ -102,12 +102,5 @@ export function drawAvion(ctx, cam, time) {
   ctx.translate(x, y);
   ctx.rotate(pitch);
   ctx.drawImage(pic.img, -w / 2, -h / 2, w, h);
-  // l'hélice qui tourne : un disque fin, flou, qui scintille
-  const k = w / meta.w, hx = (meta.helice.x - meta.w / 2) * k, hy = (meta.helice.y - meta.h / 2) * k;
-  ctx.globalAlpha *= 0.28 + 0.1 * Math.sin(time * 47);
-  ctx.fillStyle = '#5a5a60';
-  ctx.beginPath();
-  ctx.ellipse(hx, hy, meta.helice.r * k * 0.13, meta.helice.r * k, 0, 0, Math.PI * 2);
-  ctx.fill();
   ctx.restore();
 }
