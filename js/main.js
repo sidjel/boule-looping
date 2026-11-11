@@ -799,7 +799,7 @@ function render(dt) {
   mark('foin');
   hay.drawNear(ctx); // automne : brins de foin qui passent tout près
   mark('herbe');
-  grass.draw(ctx, cam); // l'herbe fleurie du premier plan, au vent, sur tout le parcours
+  grass.draw(ctx, cam, !save.options.oldGrass); // l'herbe fleurie du premier plan, au vent, sur tout le parcours
   mark('météo');
   weather.draw(ctx);
   mark('ralenti, trace');
@@ -870,6 +870,7 @@ function diagEnv() {
     resolution_automatique_retenue: save.options.autoDpr,
     processeurs: navigator.hardwareConcurrency || null, memoire_appareil_go: navigator.deviceMemory || null,
     plein_ecran: !!document.fullscreenElement, vue_ensemble: !!cam.wide, images_decor_mo: Math.round(loadedMB()),
+    herbe: save.options.oldGrass ? 'ancienne (fines rangées)' : 'rangées inclinées',
   };
 }
 function exportDiagnostic(previous = false) {

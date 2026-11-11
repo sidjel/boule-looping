@@ -209,6 +209,10 @@ par un petit robot. `SANS_SAUT=1 node tools/verifier-niveaux.mjs` : le même rob
   - l'écran d'arrivée met le jeu en pause ; en pause, une image identique n'est pas redessinée ;
   - les sauvegardes (et les fantômes) sont écrites au moment calme du navigateur, pas pendant le
     passage d'un niveau à l'autre ; le papier n'est pas dessiné sous le ciel ; l'herbe n'est dessinée
-    qu'à l'écran.
+    qu'à l'écran ;
+  - l'herbe ondule en environ 9 rangées inclinées (chacune penchée de son haut à son bas, à 0,3 px de
+    la courbe du vent) au lieu de 50 à 80 fines rangées décalées en escalier : 16 à 32 dessins par
+    image au lieu de 68 à 204, et des brins sans crans. Options → « Essai : herbe à l'ancienne »
+    remet l'ancienne méthode pour comparer (indiqué dans le résumé du diagnostic).
 - Le compteur affiche aussi le nombre de dessins par image et les étapes qui dessinent le plus
   (sur téléphone, c'est souvent ce nombre qui ralentit, pas le calcul).
