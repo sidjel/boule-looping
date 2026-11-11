@@ -7,7 +7,7 @@
  * Seulement autour de ce que voit la caméra, et seulement là où c'est l'automne (moins aux passages
  * de saison) ; rien ailleurs.
  */
-import { biomeParams } from './biomes.js';
+import { biomeShare } from './biomes.js';
 import { makeAtlas, drawSprite } from './sprites.js';
 
 const FAR = 360, NEAR = 64; // particules au plus, pour tout l'écran en automne
@@ -60,7 +60,7 @@ export class Hay {
     const x0 = cam.x - 220, x1 = cam.x + cam.viewW + 220;
     // part d'automne sur ce que voit la caméra
     let want = 0;
-    for (let i = 0; i < 5; i++) want += biomeParams(x0 + ((x1 - x0) * (i + 0.5)) / 5).wind;
+    for (let i = 0; i < 5; i++) want += biomeShare(x0 + ((x1 - x0) * (i + 0.5)) / 5, 'wind');
     want /= 5;
     if (want <= 0 && !this.far.length && !this.near.length) return;
     this.spawn(this.far, FAR * want, cam, x0, x1, false);
@@ -85,7 +85,7 @@ export class Hay {
   spawn(list, target, cam, x0, x1, near) {
     for (let n = 0; n < (near ? 4 : 14) && list.length < target; n++) {
       const x = rand(x0, x1);
-      if (Math.random() > biomeParams(x).wind) continue;
+      if (Math.random() > biomeShare(x, 'wind')) continue;
       const dust = !near && Math.random() < 0.38;
       const fine = Math.random() < 0.55; // fine paille : longue et très mince
       // au loin : au-dessus des champs (milieu de l'écran) ; tout près : n'importe où

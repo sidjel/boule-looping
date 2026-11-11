@@ -2,7 +2,7 @@
  * Météo des saisons, seulement autour de ce que voit la caméra (une centaine de particules) :
  * feuilles mortes emportées par le vent (automne), flocons (hiver), gouttes de pluie.
  */
-import { biomeParams, windAt } from './biomes.js';
+import { biomeShare, windAt } from './biomes.js';
 import { makeAtlas, drawSprite } from './sprites.js';
 
 const MAX = { leaf: 45, snow: 90, rain: 110 };
@@ -60,10 +60,10 @@ export class Weather {
     // nouvelles particules, selon la saison sous chaque point du ciel visible
     const want = { leaf: 0, snow: 0, rain: 0 };
     for (let i = 0; i < 6; i++) {
-      const b = biomeParams(x0 + ((x1 - x0) * (i + 0.5)) / 6);
-      want.leaf += b.wind;
-      want.snow += b.snow;
-      want.rain += b.rain;
+      const x = x0 + ((x1 - x0) * (i + 0.5)) / 6;
+      want.leaf += biomeShare(x, 'wind');
+      want.snow += biomeShare(x, 'snow');
+      want.rain += biomeShare(x, 'rain');
     }
     const count = { leaf: 0, snow: 0, rain: 0 };
     for (const p of this.parts) count[p.kind]++;
@@ -71,7 +71,7 @@ export class Weather {
       const target = (MAX[kind] * want[kind]) / 6;
       for (let n = 0; n < 4 && count[kind] < target; n++, count[kind]++) {
         const x = x0 + Math.random() * (x1 - x0);
-        if (Math.random() > biomeParams(x)[kind === 'leaf' ? 'wind' : kind]) continue; // moins de flocons au début de l'hiver
+        if (Math.random() > biomeShare(x, kind === 'leaf' ? 'wind' : kind)) continue; // moins de flocons au début de l'hiver
         this.parts.push({
           kind, x, y: kind === 'leaf' ? y0 + Math.random() * (y1 - y0) : y0 - Math.random() * 200,
           vx: 0, vy: kind === 'rain' ? 1500 + Math.random() * 400 : kind === 'snow' ? 60 + Math.random() * 70 : 40,

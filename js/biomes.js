@@ -83,3 +83,20 @@ export function biomeParams(x) {
   out.rain = lerp(a.rain ? 1 : 0, b.rain ? 1 : 0, t);
   return out;
 }
+
+/**
+ * La part (0 à 1) d'un temps qu'il fait en x : key = 'wind', 'snow' ou 'rain'. Même calcul que
+ * biomeParams(x)[key], sans créer d'objet (météo et foin l'appellent plusieurs fois par image).
+ */
+export function biomeShare(x, key) {
+  const k = Math.floor(x / SHEET), a = biomeOfSheet(k), local = x - k * SHEET;
+  if (local < BLEND && k > 0) {
+    const prev = biomeOfSheet(k - 1);
+    if (prev !== a) return lerp(prev[key] ? 1 : 0, a[key] ? 1 : 0, 0.5 + (0.5 * local) / BLEND);
+  }
+  if (local > SHEET - BLEND && k < SHEETS - 1) {
+    const next = biomeOfSheet(k + 1);
+    if (next !== a) return lerp(a[key] ? 1 : 0, next[key] ? 1 : 0, (0.5 * (local - (SHEET - BLEND))) / BLEND);
+  }
+  return a[key] ? 1 : 0;
+}
