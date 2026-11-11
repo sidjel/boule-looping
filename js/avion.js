@@ -1,52 +1,87 @@
 /**
  * L'avion de l'automne (images/avion/, préparé par tools/preparer-avion.py) : un petit avion au loin, qui
- * apparaît au début de l'automne au-dessus des montagnes, traverse le ciel de gauche à droite en montant
- * peu à peu, passe derrière les nuages et disparaît par le haut de l'écran vers le début de l'hiver.
+ * entre par la gauche de l'écran au début de l'automne, juste au-dessus des montagnes, traverse le ciel
+ * en montant de plus en plus, passe derrière les nuages, et sort par le haut de l'écran en arrivant au
+ * bout de l'automne.
  *
- * - Très loin : comme le soleil, il glisse à peine à l'écran quand on roule ; son avancée suit celle du
- *   joueur dans l'automne (sinon un joueur lent ne le verrait pas traverser, un rapide le dépasserait),
- *   en douceur, sans jamais reculer ni s'arrêter en l'air : boule arrêtée, il continue lentement.
- * - Vol : montée de plus en plus franche (le nez se lève un peu avec elle), petits remous, plus petit et
- *   un peu voilé à mesure qu'il s'éloigne ; l'hélice qui tourne est un disque flou qui scintille.
- * - Dessin : une image (16 Ko, 320 × 123) et un disque, seulement quand il est à l'écran ; chargée bien
- *   avant l'automne (ressources.js : dès le niveau 3) et libérée après le début de l'hiver.
+ * Il vole par lui-même : il a sa propre vitesse dans le ciel, il ne s'arrête jamais et ne recule jamais,
+ * quoi que fasse la boule. Il est très loin (plan Q, comme le ciel) : quand la caméra avance, il glisse
+ * un peu vers la gauche à l'écran ; quand elle s'arrête, il continue sa route vers la droite ; quand
+ * elle recule, il file plus vite vers la droite. Pour rester en vue d'un joueur lent ou rapide, il
+ * change de vitesse peu à peu (comme un vrai avion), entre VMIN et VMAX, jamais à l'arrêt ni en arrière.
+ * Sa montée suit sa propre avancée (u, du départ à l'arrivée au bout de l'automne), pas la caméra.
+ *
+ * Dessin : une image (16 Ko, 320 × 123) et un disque (l'hélice qui tourne), seulement quand il est à
+ * l'écran ; l'image est chargée bien avant l'automne (ressources.js : dès le niveau 3), libérée après.
  */
 import { picture, ready, rangeNeed } from './ressources.js';
 
-const X0 = 8300, X1 = 16000;    // centre de la caméra : il part au début de l'automne, a disparu à l'hiver
-const RATE_MIN = 1 / 400;       // part du trajet par seconde, boule arrêtée (il ne fait jamais du sur-place)
-const RATE_MAX = 1 / 25;        // au plus vite (il rattrape un joueur rapide sans bondir)
-const WIDTH = 300;              // largeur au départ (monde), 0,55 fois moins à la fin (il s'éloigne)
-const Y0 = 470, CLIMB = 600;    // hauteur de départ (juste au-dessus des montagnes) et montée totale
+const START = 8300, END = 16000;  // centre de la caméra : il entre au début de l'automne ; bout de l'automne
+const Q = 0.85, ANCHOR = 1200;    // très loin : il suit 85 % du mouvement de la caméra
+const VMIN = 14, VMAX = 300;      // vitesse dans son plan (px/s) : jamais de sur-place ; assez pour un joueur rapide
+const ACCEL = 25;                 // px/s² : il change de vitesse en douceur
+const WIDTH = 300;                // largeur au départ (monde), 0,55 fois moins à la fin (il s'éloigne)
+const Y0 = 470, CLIMB = 600;      // hauteur de départ (juste au-dessus des montagnes) et montée totale
 
-const pic = picture('images/avion/avion.webp', rangeNeed(X0 - 300, X1));
+const pic = picture('images/avion/avion.webp', rangeNeed(START - 300, END + 2000));
 let meta = null;
 fetch('images/avion/avion.json').then((r) => r.json()).then((m) => (meta = m)).catch(() => {});
 
-const plane = { s: 0 }; // s : avancée sur le trajet, de 0 (départ) à 1 (disparu)
+/**
+ * u : position dans son plan (le dessin est en u + Q·(cx − ANCHOR)) ; u0 → u1 : son trajet, du bord gauche
+ * de l'écran au début de l'automne jusqu'au-dessus du bout de l'automne ; v : sa vitesse ; state :
+ * 'avant' (pas encore parti), 'vol', 'fini'.
+ */
+const plane = { state: 'avant', u: 0, u0: 0, u1: 1, v: 35, lastCx: 0, camV: 0 };
+const layer = (cx) => Q * (cx - ANCHOR);
+const progress = () => Math.max(0, Math.min(1, (plane.u - plane.u0) / (plane.u1 - plane.u0)));
 
-/** À chaque image du jeu (dt : temps du jeu). */
+/** Place l'avion sur son trajet, à la part p, là où on s'attend à le voir à l'écran (départ, reprise). */
+function placeAt(p, cam) {
+  plane.u0 = START - cam.viewW / 2 - WIDTH - layer(START); // juste au bord gauche de l'écran quand cx = START
+  plane.u1 = END + cam.viewW * 0.1 - layer(END); // au bout de l'automne : un peu à droite du centre
+  plane.u = plane.u0 + p * (plane.u1 - plane.u0);
+  plane.state = p >= 1 ? 'fini' : 'vol';
+}
+
+/** À chaque image du jeu (dt : temps du jeu ; il ralentit avec lui devant les aiguillages). */
 export function moveAvion(dt, cam) {
-  const cx = cam.x + cam.viewW / 2, target = Math.max(0, Math.min(1, (cx - X0) / (X1 - X0)));
-  // saut d'un coup (reprise d'une partie, nouvelle partie) : l'avion est tout de suite à sa place
-  if (Math.abs(target - plane.s) > 0.25) { plane.s = target; return; }
-  if (target <= 0 && plane.s <= 0) return; // pas encore l'automne
-  const rate = Math.max(RATE_MIN, Math.min(RATE_MAX, (target - plane.s) * 0.8));
-  plane.s = Math.min(1, plane.s + rate * dt);
+  const cx = cam.x + cam.viewW / 2, jump = Math.abs(cx - plane.lastCx) > 1500;
+  if (dt > 0 && !jump) plane.camV += ((cx - plane.lastCx) / dt - plane.camV) * Math.min(1, dt * 2); // vitesse de la caméra, lissée
+  plane.lastCx = cx;
+  if (dt <= 0) return; // temps arrêté (devant un aiguillage)
+  if (jump) {
+    // la caméra a sauté (nouvelle partie, partie reprise) : l'avion est tout de suite là où il serait
+    if (cx < START) plane.state = 'avant';
+    else placeAt(Math.min(1, (cx - START) / (END - START)), cam);
+    return;
+  }
+  if (plane.state === 'avant') {
+    if (cx >= START) placeAt(0, cam);
+    return;
+  }
+  if (plane.state !== 'vol') return;
+  // là où on aimerait le voir à l'écran (part de la largeur), selon son avancée : de gauche à droite
+  const p = progress(), x = plane.u + layer(cx), f = (x - cam.x) / cam.viewW, want = 0.1 + 0.6 * p;
+  // la vitesse qui le ramènerait en 8 s là où on s'attend à le voir : son glissement à l'écran plus ce que
+  // la caméra lui fait perdre (1 − Q de sa vitesse) ; il s'en approche en douceur, sans jamais s'arrêter
+  const target = ((want - f) * cam.viewW) / 8 + (1 - Q) * plane.camV;
+  plane.v += Math.max(-ACCEL * dt, Math.min(ACCEL * dt, target - plane.v));
+  plane.v = Math.max(VMIN, Math.min(VMAX, plane.v));
+  plane.u += plane.v * dt;
+  if (progress() >= 1) plane.state = 'fini';
 }
 
 /** Dessine l'avion (repère du monde en place), après les montagnes et avant les nuages. */
 export function drawAvion(ctx, cam, time) {
-  const s = plane.s;
-  if (s <= 0 || s >= 1 || !meta || !ready(pic)) return;
-  const cy = cam.y + cam.viewH / 2;
-  const climb = s ** 1.5; // il monte de plus en plus franchement
-  const x = cam.x + cam.viewW * (0.06 + 0.92 * s);
-  const y = Y0 - CLIMB * climb + 0.43 * (cy - 716) + 5 * Math.sin(time * 0.8) + 2 * Math.sin(time * 2.1);
+  if (plane.state !== 'vol' || !meta || !ready(pic)) return;
+  const s = progress(), cx = cam.x + cam.viewW / 2, cy = cam.y + cam.viewH / 2;
+  const x = plane.u + layer(cx);
+  const y = Y0 - CLIMB * s ** 1.5 + 0.43 * (cy - 716) + 5 * Math.sin(time * 0.8) + 2 * Math.sin(time * 2.1);
   const w = WIDTH * (1 - 0.45 * s), h = (w * meta.h) / meta.w;
-  if (x - w > cam.x + cam.viewW || y + h < cam.y || y - h > cam.y + cam.viewH) return;
-  // assiette : le nez suit à moitié la pente de la montée (au plus 10°), et se balance un peu
-  const slope = Math.atan2(-CLIMB * 1.5 * Math.sqrt(s), 0.92 * cam.viewW);
+  if (x + w < cam.x || x - w > cam.x + cam.viewW || y + h < cam.y || y - h > cam.y + cam.viewH) return;
+  // assiette : le nez suit à moitié la pente de sa montée (au plus 10°), et se balance un peu
+  const slope = Math.atan2(-CLIMB * 1.5 * Math.sqrt(s), plane.u1 - plane.u0);
   const pitch = Math.max(-0.18, slope * 0.55) + 0.015 * Math.sin(time * 1.1);
   ctx.save();
   ctx.globalAlpha = 0.92 - 0.12 * s; // voilé par l'air, de plus en plus en s'éloignant
