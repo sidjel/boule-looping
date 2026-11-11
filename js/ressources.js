@@ -141,13 +141,25 @@ export const seasonsAround = (cx, r) => seasonsBetween(cx - r, cx + r);
 const nearWin = (cx) => [cx - half - BEHIND, cx + half + NEAR];
 const farWin = (cx) => [cx - half - FAR_BEHIND, cx + half + FAR];
 
+// saisons des deux fenêtres, calculées une fois par mise à jour (même cx, même demi-largeur) et non
+// deux fois pour chacune des ~80 images : 11 Ko de déchets et jusqu'à 3 ms par mise à jour avant
+const memo = { cx: NaN, half: NaN, near: null, far: null };
+function windowsAt(cx) {
+  if (memo.cx !== cx || memo.half !== half) {
+    memo.cx = cx;
+    memo.half = half;
+    memo.near = seasonsBetween(...nearWin(cx));
+    memo.far = seasonsBetween(...farWin(cx));
+  }
+  return memo;
+}
 /** need() d'une version de saison : sert si la saison est dans la fenêtre proche, gardée dans la lointaine. */
 export function seasonNeed(...names) {
   return (cx) => {
-    const near = seasonsBetween(...nearWin(cx));
-    if (names.some((n) => near.has(n))) return 2;
-    const far = seasonsBetween(...farWin(cx));
-    return names.some((n) => far.has(n)) ? 1 : 0;
+    const w = windowsAt(cx);
+    for (const n of names) if (w.near.has(n)) return 2;
+    for (const n of names) if (w.far.has(n)) return 1;
+    return 0;
   };
 }
 
