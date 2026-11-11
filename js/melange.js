@@ -57,10 +57,31 @@ export function mixFinish(job) {
   return job.canvas;
 }
 export function mixCancel(job) {
-  if (job.canvas || job.dropped) return;
+  if (job.dropped) return;
+  if (job.canvas) { mixRecycle(job.canvas); job.canvas = null; job.dropped = true; return; } // fini, jamais montré
   job.dropped = true;
   job.gen.return();
   if (current === job) current = null;
+}
+
+/**
+ * Canevas de mélanges oubliés (morceaux loin derrière), gardés pour les suivants : un par taille,
+ * quatre au plus ; les autres sont rendus tout de suite à la carte graphique (avant : ils attendaient
+ * le ramasse-miettes, 45 Mo par partie). Pendant la partie, presque aucun canevas de mélange neuf.
+ */
+const pool = [];
+export function mixRecycle(c) {
+  if (!c || !c.width) return;
+  if (pool.length < 4 && !pool.some((p) => p.width === c.width && p.height === c.height)) pool.push(c);
+  else c.width = c.height = 0;
+}
+function blank(W, H) {
+  const i = pool.findIndex((p) => p.width === W && p.height === H);
+  if (i >= 0) return pool.splice(i, 1)[0];
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  return c;
 }
 
 /** Les trois étapes : A masquée, puis B masquée dans le canevas de travail, puis l'addition. */
@@ -69,30 +90,35 @@ function* mixSteps(A, B, sx, sw, W, H, worldAt, J) {
   const w0 = worldAt(0), w1 = worldAt(W);
   const col = (x) => ((x - w0) / (w1 - w0)) * W;
   const c0 = col(J - BLEND), c1 = col(J + BLEND);
-  const out = document.createElement('canvas');
-  out.width = W;
-  out.height = H;
-  const g = out.getContext('2d');
-  // A × (1 − t)
-  g.drawImage(A, sx, 0, sw, A.height, 0, 0, W, H);
-  g.globalCompositeOperation = 'destination-in';
-  g.fillStyle = ramp(g, c0, c1, 1, 0);
-  g.fillRect(0, 0, W, H);
-  yield;
-  // B × t, dans le canevas de travail, puis ajoutée
-  if (own.width < W || own.height < H) { own.width = Math.max(own.width, W); own.height = Math.max(own.height, H); }
-  const tg = own.getContext('2d');
-  tg.globalCompositeOperation = 'copy';
-  tg.drawImage(B, sx, 0, sw, B.height, 0, 0, W, H);
-  tg.globalCompositeOperation = 'destination-in';
-  tg.fillStyle = ramp(tg, c0, c1, 0, 1);
-  tg.fillRect(0, 0, W, H);
-  yield;
-  g.globalCompositeOperation = 'lighter';
-  g.drawImage(own, 0, 0, W, H, 0, 0, W, H);
-  g.globalCompositeOperation = 'source-over';
-  warmCanvas(out); // son dessin est fait maintenant (en préparation), pas à son premier affichage
-  return out;
+  const out = blank(W, H);
+  let finished = false;
+  try {
+    const g = out.getContext('2d');
+    // A × (1 − t) (« copy » : le canevas, s'il a déjà servi, est effacé par ce dessin)
+    g.globalCompositeOperation = 'copy';
+    g.drawImage(A, sx, 0, sw, A.height, 0, 0, W, H);
+    g.globalCompositeOperation = 'destination-in';
+    g.fillStyle = ramp(g, c0, c1, 1, 0);
+    g.fillRect(0, 0, W, H);
+    yield;
+    // B × t, dans le canevas de travail, puis ajoutée
+    if (own.width < W || own.height < H) { own.width = Math.max(own.width, W); own.height = Math.max(own.height, H); }
+    const tg = own.getContext('2d');
+    tg.globalCompositeOperation = 'copy';
+    tg.drawImage(B, sx, 0, sw, B.height, 0, 0, W, H);
+    tg.globalCompositeOperation = 'destination-in';
+    tg.fillStyle = ramp(tg, c0, c1, 0, 1);
+    tg.fillRect(0, 0, W, H);
+    yield;
+    g.globalCompositeOperation = 'lighter';
+    g.drawImage(own, 0, 0, W, H, 0, 0, W, H);
+    g.globalCompositeOperation = 'source-over';
+    warmCanvas(out); // son dessin est fait maintenant (en préparation), pas à son premier affichage
+    finished = true;
+    return out;
+  } finally {
+    if (!finished) mixRecycle(out); // mélange abandonné en cours : son canevas resservira
+  }
 }
 
 function ramp(g, c0, c1, a0, a1) {

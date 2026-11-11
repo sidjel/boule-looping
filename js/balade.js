@@ -27,7 +27,13 @@ const K = DESSIN1.K, OY = DESSIN1.offY;
 
 // les images de la balade, chargées seulement près des trois premiers niveaux (ressources.js) ; la
 // terre sert partout (texture des feuilles). Leurs copies (miroir, bord adouci) sont oubliées avec elles.
-const forget = (p, i) => { mirrors.delete(i); softs.delete(i); tiles.delete(i); };
+const forget = (p, i) => {
+  for (const m of [mirrors, softs, tiles]) {
+    const c = m.get(i);
+    if (c) c.width = c.height = 0; // sa mémoire est rendue tout de suite à la carte graphique
+    m.delete(i);
+  }
+};
 const pics = {
   terre: picture('images/balade/terre.webp'),
   champs: picture('images/balade/champs.webp', rangeNeed(-5000, 5500), forget),

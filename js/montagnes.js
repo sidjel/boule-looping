@@ -9,7 +9,7 @@
 import { biomeMix } from './biomes.js';
 import { ahead } from './avance.js';
 import { picture, ready, warmed, viewHalf, NEAR, FAR, BEHIND, FAR_BEHIND } from './ressources.js';
-import { mixTwo, mixStart, mixAdvance, mixFinish, mixCancel, mixBusy, junctionNear } from './melange.js';
+import { mixTwo, mixStart, mixAdvance, mixFinish, mixCancel, mixBusy, mixRecycle, junctionNear } from './melange.js';
 
 const KIND = { 'Été': 'ete', Automne: 'automne', Hiver: 'hiver', Pluie: 'pluie', 'Arrivée': 'arrivee' };
 
@@ -132,6 +132,7 @@ export function drawMountains(ctx, cam) {
   for (const [key, t] of tiles) {
     if (key >= k0 - 2 && key <= k + 2) continue;
     if (t.job) mixCancel(t.job); // mélange abandonné : le canevas de travail est libre
+    mixRecycle(t.canvas);
     tiles.delete(key); // loin : oubliée
   }
 }

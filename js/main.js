@@ -82,6 +82,14 @@ function resize() {
   const q = Math.min(cam.followScale, 1);
   const lower = art && q < art.q && launched && !menu?.isOpen;
   if (!art || (Math.abs(art.q - q) > 0.05 && !lower)) {
+    if (art) {
+      // les feuilles de l'ancienne taille sont rendues tout de suite à la carte graphique (avant : elles
+      // attendaient le passage du ramasse-miettes, 12 Mo par changement de taille)
+      for (const c of art.ink.values()) drop(c);
+      for (const j of art.pending.values()) drop(j.holder.canvas);
+      for (const c of art.spares) drop(c);
+      toFlush = null;
+    }
     art = {
       q, ink: new Map(), pending: new Map(), spares: [],
       body: buildBallBody(Math.min(cam.followScale * 1.5, 3), save.skin),
@@ -102,7 +110,9 @@ baladeLoaded.then(() => {
   if (!art) return;
   for (const c of art.ink.values()) keepSpare(c);
   art.ink.clear();
+  for (const j of art.pending.values()) keepSpare(j.holder.canvas);
   art.pending.clear();
+  toFlush = null;
 });
 
 /** Feuille finie : rangée (canevas sur la carte graphique, ink.js). */
@@ -158,8 +168,12 @@ function evict(k) {
  */
 const SPARE_MAX = 3;
 const canvasCount = () => art.ink.size + art.pending.size + art.spares.length;
+/** Rend tout de suite à la carte graphique la mémoire d'un canevas qui ne servira plus. */
+function drop(c) { if (c) c.width = c.height = 0; }
 function keepSpare(c) {
-  if (c && art.spares.length < SPARE_MAX && canvasCount() <= KEEP_MAX + 1) art.spares.push(c);
+  if (!c) return;
+  if (art.spares.length < SPARE_MAX && canvasCount() <= KEEP_MAX + 1) art.spares.push(c);
+  else drop(c);
 }
 function stockSpares() {
   if (art.spares.length >= SPARE_MAX || canvasCount() >= KEEP_MAX + 1) return;
@@ -805,7 +819,7 @@ function render(dt) {
     ctx.drawImage(w, 0, 0, 1, 1, 0, 0, 1, 1);
     ctx.globalAlpha = 1;
   }
-  if (toFlush && !warming) {
+  if (toFlush && toFlush.width && !warming) {
     // feuille tout juste finie : un pixel, à 1 % (invisible), pour que la carte graphique la dessine
     // maintenant, et non à son entrée à l'écran (prepare)
     ctx.setTransform(1, 0, 0, 1, 0, 0);

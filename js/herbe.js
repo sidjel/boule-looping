@@ -9,7 +9,7 @@ import { WORLD } from './track.js';
 import { biomeMix } from './biomes.js';
 import { ahead } from './avance.js';
 import { picture, ready, warmed, seasonNeed } from './ressources.js';
-import { mixTwo, mixStart, mixAdvance, mixFinish, mixCancel, mixBusy, junctionNear } from './melange.js';
+import { mixTwo, mixStart, mixAdvance, mixFinish, mixCancel, mixBusy, mixRecycle, junctionNear } from './melange.js';
 
 const KINDS = { 'Été': 'ete', Automne: 'automne', Hiver: 'hiver', Pluie: 'pluie', 'Arrivée': 'ete' };
 // une version par saison (l'été sert aussi à l'arrivée), chargée seulement près de sa saison
@@ -141,6 +141,7 @@ export class Grass {
     for (const [key, tt] of tiles) {
       if (key >= k0 - 2 && key <= k1 + 3) continue;
       if (tt.job) mixCancel(tt.job);
+      mixRecycle(tt.canvas);
       tiles.delete(key); // loin : oubliée
     }
   }

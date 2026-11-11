@@ -13,7 +13,7 @@
 import { biomeMix } from './biomes.js';
 import { ahead } from './avance.js';
 import { picture, ready, warmed, seasonNeed, rangeNeed } from './ressources.js';
-import { mixTwo, mixStart, mixAdvance, mixFinish, mixCancel, mixBusy, junctionNear } from './melange.js';
+import { mixTwo, mixStart, mixAdvance, mixFinish, mixCancel, mixBusy, mixRecycle, junctionNear } from './melange.js';
 
 const KIND = { 'Été': 'ete', Automne: 'automne', Hiver: 'hiver', Pluie: 'pluie', 'Arrivée': 'arrivee' };
 // les champs de foin : été, automne et hiver (le passage vers l'hiver) ; ils s'arrêtent au début de
@@ -57,6 +57,7 @@ function trim(map) {
   if (map.size <= 6) return;
   const k = map.keys().next().value, e = map.get(k);
   if (e.job) mixCancel(e.job);
+  mixRecycle(e.src || e.canvas);
   map.delete(k);
 }
 /** Un morceau à deux saisons peut-il être mélangé à l'avance maintenant ? (images passées par la carte graphique) */
