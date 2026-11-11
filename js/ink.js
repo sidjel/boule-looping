@@ -130,6 +130,48 @@ function icy(g, pc, i, x0, x1) {
   }
 }
 
+/**
+ * En hiver : de la neige posée sur le dessus des loopings (demande de l'auteur, 11 novembre). La boule
+ * roule du côté gauche du sens de marche ; de l'autre côté, la neige tient là où ce côté regarde le
+ * ciel, c'est-à-dire en haut des loopings, là où la route va vers la gauche (tx < 0). Son épaisseur
+ * suit l'inclinaison (22 px au sommet, rien sur les côtés). Dessinée une fois dans la feuille : aucun
+ * dessin de plus à chaque image.
+ */
+function snowCap(g, pc, i, x0, x1) {
+  const L = pc.line, n = L.length, r = rng(900 + i);
+  let run = [];
+  const flush = () => {
+    if (run.length > 4) {
+      g.save();
+      g.fillStyle = 'rgba(250,252,255,0.95)';
+      g.beginPath();
+      run.forEach(([x, y, ox, oy, d], k) => (k ? g.lineTo(x + ox * d, y + oy * d) : g.moveTo(x + ox * d, y + oy * d)));
+      for (let k = run.length - 1; k >= 0; k--) { const [x, y, ox, oy] = run[k]; g.lineTo(x + ox, y + oy); }
+      g.closePath();
+      g.fill();
+      g.restore();
+      // une ombre bleutée dans la neige (elle se détache du paysage d'hiver, blanc lui aussi), puis
+      // son bord au crayon bleu
+      pencilLine(g, run.map(([x, y, ox, oy, d]) => [x + ox * (1 + d * 0.4), y + oy * (1 + d * 0.4)]), r, { color: '#a9c2de', width: 4, alpha: 0.75, passes: 1, wobble: 0.6 });
+      pencilLine(g, run.map(([x, y, ox, oy, d]) => [x + ox * d, y + oy * d]), r, { color: '#5f80a8', width: 2.6, alpha: 0.85, passes: 2, wobble: 0.8 });
+    }
+    run = [];
+  };
+  for (let k = 1; k < n - 1; k++) {
+    const [x, y] = L[k];
+    if (x < x0 - 40 || x > x1 + 40) { flush(); continue; }
+    const snow = biomeParams(x).snow;
+    let tx = L[k + 1][0] - L[k - 1][0], ty = L[k + 1][1] - L[k - 1][1];
+    const l = Math.hypot(tx, ty) || 1;
+    tx /= l; ty /= l;
+    // côté opposé à la boule : normale (−ty, tx) ; elle regarde le ciel quand tx < 0
+    const w = Math.max(0, Math.min(1, (-tx - 0.25) / 0.6)) * snow;
+    if (w < 0.03 || snow < 0.5) { flush(); continue; }
+    run.push([x, y, -ty, tx, 2 + 20 * w * (0.85 + 0.15 * Math.sin(k * 0.21 + i))]);
+  }
+  flush();
+}
+
 /** Fosses des tremplins : cailloux au fond, ou eau quand il pleut. */
 function drawPits(g, track, x0, x1, bio) {
   JUMPS.forEach((J, z) => {
@@ -423,6 +465,7 @@ function* paintEarthAndRoad(g, track, x0, x1) {
     icy(g, pc, i, x0, x1);
     pencilLine(g, pc.line, rng(77 + i * 10), { color: '#3a2a1f', width: 6.5, alpha: 0.6, passes: 4, wobble: 1.4 });
     pencilLine(g, pc.line, rng(78 + i * 10), { color: '#1d140e', width: 2.6, alpha: 0.5, passes: 2, wobble: 0.9 });
+    snowCap(g, pc, i, x0, x1);
     yield;
   }
   drawPuddles(g, track, x0, x1);
