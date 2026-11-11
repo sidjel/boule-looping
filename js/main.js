@@ -20,7 +20,7 @@ import { Hay } from './foin.js';
 import { mark, profil, countDraws } from './profil.js';
 import { newFrame } from './avance.js';
 import { updateResources, readyAt, loadedMB, nextToWarm } from './ressources.js';
-import { biomeAt, biomeOfSheet, biomeMix } from './biomes.js';
+import { biomeAt, biomeOfSheet, biomeMix, rainAt } from './biomes.js';
 import { LOOP_ZONES } from './levels.js';
 import * as diag from './diagnostic.js';
 import { save } from './save.js';
@@ -563,7 +563,7 @@ function update(realDt) {
   mark('son, texte');
   const b = ball.biome();
   // parcours fini : la boule roule encore un peu, sans bruit
-  sound.update(run.finished ? 0 : ball.speed(), ball.onTrack && !run.finished, { ice: b.snow > 0.5, rain: biomeAt(cam.x + cam.viewW / 2).rain, gust: b.wind * weather.wind() });
+  sound.update(run.finished ? 0 : ball.speed(), ball.onTrack && !run.finished, { ice: b.snow > 0.5, rain: rainAt(cam.x + cam.viewW / 2) > 0.3, gust: b.wind * weather.wind() });
   const sheet = Math.max(0, Math.min(SHEETS - 1, Math.floor(ball.x / SHEET))), bio = biomeOfSheet(sheet);
   const where = sheet === SHEETS - 1 ? 'Arrivée' : `Niv. ${sheet + 1} · ${bio.name} · ${'★'.repeat(game.starsIn(sheet))}${'☆'.repeat(3 - game.starsIn(sheet))}`;
   const combo = game.combo >= 2 ? ` · ×${game.combo}` : '';

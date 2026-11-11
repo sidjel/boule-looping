@@ -60,7 +60,8 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
   fins brins de foin emportés par le vent au-dessus des champs et tout près (`js/foin.js`).
 - **Hiver (9 à 12)** : neige, route glacée : la boule glisse, va plus vite, répond moins aux
   gestes, et revenir en arrière est difficile.
-- **Pluie (13 à 16)** : pluie, flaques qui freinent, fosses pleines d'eau.
+- **Pluie (13 à 16)** : flaques qui freinent, fosses pleines d'eau ; il pleut aux niveaux 13 et 14, la pluie
+  cesse peu à peu au début du niveau 15 : aux niveaux 15 et 16, le soleil se couche (`js/biomes.js` : `rainAt`).
 - **Arrivée** : arc-en-ciel, banderole, temps total du parcours.
 
 **Le but** : trois étoiles par niveau (dans les loopings, au-dessus des obstacles, sur les chemins

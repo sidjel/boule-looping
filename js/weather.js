@@ -2,10 +2,10 @@
  * Météo des saisons, seulement autour de ce que voit la caméra (une centaine de particules) :
  * feuilles mortes emportées par le vent (automne), flocons (hiver), gouttes de pluie.
  */
-import { biomeShare, windAt } from './biomes.js';
+import { biomeShare, rainAt, windAt } from './biomes.js';
 import { makeAtlas, drawSprite } from './sprites.js';
 
-const MAX = { leaf: 45, snow: 90, rain: 110 };
+const MAX = { leaf: 45, snow: 90, rain: 220 };
 const LEAF = ['#c9772d', '#b5502a', '#d9a23a', '#8f5a2a'];
 
 // feuilles (une par couleur) et flocon, dessinés une fois sur une planche
@@ -63,7 +63,7 @@ export class Weather {
       const x = x0 + ((x1 - x0) * (i + 0.5)) / 6;
       want.leaf += biomeShare(x, 'wind');
       want.snow += biomeShare(x, 'snow');
-      want.rain += biomeShare(x, 'rain');
+      want.rain += rainAt(x);
     }
     const count = { leaf: 0, snow: 0, rain: 0 };
     for (const p of this.parts) count[p.kind]++;
@@ -71,7 +71,7 @@ export class Weather {
       const target = (MAX[kind] * want[kind]) / 6;
       for (let n = 0; n < 4 && count[kind] < target; n++, count[kind]++) {
         const x = x0 + Math.random() * (x1 - x0);
-        if (Math.random() > biomeShare(x, kind === 'leaf' ? 'wind' : kind)) continue; // moins de flocons au début de l'hiver
+        if (Math.random() > (kind === 'rain' ? rainAt(x) : biomeShare(x, kind === 'leaf' ? 'wind' : kind))) continue; // moins de flocons au début de l'hiver
         this.parts.push({
           kind, x, y: kind === 'leaf' ? y0 + Math.random() * (y1 - y0) : y0 - Math.random() * 200,
           vx: 0, vy: kind === 'rain' ? 1500 + Math.random() * 400 : kind === 'snow' ? 60 + Math.random() * 70 : 40,
@@ -100,18 +100,19 @@ export class Weather {
     if (!this.parts.length) return;
     const A = sheet(), M = ctx.getTransform();
     ctx.save();
-    // la pluie : toutes les gouttes en un seul tracé
+    // la pluie : toutes les gouttes en un seul tracé (plus longues, plus épaisses et plus foncées
+    // qu'avant le 11 novembre : on ne les voyait presque pas au téléphone)
     let rain = false;
     ctx.beginPath();
     for (const p of this.parts) {
       if (p.kind !== 'rain') continue;
       rain = true;
       ctx.moveTo(p.x, p.y);
-      ctx.lineTo(p.x + 9, p.y - 36);
+      ctx.lineTo(p.x + 12, p.y - 48);
     }
     if (rain) {
-      ctx.strokeStyle = 'rgba(95,120,150,0.45)';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(52,72,108,0.7)';
+      ctx.lineWidth = 4;
       ctx.lineCap = 'round';
       ctx.stroke();
     }
