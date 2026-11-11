@@ -8,8 +8,8 @@
 import { WORLD } from './track.js';
 import { biomeMix } from './biomes.js';
 import { ahead } from './avance.js';
-import { picture, ready, seasonNeed } from './ressources.js';
-import { mixTwo, junctionNear } from './melange.js';
+import { picture, ready, warmed, seasonNeed } from './ressources.js';
+import { mixTwo, mixStart, mixAdvance, mixFinish, mixCancel, mixBusy, junctionNear } from './melange.js';
 
 const KINDS = { 'Été': 'ete', Automne: 'automne', Hiver: 'hiver', Pluie: 'pluie', 'Arrivée': 'ete' };
 // une version par saison (l'été sert aussi à l'arrivée), chargée seulement près de sa saison
@@ -30,27 +30,55 @@ const ANCHOR = 1000;  // là où l'herbe est à sa place
 /** Plan de l'herbe ↔ monde : la saison de l'herbe en u est celle du sol sous la caméra quand elle y passe. */
 const worldOf = (u) => (u + Q * ANCHOR) / (1 + Q); // l'herbe en u passe au centre de l'écran quand la caméra y est
 
-/** Les couleurs (saisons) de la bande n° k ; une bande à cheval sur deux saisons est préparée une fois. */
+/**
+ * Les couleurs (saisons) de la bande n° k : { kind } (une saison), { canvas } (bande à cheval sur
+ * deux saisons, préparée une fois) ou { job } (mélange en cours, melange.js).
+ * now : la bande est à l'écran, il la faut tout de suite. Sinon (à l'avance) : une étape par appel.
+ */
 const tiles = new Map();
-function tileImage(k) {
-  if (tiles.has(k)) return tiles.get(k);
+function plan(k) {
   const u0 = k * TW, mid = biomeMix(worldOf(u0 + TW / 2)), a = biomeMix(worldOf(u0)), b = biomeMix(worldOf(u0 + TW));
-  const pure = a.t === 0 && b.t === 0 && a.a === b.a;
+  const pure = a.t === 0 && b.t === 0 && a.a === b.a && mid.t === 0;
+  const kinds = pure ? new Set([KINDS[a.a.name]])
+    : new Set([KINDS[a.a.name], KINDS[a.b.name], KINDS[b.a.name], KINDS[b.b.name], KINDS[mid.a.name], KINDS[mid.b.name]]);
+  const mm = pure ? null : [a, mid, b].find((m) => m.t > 0 && m.t < 1 && KINDS[m.a.name] !== KINDS[m.b.name]);
+  return { u0, a, b, pure, kinds, mm, two: !pure && kinds.size === 2 && !!mm };
+}
+/** La bande k peut-elle avancer sa préparation à l'avance maintenant ? */
+function canAdvance(k) {
+  const t = tiles.get(k);
+  if (t) return !!t.job;
+  const p = plan(k);
+  for (const kk of p.kinds) if (!ready(pic[kk])) return false;
+  return !p.two || (!mixBusy() && [...p.kinds].every((kk) => warmed(pic[kk])));
+}
+function tileImage(k, now = true) {
+  let t = tiles.get(k);
+  if (t && !t.job) return t;
+  if (t) {
+    const c = now ? mixFinish(t.job) : mixAdvance(t.job);
+    if (!c) return null;
+    t = { canvas: c };
+    tiles.set(k, t);
+    return t;
+  }
+  const { u0, a, b, pure, kinds, mm, two } = plan(k);
   const kind0 = KINDS[a.a.name], i0 = pic[kind0];
   if (!ready(i0)) return null;
-  if (pure && mid.t === 0) { const t = { kind: kind0 }; tiles.set(k, t); return t; }
+  if (pure) { t = { kind: kind0 }; tiles.set(k, t); return t; }
   // bande de transition : on mélange les deux saisons colonne par colonne selon le mélange du sol
-  const kinds = new Set([KINDS[a.a.name], KINDS[a.b.name], KINDS[b.a.name], KINDS[b.b.name], KINDS[mid.a.name], KINDS[mid.b.name]]);
   for (const kk of kinds) if (!ready(pic[kk])) return null;
   const W = i0.w, H = i0.h;
-  const mm = [a, mid, b].find((m) => m.t > 0 && m.t < 1 && KINDS[m.a.name] !== KINDS[m.b.name]);
-  if (kinds.size === 2 && mm) {
+  if (two) {
     // deux saisons : deux dégradés (melange.js)
     const xs = (x) => worldOf(u0 + (x / W) * TW);
     const J = junctionNear(mm === a ? xs(0) : mm === b ? xs(W) : xs(W / 2));
-    const t = { canvas: mixTwo(pic[KINDS[mm.a.name]].img, pic[KINDS[mm.b.name]].img, 0, W, W, H, xs, J) };
-    tiles.set(k, t);
-    return t;
+    const A = pic[KINDS[mm.a.name]].img, B = pic[KINDS[mm.b.name]].img;
+    if (now) { t = { canvas: mixTwo(A, B, 0, W, W, H, xs, J) }; tiles.set(k, t); return t; }
+    const job = mixStart(A, B, 0, W, W, H, xs, J);
+    if (!job) return null; // un autre mélange est en cours : à l'image suivante
+    tiles.set(k, { job });
+    return tileImage(k, false);
   }
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
@@ -65,7 +93,7 @@ function tileImage(k) {
       g.drawImage(pic[KINDS[bio.name]].img, x, 0, STEP, H, x, 0, STEP, H);
     }
   }
-  const t = { canvas: c };
+  t = { canvas: c };
   tiles.set(k, t);
   return t;
 }
@@ -109,7 +137,11 @@ export class Grass {
         ctx.drawImage(src, (a - tx - dx) * sw, y * sc, (b - a) * sw, rh * sc, a, top + y, b - a + 1, rh + 0.5);
       }
     }
-    ahead(() => tiles.has(k1 + 1), () => tileImage(k1 + 1)); // la bande suivante, à l'avance
-    for (const key of tiles.keys()) if (key < k0 - 2 || key > k1 + 3) tiles.delete(key); // loin : oubliée
+    ahead(() => !canAdvance(k1 + 1), () => tileImage(k1 + 1, false)); // la bande suivante, à l'avance, par étapes
+    for (const [key, tt] of tiles) {
+      if (key >= k0 - 2 && key <= k1 + 3) continue;
+      if (tt.job) mixCancel(tt.job);
+      tiles.delete(key); // loin : oubliée
+    }
   }
 }

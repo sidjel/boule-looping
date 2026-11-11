@@ -11,26 +11,61 @@ import { SHEET } from './levels.js';
 import { BLEND } from './biomes.js';
 import { warmCanvas } from './ressources.js';
 
-let tmp = null;
+// canevas de travail des mélanges, créé au chargement à la plus grande taille utile (montagnes :
+// 2150 de large ; champs : 829 de haut) : un grand canevas neuf, ou agrandi, coûte cher à son premier
+// dessin sur téléphone. Un seul mélange par étapes à la fois (current) s'en sert.
+const work = document.createElement('canvas');
+work.width = 2150; work.height = 829;
+work.getContext('2d').fillRect(0, 0, 1, 1);
+let current = null;
+
 /**
  * A, B : images (ou canevas) des deux saisons ; sx, sw : colonnes de la source ; W, H : taille du
  * morceau ; worldAt(col) : x du monde où la colonne col du morceau est vue (fonction linéaire) ;
- * J : x de la jonction (A avant, B après). Renvoie un canevas W × H.
+ * J : x de la jonction (A avant, B après). Renvoie un canevas W × H, tout de suite (le morceau est à
+ * l'écran) ; le mélange par étapes en cours, s'il y en a un, est d'abord fini.
  */
 export function mixTwo(A, B, sx, sw, W, H, worldAt, J) {
-  if (!tmp) tmp = document.createElement('canvas');
-  const steps = mixSteps(A, B, sx, sw, W, H, worldAt, J, tmp);
+  if (current) mixFinish(current);
+  const steps = mixSteps(A, B, sx, sw, W, H, worldAt, J);
   let r;
   do r = steps.next(); while (!r.done);
   return r.value;
 }
 
 /**
- * Le même mélange en trois étapes, une par appel de next() (une par image du jeu : montagnes.js) :
- * A masquée, puis B masquée dans own (canevas de travail à soi, pour qu'un autre mélange ne l'écrase
- * pas entre deux étapes), puis l'addition. La dernière renvoie le canevas.
+ * Le même mélange, préparé à l'avance en trois étapes (une par image du jeu). mixStart renvoie le
+ * travail, ou null si un autre mélange est en cours (mixBusy) ; mixAdvance fait une étape et renvoie
+ * le canevas une fois fini (null avant) ; mixFinish le finit d'un coup ; mixCancel l'abandonne.
+ * À ne lancer qu'une fois les deux images passées par la carte graphique (ressources.js : warmed) :
+ * un mélange d'un coup juste après le décodage coûtait 37 à 49 ms au téléphone (rapports du 10 novembre).
  */
-export function* mixSteps(A, B, sx, sw, W, H, worldAt, J, own) {
+export const mixBusy = () => !!current;
+export function mixStart(A, B, sx, sw, W, H, worldAt, J) {
+  if (current) return null;
+  current = { gen: mixSteps(A, B, sx, sw, W, H, worldAt, J), canvas: null };
+  return current;
+}
+export function mixAdvance(job) {
+  if (job.canvas || job.dropped) return job.canvas;
+  const r = job.gen.next();
+  if (r.done) { job.canvas = r.value; if (current === job) current = null; }
+  return job.canvas;
+}
+export function mixFinish(job) {
+  while (!job.canvas && !job.dropped) mixAdvance(job);
+  return job.canvas;
+}
+export function mixCancel(job) {
+  if (job.canvas || job.dropped) return;
+  job.dropped = true;
+  job.gen.return();
+  if (current === job) current = null;
+}
+
+/** Les trois étapes : A masquée, puis B masquée dans le canevas de travail, puis l'addition. */
+function* mixSteps(A, B, sx, sw, W, H, worldAt, J) {
+  const own = work;
   const w0 = worldAt(0), w1 = worldAt(W);
   const col = (x) => ((x - w0) / (w1 - w0)) * W;
   const c0 = col(J - BLEND), c1 = col(J + BLEND);

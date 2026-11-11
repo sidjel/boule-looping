@@ -9,7 +9,7 @@
 import { biomeMix } from './biomes.js';
 import { ahead } from './avance.js';
 import { picture, ready, warmed, viewHalf, NEAR, FAR, BEHIND, FAR_BEHIND } from './ressources.js';
-import { mixTwo, mixSteps, junctionNear } from './melange.js';
+import { mixTwo, mixStart, mixAdvance, mixFinish, mixCancel, mixBusy, junctionNear } from './melange.js';
 
 const KIND = { 'Été': 'ete', Automne: 'automne', Hiver: 'hiver', Pluie: 'pluie', 'Arrivée': 'arrivee' };
 
@@ -43,16 +43,9 @@ function mountainNeed(name) {
 const pic = {};
 for (const [name, k] of Object.entries(KIND)) pic[k] = picture(`images/montagnes/${k}.webp`, mountainNeed(name));
 const anyReady = () => Object.values(pic).find(ready);
-// canevas de travail des mélanges par étapes (un seul à la fois : busy), créé au chargement, et non
-// en pleine partie (un grand canevas neuf coûte cher à son premier dessin sur téléphone)
-const work = document.createElement('canvas');
-work.width = 2150; work.height = 380; // taille des images de montagnes
-work.getContext('2d').fillRect(0, 0, 1, 1);
-let busy = false;
-
 /**
  * Morceau n° k : { kind } (une seule saison : l'image de la saison), { canvas } (mélange, préparé une
- * fois) ou { job } (mélange en cours, melange.js : mixSteps).
+ * fois) ou { job } (mélange en cours, melange.js : mixStart).
  * now : le morceau est à l'écran, il le faut tout de suite (mélange fini d'un coup s'il le faut).
  * Sinon (préparation à l'avance) : une étape du mélange par appel, et seulement une fois les deux
  * images passées par la carte graphique (avant : un mélange d'un coup juste après le décodage de
@@ -71,18 +64,16 @@ function canAdvance(k) {
   if (t) return !!t.job;
   const p = plan(k);
   for (const kk of p.kinds) if (!ready(pic[kk])) return false;
-  return !p.two || [...p.kinds].every((kk) => warmed(pic[kk]));
+  return !p.two || (!mixBusy() && [...p.kinds].every((kk) => warmed(pic[kk])));
 }
 function tileImage(k, now = true) {
   let t = tiles.get(k);
   if (t && !t.job) return t;
   if (t) {
     // mélange en cours : une étape (à l'avance), ou la fin d'un coup (à l'écran)
-    let r;
-    do r = t.job.next(); while (now && !r.done);
-    if (!r.done) return null;
-    busy = false;
-    t = { canvas: r.value };
+    const c = now ? mixFinish(t.job) : mixAdvance(t.job);
+    if (!c) return null;
+    t = { canvas: c };
     tiles.set(k, t);
     return t;
   }
@@ -96,9 +87,10 @@ function tileImage(k, now = true) {
     const xs = (x) => worldOf(u0 + (x / W) * TW);
     const J = junctionNear(xs(W * (marks.indexOf(mid) / 10)));
     const A = pic[KIND[mid.a.name]].img, B = pic[KIND[mid.b.name]].img;
-    if (now || busy) { t = { canvas: mixTwo(A, B, 0, W, W, H, xs, J) }; tiles.set(k, t); return t; }
-    busy = true;
-    tiles.set(k, { job: mixSteps(A, B, 0, W, W, H, xs, J, work) });
+    if (now) { t = { canvas: mixTwo(A, B, 0, W, W, H, xs, J) }; tiles.set(k, t); return t; }
+    const job = mixStart(A, B, 0, W, W, H, xs, J);
+    if (!job) return null; // un autre mélange est en cours : à l'image suivante
+    tiles.set(k, { job });
     return tileImage(k, false);
   }
   const c = document.createElement('canvas');
@@ -139,7 +131,7 @@ export function drawMountains(ctx, cam) {
   ahead(() => !canAdvance(k), () => tileImage(k, false)); // la bande suivante, à l'avance, par étapes
   for (const [key, t] of tiles) {
     if (key >= k0 - 2 && key <= k + 2) continue;
-    if (t.job) busy = false; // mélange abandonné : le canevas de travail est libre
+    if (t.job) mixCancel(t.job); // mélange abandonné : le canevas de travail est libre
     tiles.delete(key); // loin : oubliée
   }
 }

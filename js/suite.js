@@ -12,8 +12,8 @@
  */
 import { biomeMix } from './biomes.js';
 import { ahead } from './avance.js';
-import { picture, ready, seasonNeed, rangeNeed } from './ressources.js';
-import { mixTwo, junctionNear } from './melange.js';
+import { picture, ready, warmed, seasonNeed, rangeNeed } from './ressources.js';
+import { mixTwo, mixStart, mixAdvance, mixFinish, mixCancel, mixBusy, junctionNear } from './melange.js';
 
 const KIND = { 'Été': 'ete', Automne: 'automne', Hiver: 'hiver', Pluie: 'pluie', 'Arrivée': 'arrivee' };
 // les champs de foin : été, automne et hiver (le passage vers l'hiver) ; ils s'arrêtent au début de
@@ -44,25 +44,67 @@ function piece(k) {
   return { c0: t0, c1: t1, u: u0 + W * S + (k - 1) * (t1 - t0) * S };
 }
 
-/** Image d'un morceau aux couleurs de la saison (mélange colonne par colonne aux changements de saison). */
+/** Un mélange en cours ({ job }) devient { [key]: canevas } une fois fini ; null tant qu'il ne l'est pas. */
+function settle(map, k, e, key, now) {
+  const c = now ? mixFinish(e.job) : mixAdvance(e.job);
+  if (!c) return null;
+  const out = { [key]: c, sx: 0 };
+  map.set(k, out);
+  return out;
+}
+/** Oublie le plus ancien morceau d'un cache trop plein (son mélange en cours est abandonné). */
+function trim(map) {
+  if (map.size <= 6) return;
+  const k = map.keys().next().value, e = map.get(k);
+  if (e.job) mixCancel(e.job);
+  map.delete(k);
+}
+/** Un morceau à deux saisons peut-il être mélangé à l'avance maintenant ? (images passées par la carte graphique) */
+const mixable = (pics) => !mixBusy() && pics.every(warmed);
+
+/**
+ * Image d'un morceau aux couleurs de la saison (mélange colonne par colonne aux changements de saison).
+ * now : le morceau est à l'écran, il le faut tout de suite ; sinon (à l'avance) le mélange se fait
+ * par étapes, une par appel (melange.js).
+ */
 const cache = new Map();
-function pieceImage(k, worldOf) {
-  if (cache.has(k)) return cache.get(k);
-  const p = piece(k), S = meta.w / meta.W, R = meta.res;
+function hayPlan(k, worldOf) {
+  const p = piece(k), S = meta.w / meta.W;
   const at = (c) => biomeMix(worldOf(p.u + (c - p.c0) * S));
   const marks = [];
   for (let c = p.c0; c <= p.c1; c += (p.c1 - p.c0) / 10) marks.push(at(c));
   const kinds = new Set(marks.flatMap((m) => [KIND[m.a.name], KIND[m.b.name]]));
+  const mid = marks.find((m) => m.t > 0 && m.t < 1);
+  return { p, S, at, marks, kinds, mid, two: kinds.size === 2 && !!mid };
+}
+function hayCanAdvance(k, worldOf) {
+  const e = cache.get(k);
+  if (e) return !!e.job;
+  const pl = hayPlan(k, worldOf);
+  for (const kk of pl.kinds) if (!ready(pic[kk])) return false;
+  return !pl.two || mixable([...pl.kinds].map((kk) => pic[kk]));
+}
+function pieceImage(k, worldOf, now = true) {
+  const e = cache.get(k);
+  if (e) return e.job ? settle(cache, k, e, 'src', now) : e;
+  const { p, S, at, marks, kinds, mid, two } = hayPlan(k, worldOf), R = meta.res;
   for (const kk of kinds) if (!ready(pic[kk])) return null;
   let out;
   if (kinds.size === 1) out = { kind: [...kinds][0], sx: p.c0 * R }; // l'image de la saison, prise au dessin
-  else if (kinds.size === 2 && marks.some((m) => m.t > 0 && m.t < 1)) {
+  else if (two) {
     // deux saisons : deux dégradés (melange.js)
-    const mid = marks.find((m) => m.t > 0 && m.t < 1), H = pic[[...kinds][0]].h, w = Math.round((p.c1 - p.c0) * R);
+    const H = pic[[...kinds][0]].h, w = Math.round((p.c1 - p.c0) * R);
     const xs = (x) => worldOf(p.u + (x / R) * S);
     const J = junctionNear(xs(w * (marks.indexOf(mid) / 10)));
-    out = { src: mixTwo(pic[KIND[mid.a.name]].img, pic[KIND[mid.b.name]].img, p.c0 * R, w, w, H, xs, J), sx: 0 };
-    if (cache.size > 6) cache.delete(cache.keys().next().value);
+    const A = pic[KIND[mid.a.name]].img, B = pic[KIND[mid.b.name]].img;
+    if (now) out = { src: mixTwo(A, B, p.c0 * R, w, w, H, xs, J), sx: 0 };
+    else {
+      const job = mixStart(A, B, p.c0 * R, w, w, H, xs, J);
+      if (!job) return null; // un autre mélange est en cours : à l'image suivante
+      cache.set(k, { job });
+      trim(cache);
+      return pieceImage(k, worldOf, false);
+    }
   } else {
     const H = pic[[...kinds][0]].h, w = Math.round((p.c1 - p.c0) * R), c = document.createElement('canvas');
     c.width = w; c.height = H;
@@ -78,16 +120,15 @@ function pieceImage(k, worldOf) {
       }
     }
     out = { src: c, sx: 0 };
-    if (cache.size > 6) cache.delete(cache.keys().next().value);
   }
   cache.set(k, out);
+  if (!out.kind) trim(cache);
   return out;
 }
 
 /** Morceau n° j du paysage de pluie, aux couleurs de la pluie ou du soir (mélange colonne par colonne). */
 const rainCache = new Map();
-function rainImage(j, worldOf) {
-  if (rainCache.has(j)) return rainCache.get(j);
+function rainPlan(j, worldOf) {
   const P = winter.pluie, u = P.u + j * P.w;
   const any = ready(RAIN.pluie) ? RAIN.pluie : ready(RAIN.arrivee) ? RAIN.arrivee : null;
   if (!any) return null;
@@ -95,33 +136,42 @@ function rainImage(j, worldOf) {
   const at = (x) => biomeMix(worldOf(u + x * px));
   const kinds = new Set();
   for (let x = 0; x <= W; x += W / 10) { const m = at(x); kinds.add(rainKind(m.a.name)); if (m.t > 0) kinds.add(rainKind(m.b.name)); }
+  return { u, any, W, px, at, kinds };
+}
+function rainCanAdvance(j, worldOf) {
+  const e = rainCache.get(j);
+  if (e) return !!e.job;
+  const pl = rainPlan(j, worldOf);
+  if (!pl) return false;
+  for (const k of pl.kinds) if (!ready(RAIN[k])) return false;
+  return pl.kinds.size === 1 || mixable([RAIN.pluie, RAIN.arrivee]);
+}
+function rainImage(j, worldOf, now = true) {
+  const e = rainCache.get(j);
+  if (e) return e.job ? settle(rainCache, j, e, 'canvas', now) : e;
+  const pl = rainPlan(j, worldOf);
+  if (!pl) return null;
+  const { u, any, W, px, at, kinds } = pl;
   for (const k of kinds) if (!ready(RAIN[k])) return null;
   let out;
   if (kinds.size === 1) out = { kind: [...kinds][0] }; // l'image de la saison, prise au dessin
-  else if (true) {
+  else {
     // pluie → arrivée : deux dégradés (melange.js) ; la jonction est le début de l'arrivée
     const xs = (x) => worldOf(u + x * px);
     let J = 0;
     for (let x = 0; x <= W; x += W / 10) { const m = at(x); if (m.t > 0 && m.t < 1) { J = junctionNear(xs(x)); break; } }
-    out = { canvas: mixTwo(RAIN.pluie.img, RAIN.arrivee.img, 0, W, W, any.h, xs, J || junctionNear(xs(W / 2))) };
-  } else {
-    const a = RAIN.pluie.img, b = RAIN.arrivee.img, c = document.createElement('canvas');
-    c.width = W; c.height = any.h;
-    const g = c.getContext('2d');
-    g.globalCompositeOperation = 'lighter';
-    for (let x = 0; x < W; x += 4) {
-      const m = at(x + 2);
-      const wB = (rainKind(m.a.name) === 'arrivee' ? 1 - m.t : 0) + (rainKind(m.b.name) === 'arrivee' ? m.t : 0);
-      for (const [im, w] of [[a, 1 - wB], [b, wB]]) {
-        if (w < 0.004) continue;
-        g.globalAlpha = w;
-        g.drawImage(im, x, 0, 4, c.height, x, 0, 4, c.height);
-      }
+    J = J || junctionNear(xs(W / 2));
+    if (now) out = { canvas: mixTwo(RAIN.pluie.img, RAIN.arrivee.img, 0, W, W, any.h, xs, J) };
+    else {
+      const job = mixStart(RAIN.pluie.img, RAIN.arrivee.img, 0, W, W, any.h, xs, J);
+      if (!job) return null; // un autre mélange est en cours : à l'image suivante
+      rainCache.set(j, { job });
+      trim(rainCache);
+      return rainImage(j, worldOf, false);
     }
-    out = { canvas: c };
   }
-  if (rainCache.size > 6) rainCache.delete(rainCache.keys().next().value);
   rainCache.set(j, out);
+  trim(rainCache);
   return out;
 }
 
@@ -147,7 +197,7 @@ export function drawSuite(g, ox, oy, x0, x1, worldOf) {
   // les champs, jusqu'au début du paysage d'hiver (le morceau suivant est préparé à l'avance)
   for (let k = 0; k <= winter.k; k++) {
     if (hayPiece(k, k === winter.k ? winter.entree.u + 1 : undefined)) {
-      ahead(() => cache.has(k), () => pieceImage(k, worldOf));
+      ahead(() => !hayCanAdvance(k, worldOf), () => pieceImage(k, worldOf, false));
       return;
     }
   }
@@ -163,7 +213,7 @@ export function drawSuite(g, ox, oy, x0, x1, worldOf) {
   const P = winter.pluie;
   for (let j = Math.max(0, Math.floor((x0 - ox - P.u) / P.w)); j < 400; j++) {
     const x = ox + P.u + j * P.w;
-    if (x > x1) { ahead(() => rainCache.has(j), () => rainImage(j, worldOf)); break; }
+    if (x > x1) { ahead(() => !rainCanAdvance(j, worldOf), () => rainImage(j, worldOf, false)); break; }
     const im = rainImage(j, worldOf);
     const src = im && (im.canvas || (ready(RAIN[im.kind]) ? RAIN[im.kind].img : null));
     if (src) g.drawImage(src, x, y, P.w + 0.5, H);
