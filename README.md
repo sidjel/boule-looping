@@ -85,7 +85,7 @@ touche une case (ou 1 à 4 au clavier) pour l'utiliser quand il veut. Un bonus p
 ↺ (ou une chute) rend la réserve de l'entrée du niveau et les bonus du niveau situés après le point de
 reprise. La réserve est gardée avec la partie (« Continuer »).
 rouge = élan · verte = bond (aussi en l'air : double saut) · jaune = plume (gravité réduite 6 s) ·
-bleue = la boule colle à la route 6 s.
+bleue = ralenti (le temps passe deux fois moins vite pendant 5 s, écran bleuté, son étouffé).
 
 **Aiguillages** (un par saison) : à l'approche, le temps ralentit fortement (la boule avance encore
 un peu), l'écran bleuit, le son s'étouffe ; deux boutons posés au début de chaque chemin permettent

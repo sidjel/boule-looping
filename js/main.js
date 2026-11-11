@@ -62,7 +62,9 @@ const SLOW = 0.12;            // devant un aiguillage, le temps passe 8 fois moi
 const FORK_ZONE = 750;        // px avant l'embranchement où le temps ralentit
 const FORK_SHOW = 1500;       // px avant l'embranchement où les boutons apparaissent
 const FORK_STOP = 90;         // px : sans choix, le temps s'arrête tout au bord de l'embranchement
-const WORDS = { red: 'Boost !', blue: 'Colle !', green: 'Bond !', yellow: 'Plume !' };
+const WORDS = { red: 'Boost !', blue: 'Ralenti !', green: 'Bond !', yellow: 'Plume !' };
+const SLOW_BONUS = 0.5;       // bonus bleu : le temps passe deux fois moins vite…
+const SLOW_BONUS_S = 5;       // …pendant 5 s de vrai temps
 const vibrate = (ms) => save.options.vibrate && navigator.vibrate?.(ms);
 
 let art = null;
@@ -394,6 +396,7 @@ function toggleMusic() {
 
 /* ---------- partie : temps, statistiques, sauvegarde, reprise ---------- */
 
+let slowBonus = 0, soundSlow = false; // bonus bleu : secondes de ralenti restantes ; son étouffé en cours
 let last = performance.now(), time = 0, launched = false, timeScale = 1, airSlow = 0, infoOpen = false, airTime = 0, tutorial = false;
 const run = { time: 0, running: false, finished: false, loops: 0, bonuses: 0 };
 let lastSave = 0;
@@ -420,6 +423,7 @@ function retryPoint() {
 function restart(fromStart = false) {
   const lv = fromStart ? 0 : level(), point = fromStart ? null : retryPoint();
   ball.respawn(lv, point);
+  slowBonus = 0;
   restoreReserve(lv, fromStart ? null : point ? point.x : lv * SHEET);
   if (fromStart) game.reset();
   else if (!point || point.x < lv * SHEET + 60) game.enterLevel(lv);
@@ -477,11 +481,15 @@ function update(realDt) {
     input.resetAsked = false;
     restart();
   }
-  const wasSlow = !!slow, choosing = updateForks();
+  const choosing = updateForks();
   cam.focus = near && near.x - ball.x < FORK_ZONE + 150 ? near.x : null;
-  if (!!choosing !== wasSlow) sound.slow(!!choosing);
+  // bonus bleu (ralenti) : compté en vrai temps ; sa jauge et la teinte de la boule suivent ball.fx.blue
+  slowBonus = Math.max(0, slowBonus - realDt);
+  ball.fx.blue = slowBonus;
+  const muffled = !!choosing || slowBonus > 0; // son étouffé : aiguillage ou ralenti
+  if (muffled !== soundSlow) { soundSlow = muffled; sound.slow(muffled); }
   updateTutorial();
-  const target = freeze ? 0 : choosing ? SLOW : tutorial ? 0.3 : airSlow > 0 ? 0.45 : 1;
+  const target = freeze ? 0 : choosing ? SLOW : tutorial ? 0.3 : slowBonus > 0 ? SLOW_BONUS : airSlow > 0 ? 0.45 : 1;
   airSlow = Math.max(0, airSlow - realDt);
   timeScale = freeze ? 0 : timeScale + (target - timeScale) * Math.min(1, realDt * 6);
   const dt = realDt * timeScale;
@@ -598,7 +606,8 @@ function useBonus(c) {
   if (!stock[c] || menu.isOpen || infoOpen || !finish.hidden || !askFull.hidden || portrait()) return;
   stock[c]--;
   refreshReserve();
-  ball.bonus(c);
+  if (c === 'blue') slowBonus = SLOW_BONUS_S; // le ralenti est compté ici, en vrai temps
+  else ball.bonus(c);
   const col = BONUS[c].color;
   fx.burst(ball.x, ball.y, [`rgb(${col})`, `rgb(${col.map((v) => Math.min(255, v + 50))})`]);
   fx.text(WORDS[c], ball.x, ball.y - 90);

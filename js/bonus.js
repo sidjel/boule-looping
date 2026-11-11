@@ -2,7 +2,7 @@
  * Boules bonus, dessinées au crayon (la boule rouge vient du dessin ; les autres en sont
  * des copies recolorées) :
  * - rouge : coup d'élan ;
- * - bleue : la boule colle à la route pendant 6 s (elle ne tombe plus des loopings) ;
+ * - bleue : ralenti, le temps passe deux fois moins vite pendant 5 s ;
  * - verte : bond, la boule saute ;
  * - jaune : plume, gravité réduite pendant 6 s (sauts plus longs, montées plus faciles).
  * Une boule bonus touchée va dans la réserve du joueur (main.js : stock) et ne revient pas : elle est
@@ -19,7 +19,7 @@ const HAND = '"Segoe Print", "Bradley Hand", "Chalkboard SE", "Comic Sans MS", "
 /** Ce que fait chaque bonus : mot écrit sous la boule, et explication affichée quand on la prend. */
 export const BONUS_INFO = {
   red: { word: 'élan', title: 'Bonus rouge : élan', text: 'Coup d’accélérateur dans le sens de la marche.' },
-  blue: { word: 'colle', title: 'Bonus bleu : colle', text: 'Pendant 6 s, la boule colle à la route : elle ne tombe plus du haut des loopings.' },
+  blue: { word: 'ralenti', title: 'Bonus bleu : ralenti', text: 'Pendant 5 s, le temps passe deux fois moins vite : le temps de viser un saut, une plateforme, une étoile.' },
   green: { word: 'bond', title: 'Bonus vert : bond', text: 'La boule fait un grand saut, même en l’air (double saut).' },
   yellow: { word: 'plume', title: 'Bonus jaune : plume', text: 'Pendant 6 s, la boule devient légère : sauts plus longs, montées plus faciles.' },
 };

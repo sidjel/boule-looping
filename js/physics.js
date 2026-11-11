@@ -11,7 +11,8 @@
  * - Saisons : sur la glace elle glisse (accélère davantage, presque sans frottement, répond
  *   moins aux gestes, surtout pour revenir en arrière) ; le vent d'automne la pousse ;
  *   les flaques et l'eau la freinent.
- * - Bonus : rouge = élan, bleu = colle à la route, vert = bond, jaune = plume (gravité réduite).
+ * - Bonus : rouge = élan, vert = bond (aussi en l'air), jaune = plume (gravité réduite) ; le bleu (ralenti)
+ *   ne touche pas la physique : main.js ralentit le temps.
  * - Au bout d'un tronçon, elle passe au suivant (à un aiguillage : le chemin choisi).
  */
 import { WORLD, SHEET, JUMPS, BALL_R, sample, segmentsNear } from './track.js';
@@ -38,7 +39,7 @@ const HOP_FORWARD = 260;          // px/s de poussée vers l'avant au saut
 /** Durées des effets de bonus (s) et leur couleur. */
 export const BONUS = {
   red: { time: 2.6, color: [230, 75, 52] },
-  blue: { time: 6, color: [70, 130, 225] },
+  blue: { time: 5, color: [70, 130, 225] }, // ralenti (compté en vrai temps par main.js)
   green: { time: 1.6, color: [70, 175, 80] },
   yellow: { time: 6, color: [235, 190, 40] },
 };
@@ -193,7 +194,7 @@ export class Ball {
     let N = this.v * this.v * p.k - G * grav * p.ny;
     const looping = SPEED.stickLoops && this.pc.inLoop[p.i] === 1;
     if (N < 0) {
-      const glued = this.fx.blue > 0 || looping; // dans un looping : plaquée à la paroi
+      const glued = looping; // dans un looping : plaquée à la paroi
       if (p.ny > 0.15 && !glued) return this.takeOff(p);
       const z = this.pc.jump[p.i];
       if (z && this.v > 0 && !glued) {
