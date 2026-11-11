@@ -58,10 +58,11 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
   lac) jusqu'au bout du parcours, aux couleurs grises de la pluie, puis du soir à l'arrivée.
 - **Automne (5 à 8)** : des feuilles mortes posées sur la route, qui s'envolent quand la boule passe dessus
   puis retombent (`js/weather.js` : `updateGround`) ; vent en rafales qui gêne l'avancée.
-  Un petit avion au loin (`js/avion.js`, `images/avion/`, `tools/preparer-avion.py`) entre par la gauche au
-  début de l'automne, juste au-dessus des montagnes, traverse le ciel en montant, passe derrière les nuages et
-  sort par le haut de l'écran au bout de l'automne. Il vole par lui-même (jamais arrêté, jamais en arrière) ;
-  très loin, il glisse à peine à l'écran quand la caméra bouge, et change de vitesse peu à peu pour rester en vue.
+  Un petit avion au loin (`js/avion.js`, `images/avion/`, `tools/preparer-avion.py`) part caché derrière la grande
+  butte de terre du niveau 4, en sort tout de suite, traverse le ciel de l'automne en montant, passe derrière les
+  nuages et sort par le haut de l'écran au bout de l'automne. Il vole par lui-même, dans le plan des montagnes :
+  sa position dans le monde ne diminue jamais (boule arrêtée ou en arrière, il poursuit sa route) ; il change de
+  vitesse peu à peu pour rester en vue.
 - **Hiver (9 à 12)** : neige, route glacée : la boule glisse, va plus vite, répond moins aux
   gestes, et revenir en arrière est difficile.
 - **Pluie (13 à 16)** : flaques qui freinent, fosses pleines d'eau ; il pleut aux niveaux 13 à 15, la pluie
