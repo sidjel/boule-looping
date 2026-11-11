@@ -21,14 +21,14 @@ const PEAKS = 500;              // haut de la bande (monde), quand la caméra es
 /** Plan des montagnes ↔ monde : la saison en u est celle du sol sous la caméra quand elles y passent. */
 const worldOf = (u) => (u - Q * ANCHOR) / (1 - Q);
 /**
- * À l'arrivée de l'hiver, les montagnes sont déjà enneigées (demande de l'auteur) : leur passage à
- * l'hiver est avancé de LEAD px du monde. Quand la caméra arrive au début de l'hiver, le bord gauche
- * de l'écran montre les montagnes de x − 2 290 en vue d'ensemble (x − 1 430 en vue suivie) : avec
- * 2 700, tout l'écran est déjà en hiver. Le décalage vaut pour tout un morceau (linéaire dans le
+ * À l'approche de l'hiver, les montagnes sont déjà bien enneigées (demande de l'auteur) : leur passage
+ * à l'hiver est avancé de LEAD px du monde. Le bord gauche de l'écran montre les montagnes de
+ * x − 2 290 en vue d'ensemble (x − 1 430 en vue suivie) : avec 4 800, elles sont toutes blanches
+ * pendant tout le niveau 8 ; elles commencent à blanchir, au bord droit, vers la fin du niveau 5. Le décalage vaut pour tout un morceau (linéaire dans le
  * morceau, pour le mélange de melange.js) : les morceaux qui touchent la zone avancée sont décalés ;
  * à leurs bords, les saisons sont pures (automne avant, hiver après), donc aucun raccord visible.
  */
-const WINTER = 8 * SHEET, LEAD = 2700;
+const WINTER = 8 * SHEET, LEAD = 4800;
 const shiftOf = (k) => {
   const a = worldOf(k * TW), b = worldOf((k + 1) * TW);
   return b > WINTER - BLEND - LEAD && a < WINTER + BLEND ? LEAD : 0;
