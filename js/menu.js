@@ -61,7 +61,7 @@ export class Menu {
       html = card('Comment jouer', `<ul class="aide">
         <li><b>Glisser puis lâcher</b> : lance la boule. Plus le doigt va vite, plus elle part vite.</li>
         <li><b>Toucher brièvement l'écran</b> : la boule saute (si elle touche la route). Il faut sauter par-dessus les rochers, troncs, tas de feuilles ou de neige, les grandes flaques, et de marche en marche.</li>
-        <li><b>Étoiles</b> : trois par niveau, dans les loopings, au-dessus des obstacles, sur les chemins risqués. Elles débloquent des boules.</li>
+        <li><b>Étoiles</b> : trois par niveau (deux au premier), dans les loopings, au-dessus des obstacles, sur les chemins risqués. Elles débloquent des boules.</li>
         <li><b>Enchaînements</b> : looping, saut, obstacle, bonus, étoile à moins de 3 s d'écart multiplient les points (×2, ×3…).</li>
         <li><b>Médailles</b> : or, argent ou bronze selon ton temps dans chaque niveau ; la boule grise est ton meilleur passage.</li>
         <li><b>Doigt posé sans bouger</b> : la boule roule doucement vers le doigt.</li>

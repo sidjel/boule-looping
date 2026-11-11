@@ -64,7 +64,7 @@ une boule en métal roule sur une route pleine de loopings, de tremplins et d'ai
   cesse peu à peu au début du niveau 16 : au niveau 16, le soleil se couche (`js/biomes.js` : `rainAt`).
 - **Arrivée** : arc-en-ciel, banderole, temps total du parcours.
 
-**Le but** : trois étoiles par niveau (dans les loopings, au-dessus des obstacles, sur les chemins
+**Le but** : trois étoiles par niveau, deux au niveau 1 (dans les loopings, au-dessus des obstacles, sur les chemins
 risqués), une médaille de temps (or, argent, bronze), et des points multipliés quand on enchaîne
 looping, saut, obstacle franchi, bonus, étoile ou atterrissage parfait (×2, ×3…). Un petit bilan
 s'affiche à chaque niveau ; la boule grise est ton meilleur passage. Les étoiles débloquent des

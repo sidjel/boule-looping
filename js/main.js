@@ -563,7 +563,7 @@ function update(realDt) {
   // parcours fini : la boule roule encore un peu, sans bruit
   sound.update(run.finished ? 0 : ball.speed(), ball.onTrack && !run.finished, { ice: b.snow > 0.5, rain: rainAt(cam.x + cam.viewW / 2) > 0.3, gust: b.wind * weather.wind() });
   const sheet = Math.max(0, Math.min(SHEETS - 1, Math.floor(ball.x / SHEET))), bio = biomeOfSheet(sheet);
-  const where = sheet === SHEETS - 1 ? 'Arrivée' : `Niv. ${sheet + 1} · ${bio.name} · ${'★'.repeat(game.starsIn(sheet))}${'☆'.repeat(3 - game.starsIn(sheet))}`;
+  const where = sheet === SHEETS - 1 ? 'Arrivée' : `Niv. ${sheet + 1} · ${bio.name} · ${'★'.repeat(game.starsIn(sheet))}${'☆'.repeat(game.starsOf(sheet) - game.starsIn(sheet))}`;
   const combo = game.combo >= 2 ? ` · ×${game.combo}` : '';
   hud.textContent = `${where} · ${game.score} pts${combo}${run.running || run.finished ? ` · ${clock(run.time)}` : ''}`;
   drawGauges();
@@ -624,7 +624,7 @@ function showRecap(r) {
   if (!r || r.level < 0 || r.level > SHEETS - 2) return;
   const m = medalTimes(r.level), medal = r.medal ? `<span class="medaille ${r.medal}">${r.medal}</span>` : '<span class="medaille">sans médaille</span>';
   const next = r.medal === 'or' ? '' : ` <small>· or en ${Math.round(m.or)} s</small>`;
-  const html = `<b>Niveau ${r.level + 1}</b> · ${'★'.repeat(r.stars)}${'☆'.repeat(3 - r.stars)} · ${Math.round(r.time)} s ${medal}${r.combo >= 2 ? ` · enchaînement ×${r.combo}` : ''}${r.newRecord ? ' · <b>record !</b>' : ''}${next}`;
+  const html = `<b>Niveau ${r.level + 1}</b> · ${'★'.repeat(r.stars)}${'☆'.repeat(Math.max(0, game.starsOf(r.level) - r.stars))} · ${Math.round(r.time)} s ${medal}${r.combo >= 2 ? ` · enchaînement ×${r.combo}` : ''}${r.newRecord ? ' · <b>record !</b>' : ''}${next}`;
   recap = { html, t: 0 };
 }
 
@@ -722,7 +722,7 @@ function arrive() {
   $('temps').textContent = clock(run.time);
   const stars = Array.from({ length: SHEETS - 1 }, (_, k) => game.starsIn(k)).reduce((a, b) => a + b, 0);
   run.stars = stars;
-  $('stats').textContent = `${game.score} points · ${stars} ★ sur ${(SHEETS - 1) * 3} · ${run.loops} loopings · ${run.bonuses} bonus · meilleur enchaînement ×${game.bestCombo}`;
+  $('stats').textContent = `${game.score} points · ${stars} ★ sur ${game.stars.length} · ${run.loops} loopings · ${run.bonuses} bonus · meilleur enchaînement ×${game.bestCombo}`;
   $('nom').value = save.lastName || '';
   $('fin-saisie').hidden = false;
   $('fin-scores').innerHTML = '';

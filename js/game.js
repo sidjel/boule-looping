@@ -81,6 +81,11 @@ export class Game {
     return this.stars.filter((s) => s.level === k && s.got).length;
   }
 
+  /** Nombre d'étoiles du niveau k (trois, deux au niveau 1), prises ou non. */
+  starsOf(k) {
+    return this.stars.filter((s) => s.level === k).length;
+  }
+
   /** Un exploit : points × multiplicateur d'enchaînement. Renvoie le multiplicateur. */
   feat(kind) {
     this.combo = this.comboTime > 0 ? this.combo + 1 : 1;

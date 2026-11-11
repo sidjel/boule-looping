@@ -164,9 +164,13 @@ export const PUDDLES = GEN.puddles;
 export const OBSTACLES = GEN.obstacles;
 /** Points de reprise juste avant les passages difficiles. */
 export const RETRIES = GEN.retries;
-/** Étoiles : trois par niveau (niveaux 1 à 4 placées à la main, au-dessus de la route ou dans les loopings). */
+/**
+ * Étoiles : trois par niveau, deux au niveau 1 (niveaux 1 à 4 placées à la main, au-dessus de la route
+ * ou dans les loopings). L'étoile posée là où la boule apparaît, en haut de la butte, est retirée :
+ * on l'avait sans rien faire.
+ */
 export const STARS = [
-  { x: 60, y: 488 }, { x: 684, y: 805 }, { x: 1239, y: 689 },
+  { x: 684, y: 805 }, { x: 1239, y: 689 },
   { x: 2195, y: 590 }, { x: 3120, y: 880 }, { x: 3812, y: 801 },
   { x: 4704, y: 828 }, { x: 5019, y: 963 }, { x: 5480, y: 852 },
   { x: 7510, y: 747 }, { x: 7080, y: 300 }, { x: 7450, y: 470 },
